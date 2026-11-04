@@ -17,7 +17,7 @@ function Row({ stocktakeId, locationId, shelf, item }: { stocktakeId: string; lo
         <p className="text-xs text-ink-faint">{shelf} · {item.code}</p>
       </div>
       <form action={action} className="flex items-center gap-2">
-        <input name="qty" inputMode="decimal" required placeholder="რაოდენობა" className={`${inputClass} text-base`} />
+        <input name="qty" inputMode="numeric" pattern="[0-9]*" required placeholder="რაოდენობა" className={`${inputClass} text-base`} />
         <button type="submit" disabled={pending} className={`shrink-0 rounded-control border px-3 py-2 ${state.notice ? 'border-match text-match' : 'border-rule-strong'}`}>
           {pending ? '…' : state.notice ? '✓' : 'დადასტურება'}
         </button>

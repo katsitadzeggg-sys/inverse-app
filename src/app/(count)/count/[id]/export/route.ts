@@ -43,18 +43,28 @@ export async function GET(request: Request, { params }: RouteContext<'/count/[id
     if (!data || data.length < 1000) break;
   }
 
-  const [{ data: zones }, { data: checks }, { data: people }] = await Promise.all([
+  const [{ data: zones }, { data: checks }, { data: people }, { data: media }] = await Promise.all([
     supabase.from('stocktake_zones').select('location_id, note, counter_id, locations (code)').eq('stocktake_id', id)
       .returns<{ location_id: string; note: string | null; counter_id: string | null; locations: { code: string } | null }[]>(),
     supabase.from('stocktake_checks').select('location_id, product_id, attempts, status').eq('stocktake_id', id)
       .returns<{ location_id: string; product_id: string; attempts: number; status: string }[]>(),
     supabase.from('user_profiles').select('id, full_name, email').returns<{ id: string; full_name: string | null; email: string }[]>(),
+    supabase.from('stocktake_media').select('location_id, kind').eq('stocktake_id', id).returns<{ location_id: string; kind: string }[]>(),
   ]);
+  // Photos and videos per shelf: a count and a link to the shelf page in the app (sign-in needed).
+  const origin = new URL(request.url).origin;
+  const mediaBy = new Map<string, { photo: number; video: number }>();
+  for (const m of media ?? []) {
+    const c = mediaBy.get(m.location_id) ?? { photo: 0, video: 0 };
+    if (m.kind === 'video') c.video += 1;
+    else c.photo += 1;
+    mediaBy.set(m.location_id, c);
+  }
   const zoneBy = new Map((zones ?? []).map((z) => [z.location_id, z]));
   const checkBy = new Map((checks ?? []).map((c) => [`${c.location_id}|${c.product_id}`, c]));
   const who = new Map((people ?? []).map((p) => [p.id, p.full_name ?? p.email]));
 
-  const head = ['ინვენტარიზაცია №', 'თარიღი', 'კომპანია', 'საწყობი / ფილიალი', 'თარო', 'დასახელება', 'შტრიხკოდი', 'რაოდენობა', 'ერთეული', 'ავტორი', 'გადათვლილი', 'სტატუსი', 'კომენტარი თაროზე'];
+  const head = ['ინვენტარიზაცია №', 'თარიღი', 'კომპანია', 'საწყობი / ფილიალი', 'თარო', 'დასახელება', 'შტრიხკოდი', 'რაოდენობა', 'ერთეული', 'ავტორი', 'გადათვლილი', 'სტატუსი', 'კომენტარი თაროზე', 'ფოტო/ვიდეო', 'ბმული'];
   const header = head.map((value) => ({ value, fontWeight: 'bold' as const, backgroundColor: '#1D2939', color: '#FFFFFF' }));
 
   const rows = entries.map((e) => {
@@ -78,13 +88,19 @@ export async function GET(request: Request, { params }: RouteContext<'/count/[id
       recount ? `კი${c?.attempts ? ` (${c.attempts})` : ''}` : '',
       status,
       z?.note ?? '',
+      (() => {
+        const c = mediaBy.get(e.location_id);
+        if (!c) return '';
+        return [c.photo ? `${c.photo} ფოტო` : '', c.video ? `${c.video} ვიდეო` : ''].filter(Boolean).join(', ');
+      })(),
+      mediaBy.has(e.location_id) ? `${origin}/count/${id}/${e.location_id}/done` : '',
     ].map((value) => ({ value, type: typeof value === 'number' ? Number : String, backgroundColor: color }));
   });
 
   const buffer = await writeXlsxFile([header, ...rows], {
     buffer: true,
     sheet: 'დათვლა',
-    columns: [{ width: 16 }, { width: 11 }, { width: 18 }, { width: 22 }, { width: 8 }, { width: 34 }, { width: 16 }, { width: 11 }, { width: 8 }, { width: 20 }, { width: 12 }, { width: 16 }, { width: 30 }],
+    columns: [{ width: 16 }, { width: 11 }, { width: 18 }, { width: 22 }, { width: 8 }, { width: 34 }, { width: 16 }, { width: 11 }, { width: 8 }, { width: 20 }, { width: 12 }, { width: 16 }, { width: 30 }, { width: 16 }, { width: 50 }],
   });
 
   const shelfCode = shelf === 'all' ? 'ყველა' : (zoneBy.get(shelf)?.locations?.code ?? 'თარო');

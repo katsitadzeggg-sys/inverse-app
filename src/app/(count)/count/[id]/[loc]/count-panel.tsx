@@ -31,6 +31,7 @@ export default function CountPanel({ stocktakeId, locationId }: { stocktakeId: s
   }
 
   function choose(p: ProductHit) {
+    setQty('');
     setProduct(p);
     setUnknown(null);
     setNewBarcode(null);
@@ -40,6 +41,18 @@ export default function CountPanel({ stocktakeId, locationId }: { stocktakeId: s
   }
 
   function search(q: string) {
+    const code = q.trim();
+    // The same item scanned again before Next: one more piece.
+    if (product && (product.barcode === code || product.sku.toLowerCase() === code.toLowerCase())) {
+      setQty((v) => String((Number(v) || 0) + 1));
+      navigator.vibrate?.(30);
+      return;
+    }
+    if (newBarcode && newBarcode === code) {
+      setQty((v) => String((Number(v) || 0) + 1));
+      navigator.vibrate?.(30);
+      return;
+    }
     setQuery(q);
     start(async () => {
       const found = await findProducts(q);
@@ -159,9 +172,11 @@ export default function CountPanel({ stocktakeId, locationId }: { stocktakeId: s
             <button type="button" onClick={() => setQty(String(Math.max(0, (Number(qty) || 0) - 1)))} className="h-14 w-14 rounded-control border border-rule-strong text-2xl">−</button>
             <input
               ref={qtyRef}
-              inputMode="decimal"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              enterKeyHint="next"
               value={qty}
-              onChange={(e) => setQty(e.target.value)}
+              onChange={(e) => setQty(e.target.value.replace(/[^0-9]/g, ''))}
               onKeyDown={(e) => e.key === 'Enter' && next()}
               placeholder="0"
               className={`${inputClass} py-3 text-center text-2xl font-semibold`}

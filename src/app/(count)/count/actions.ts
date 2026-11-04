@@ -462,3 +462,27 @@ export async function importBook(stocktakeId: string, rows: BookRow[]): Promise<
     notice: `ჩაიტვირთა ${lines.length} ხაზი. ახალი პროდუქტი: ${missing.length}, ახალი თარო: ${newShelves}.`,
   };
 }
+
+/** Signed links for the shelf photos/videos, for the ZIP download. */
+export async function mediaForExport(stocktakeId: string, shelf: string): Promise<{ name: string; url: string }[]> {
+  await requireSession();
+  const supabase = await createClient();
+  let q = supabase
+    .from('stocktake_media')
+    .select('path, kind, created_at, locations (code)')
+    .eq('stocktake_id', stocktakeId)
+    .order('created_at');
+  if (shelf !== 'all') q = q.eq('location_id', shelf);
+  const { data } = await q.returns<{ path: string; kind: string; created_at: string; locations: { code: string } | null }[]>();
+  const counters = new Map<string, number>();
+  return Promise.all(
+    (data ?? []).map(async (m) => {
+      const folder = (m.locations?.code ?? 'თარო').replace(/[\\/:*?"<>|]/g, '_');
+      const n = (counters.get(folder) ?? 0) + 1;
+      counters.set(folder, n);
+      const ext = m.path.split('.').pop() ?? (m.kind === 'video' ? 'mp4' : 'jpg');
+      const { data: signed } = await supabase.storage.from('stocktake-media').createSignedUrl(m.path, 60 * 30);
+      return { name: `${folder}/${folder}_${String(n).padStart(2, '0')}.${ext}`, url: signed?.signedUrl ?? '' };
+    }),
+  );
+}

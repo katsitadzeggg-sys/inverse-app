@@ -43,7 +43,7 @@ export default async function StocktakePage({ params }: PageProps<'/count/[id]'>
         </p>
       </div>
 
-      {(zones ?? []).length > 0 && <ExportBox stocktakeId={id} shelves={(zones ?? []).map((z) => ({ id: z.location_id, code: z.locations?.code ?? '' }))} />}
+      {(zones ?? []).length > 0 && <ExportBox stocktakeId={id} number={stocktake.number} shelves={(zones ?? []).map((z) => ({ id: z.location_id, code: z.locations?.code ?? '' }))} />}
 
       {manager && (
         <div className="grid grid-cols-2 gap-2 text-sm">
