@@ -37,9 +37,14 @@ export default function Scanner({ onCode, label = 'კამერა' }: { onCo
 
         type Detector = { detect: (s: CanvasImageSource) => Promise<{ rawValue: string }[]> };
         const Native = (globalThis as { BarcodeDetector?: new () => Detector }).BarcodeDetector;
-        const detector: Detector = Native
-          ? new Native()
-          : new (await import('barcode-detector/ponyfill')).BarcodeDetector();
+        let detector: Detector;
+        try {
+          detector = Native ? new Native() : new (await import('barcode-detector/ponyfill')).BarcodeDetector();
+        } catch {
+          setError('ბარკოდის წამკითხველი ვერ ჩაიტვირთა. შეამოწმე ინტერნეტი ან ჩაწერე კოდი ხელით.');
+          setOn(false);
+          return;
+        }
 
         const tick = async () => {
           if (stopped) return;
@@ -58,8 +63,13 @@ export default function Scanner({ onCode, label = 'კამერა' }: { onCo
           raf = window.setTimeout(tick, 250);
         };
         tick();
-      } catch {
-        setError('კამერა ვერ გაიხსნა. მიეცი ბრაუზერს კამერის ნებართვა ან ჩაწერე კოდი ხელით.');
+      } catch (e) {
+        const name = (e as { name?: string })?.name;
+        setError(
+          name === 'NotAllowedError'
+            ? 'კამერაზე წვდომა არ არის დაშვებული. გახსენი გვერდი Safari-ში ან Chrome-ში და დაუშვი კამერა (aA → ვებგვერდის პარამეტრები → კამერა).'
+            : 'კამერა ვერ გაიხსნა. გახსენი გვერდი პირდაპირ Safari-ში ან Chrome-ში, ან ჩაწერე კოდი ხელით.',
+        );
         setOn(false);
       }
     })();
