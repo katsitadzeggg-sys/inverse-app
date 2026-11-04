@@ -17,7 +17,7 @@ export default async function BookPage({ params }: PageProps<'/count/[id]/book'>
   return (
     <div className="grid gap-5">
       <div>
-        <Link href={`/count/${id}`} className="text-sm text-ink-faint">← {stocktake.name}</Link>
+        <Link href={`/manage/${id}`} className="text-sm text-ink-faint">← {stocktake.number}</Link>
         <h1 className="mt-1 text-xl font-semibold">ბუღალტრული ნაშთი</h1>
         <p className="text-sm text-ink-soft">
           {count ? `ახლა ჩატვირთულია ${count} ხაზი. ახალი ფაილი ძველს ჩაანაცვლებს.` : 'ნაშთი ჯერ არ არის ჩატვირთული.'}

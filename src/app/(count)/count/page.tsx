@@ -2,7 +2,6 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
 import type { Stocktake } from '@/types/database';
-import NewStocktakeForm from './new-stocktake-form';
 
 export default async function CountHome() {
   const { profile } = await requireSession();
@@ -15,7 +14,6 @@ export default async function CountHome() {
     .limit(30)
     .returns<Stocktake[]>();
   const open = (data ?? []).filter((s) => s.status === 'open');
-  const closed = (data ?? []).filter((s) => s.status === 'closed');
 
   return (
     <div className="grid gap-6">
@@ -23,7 +21,7 @@ export default async function CountHome() {
 
       {open.length === 0 ? (
         <p className="text-ink-soft">
-          ღია ინვენტარიზაცია არ არის.{manager ? ' გახსენი ქვემოთ.' : ' მიმართე მენეჯერს.'}
+          ღია ინვენტარიზაცია არ არის.{manager ? ' გახსენი მართვის პანელიდან.' : ' მიმართე მენეჯერს.'}
         </p>
       ) : (
         <ul className="grid gap-3">
@@ -42,20 +40,10 @@ export default async function CountHome() {
         </ul>
       )}
 
-      {manager && <NewStocktakeForm />}
-
-      {closed.length > 0 && (
-        <section className="grid gap-2">
-          <h2 className="text-sm font-semibold text-ink-faint">დახურული</h2>
-          <ul className="grid gap-1 text-sm text-ink-soft">
-            {closed.map((s) => (
-              <li key={s.id}>
-                <Link href={`/count/${s.id}`} className="underline">{s.number}</Link> · {s.client_name ?? s.name}{s.branch ? ` · ${s.branch}` : ''}
-              </li>
-            ))}
-          </ul>
-        </section>
+      {manager && (
+        <Link href="/manage" className="rounded-control border border-rule-strong px-4 py-3 text-center text-sm">⚙ მართვის პანელი — ახალი ინვენტარიზაცია, ნაშთი, ანგარიშები</Link>
       )}
+
     </div>
   );
 }

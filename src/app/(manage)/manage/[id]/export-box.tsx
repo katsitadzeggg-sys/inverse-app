@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { zip } from 'fflate';
-import { mediaForExport } from '../actions';
+import { mediaForExport } from '@/app/(count)/count/actions';
 
 /**
  * Downloads: the counted lines as Excel (every shelf or one), and the shelf

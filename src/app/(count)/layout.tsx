@@ -22,8 +22,8 @@ export default async function CountLayout({ children }: LayoutProps<'/'>) {
             <p className="text-xs leading-tight text-ink-faint">{company.name}</p>
           </div>
           {manager && (
-            <Link href="/dashboard" className="text-sm text-ink-soft underline">
-              პანელი
+            <Link href="/manage" className="text-sm text-ink-soft underline">
+              მართვა
             </Link>
           )}
         </div>

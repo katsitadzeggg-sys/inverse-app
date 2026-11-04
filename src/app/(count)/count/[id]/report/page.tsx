@@ -109,7 +109,7 @@ export default async function ReportPage({ params }: PageProps<'/count/[id]/repo
   return (
     <div className="grid gap-6">
       <div>
-        <Link href={`/count/${id}`} className="text-sm text-ink-faint">← {stocktake.name}</Link>
+        <Link href={`/manage/${id}`} className="text-sm text-ink-faint">← {stocktake.number}</Link>
         <h1 className="mt-1 text-xl font-semibold">სხვაობები</h1>
         {book.length === 0 && <p className="mt-2 text-sm text-review">ნაშთი არ არის ჩატვირთული — <Link className="underline" href={`/count/${id}/book`}>ჩატვირთე</Link>.</p>}
       </div>

@@ -65,45 +65,105 @@ export async function GET(request: Request, { params }: RouteContext<'/count/[id
   const checkBy = new Map((checks ?? []).map((c) => [`${c.location_id}|${c.product_id}`, c]));
   const who = new Map((people ?? []).map((p) => [p.id, p.full_name ?? p.email]));
 
-  const head = ['ინვენტარიზაცია №', 'თარიღი', 'კომპანია', 'საწყობი / ფილიალი', 'თარო', 'დასახელება', 'შტრიხკოდი', 'რაოდენობა', 'ერთეული', 'ავტორი', 'გადათვლილი', 'სტატუსი', 'კომენტარი თაროზე', 'ფოტო/ვიდეო', 'ბმული', 'მისამართი', 'აღწერის ადგილი (GPS)'];
-  const header = head.map((value) => ({ value, fontWeight: 'bold' as const, backgroundColor: '#1D2939', color: '#FFFFFF' }));
+  // A printable act: a header block with the stocktake details, the counted
+  // lines as a bordered table, shelf notes, and signature lines.
+  type Cell = { value?: string | number; type?: typeof String | typeof Number; [k: string]: unknown } | null;
+  const COLS = 7;
+  const border = { borderColor: '#98A2B3', borderStyle: 'thin' };
+  const txt = (value: string | number, extra: Record<string, unknown> = {}): Cell => ({
+    value,
+    type: typeof value === 'number' ? Number : String,
+    fontSize: 10,
+    ...extra,
+  });
+  const line = (label: string, value: string, extra: Record<string, unknown> = {}): Cell[] => [
+    txt(label, { fontWeight: 'bold', span: 2, wrap: true, alignVertical: 'top' }),
+    null,
+    txt(value, { span: COLS - 2, wrap: true, height: Math.max(1, Math.ceil(value.length / 52), label.length > 12 ? 2 : 1) * 14, ...extra }),
+    ...Array(COLS - 3).fill(null),
+  ];
+  const blank = (): Cell[] => Array(COLS).fill(null);
+  // Long text wraps; give the row room (about 85 characters a line).
+  const full = (value: string, extra: Record<string, unknown> = {}): Cell[] => [
+    txt(value, { span: COLS, wrap: true, height: Math.max(1, Math.ceil(value.length / 75)) * 14, ...extra }),
+    ...Array(COLS - 1).fill(null),
+  ];
 
-  const rows = entries.map((e) => {
+  const shelfIds = shelf === 'all' ? [...new Set(entries.map((e) => e.location_id))] : [shelf];
+  const counters = [...new Set(shelfIds.map((l) => who.get(zoneBy.get(l)?.counter_id ?? '') ?? '').filter(Boolean))];
+  const shelfZone = shelf !== 'all' ? zoneBy.get(shelf) : undefined;
+  const place =
+    st.lat != null && st.lng != null
+      ? mapsLink(st.lat, st.lng)
+      : shelfZone?.lat != null && shelfZone?.lng != null
+        ? mapsLink(shelfZone.lat, shelfZone.lng)
+        : '';
+
+  const data: Cell[][] = [
+    full(`ინვენტარიზაციის აქტი № ${st.number}`, { fontWeight: 'bold', fontSize: 14, align: 'center', height: 24 }),
+    blank(),
+    line('კომპანია', st.client_name ?? st.name),
+    line('საწყობი / ფილიალი', st.branch ?? ''),
+    line('სახელი გვარი', counters.join(', ')),
+    line('მისამართი', st.address ?? ''),
+    line('ლოკაცია', place),
+    line('თარიღი', new Date(st.count_date).toLocaleDateString('ka-GE')),
+    line('თარო', shelf === 'all' ? `ყველა (${shelfIds.length})` : (shelfZone?.locations?.code ?? '')),
+    blank(),
+    ['№', 'თარო', 'დასახელება', 'შტრიხკოდი', 'რაოდ.', 'ერთ.', 'შენიშვნა'].map((v) =>
+      txt(v, { fontWeight: 'bold', backgroundColor: '#E4E7EC', align: 'center', ...border }),
+    ),
+  ];
+
+  entries.forEach((e, i) => {
     const z = zoneBy.get(e.location_id);
     const c = e.product_id ? checkBy.get(`${e.location_id}|${e.product_id}`) : undefined;
     const recount = e.recounted || (c?.attempts ?? 0) > 0;
     const unit = e.products?.unit === 'pcs' || !e.products ? 'ცალი' : e.products.unit;
     const status = c?.status === 'frozen' ? 'გადასამოწმებელი' : c?.status === 'ok' ? 'ზუსტი' : c?.status === 'recount' ? 'სხვაობა' : '';
-    const color = recount ? '#FEF0C7' : undefined; // recounted lines stand out in yellow
-    return [
-      st.number,
-      new Date(st.count_date).toLocaleDateString('ka-GE'),
-      st.client_name ?? st.name,
-      st.branch ?? '',
-      z?.locations?.code ?? '',
-      e.products?.name ?? `❓ ${e.unknown_label ?? ''}`,
-      e.products?.barcode ?? e.products?.sku ?? '',
-      Number(e.quantity),
-      unit,
-      who.get(e.counter_id ?? '') ?? '',
-      recount ? `კი${c?.attempts ? ` (${c.attempts})` : ''}` : '',
-      status,
-      z?.note ?? '',
-      (() => {
-        const c = mediaBy.get(e.location_id);
-        if (!c) return '';
-        return [c.photo ? `${c.photo} ფოტო` : '', c.video ? `${c.video} ვიდეო` : ''].filter(Boolean).join(', ');
-      })(),
-      mediaBy.has(e.location_id) ? `${origin}/count/${id}/${e.location_id}/done` : '',
-      st.address ?? '',
-      z?.lat != null && z?.lng != null ? mapsLink(z.lat, z.lng) : '',
-    ].map((value) => ({ value, type: typeof value === 'number' ? Number : String, backgroundColor: color }));
+    const fill = recount ? { backgroundColor: '#FEF0C7' } : {}; // recounted lines stand out in yellow
+    data.push([
+      txt(i + 1, { align: 'center', ...border, ...fill }),
+      txt(z?.locations?.code ?? '', { ...border, ...fill }),
+      txt(e.products?.name ?? `❓ ${e.unknown_label ?? ''}`, { wrap: true, ...border, ...fill }),
+      txt(e.products?.barcode ?? e.products?.sku ?? '', { ...border, ...fill }),
+      txt(Number(e.quantity), { align: 'right', ...border, ...fill }),
+      txt(unit, { align: 'center', ...border, ...fill }),
+      txt(c?.status === 'frozen' ? 'გადასამოწმებელი' : recount ? `გადათვლილი${c?.attempts ? ` (${c.attempts})` : ''}` : status, { wrap: true, ...border, ...fill }),
+    ]);
   });
 
-  const buffer = await writeXlsxFile([header, ...rows], {
+  data.push(blank(), full(`სულ პოზიცია: ${entries.length}. ყვითლად მონიშნული — გადათვლილი პოზიცია.`, { fontSize: 9, color: '#475467' }));
+
+  const notes: string[] = [];
+  for (const l of shelfIds) {
+    const z = zoneBy.get(l);
+    const m = mediaBy.get(l);
+    const code = z?.locations?.code ?? '';
+    if (z?.note) notes.push(`${code}: ${z.note}`);
+    if (m) {
+      const media = [m.photo ? `${m.photo} ფოტო` : '', m.video ? `${m.video} ვიდეო` : ''].filter(Boolean).join(', ');
+      notes.push(`${code}: ${media} — ${origin}/count/${id}/${l}/done`);
+    }
+    if (z?.lat != null && z?.lng != null) notes.push(`${code}: აღწერის ადგილი — ${mapsLink(z.lat, z.lng)}`);
+  }
+  if (notes.length) {
+    data.push(blank(), full('კომენტარები', { fontWeight: 'bold' }));
+    for (const n of notes) data.push(full(n, { fontSize: 9 }));
+  }
+
+  data.push(
+    blank(),
+    blank(),
+    line('აღწერა ჩაატარა', `${counters.join(', ')}   ხელმოწერა: ________________`),
+    blank(),
+    line('წარმომადგენელი', 'სახელი გვარი: ________________   ხელმოწერა: ________________'),
+  );
+
+  const buffer = await writeXlsxFile(data as never, {
     buffer: true,
-    sheet: 'დათვლა',
-    columns: [{ width: 16 }, { width: 11 }, { width: 18 }, { width: 22 }, { width: 8 }, { width: 34 }, { width: 16 }, { width: 11 }, { width: 8 }, { width: 20 }, { width: 12 }, { width: 16 }, { width: 30 }, { width: 16 }, { width: 50 }, { width: 30 }, { width: 40 }],
+    sheet: 'აქტი',
+    columns: [{ width: 4 }, { width: 9 }, { width: 24 }, { width: 13 }, { width: 6 }, { width: 5 }, { width: 14 }],
   });
 
   const shelfCode = shelf === 'all' ? 'ყველა' : (zoneBy.get(shelf)?.locations?.code ?? 'თარო');

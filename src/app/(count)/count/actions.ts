@@ -40,7 +40,7 @@ export async function createStocktake(_prev: FormState, formData: FormData): Pro
     .select('id')
     .single();
   if (error) return { error: error.message };
-  redirect(`/count/${data.id}`);
+  redirect(`/manage/${data.id}`);
 }
 
 /** T-01, t1, "T 1" and T-001 are the same shelf. */
@@ -502,4 +502,17 @@ export async function mediaForExport(stocktakeId: string, shelf: string): Promis
       return { name: `${folder}/${folder}_${String(n).padStart(2, '0')}.${ext}`, url: signed?.signedUrl ?? '' };
     }),
   );
+}
+
+/** Owners/admins close a stocktake (no more counting) or reopen it. */
+export async function setStocktakeStatus(stocktakeId: string, status: 'open' | 'closed'): Promise<void> {
+  const session = await requireSession();
+  if (!isManager(session.profile.role)) return;
+  const supabase = await createClient();
+  await supabase
+    .from('stocktakes')
+    .update({ status, closed_at: status === 'closed' ? new Date().toISOString() : null })
+    .eq('id', stocktakeId);
+  revalidatePath(`/manage/${stocktakeId}`);
+  revalidatePath('/manage');
 }

@@ -3,7 +3,7 @@
 import { useActionState, useState } from 'react';
 import { Alert, Button, inputClass } from '@/components/ui';
 import { currentPosition, mapsLink } from '@/lib/geo';
-import { createStocktake, type FormState } from './actions';
+import { createStocktake, type FormState } from '@/app/(count)/count/actions';
 
 const EMPTY: FormState = {};
 
