@@ -23,6 +23,7 @@ export default function CountPanel({ stocktakeId, locationId }: { stocktakeId: s
   const [message, setMessage] = useState<{ tone: 'error' | 'info'; text: string } | null>(null);
   const [pending, start] = useTransition();
   const qtyRef = useRef<HTMLInputElement>(null);
+  const [cameraOn, setCameraOn] = useState(false);
 
   const total = Number(qty.replace(',', '.'));
 
@@ -106,9 +107,22 @@ export default function CountPanel({ stocktakeId, locationId }: { stocktakeId: s
 
   const chosen = product || newBarcode || unknown !== null;
 
+  // What was just read, written on the camera picture itself.
+  const overlay = product ? (
+    <>
+      <p className="truncate text-sm font-semibold leading-tight">{product.name}</p>
+      <p className="text-xs leading-tight text-white/75">{product.barcode ?? product.sku} · {unitLabel(product.unit)}</p>
+    </>
+  ) : newBarcode ? (
+    <>
+      <p className="text-sm font-semibold leading-tight text-red-400">ახალი პროდუქტი</p>
+      <p className="text-xs leading-tight text-white/75">{newBarcode} · ცალი</p>
+    </>
+  ) : null;
+
   return (
     <section className="grid gap-3 rounded-control border border-rule/70 p-4">
-      <Scanner label="პროდუქტის სკანირება" onCode={search} />
+      <Scanner label="პროდუქტის სკანირება" onCode={search} overlay={overlay} onOpenChange={setCameraOn} />
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -145,8 +159,8 @@ export default function CountPanel({ stocktakeId, locationId }: { stocktakeId: s
       )}
 
       {chosen && (
-        <div className="grid gap-3 border-t border-rule/70 pt-3">
-          {product && (
+        <div className="grid gap-3">
+          {product && !cameraOn && (
             <p className="text-lg font-semibold">
               {product.name}
               <span className="block text-sm font-normal text-ink-faint">
@@ -156,8 +170,12 @@ export default function CountPanel({ stocktakeId, locationId }: { stocktakeId: s
           )}
           {newBarcode && !product && (
             <div className="grid gap-2">
-              <p className="text-lg font-semibold text-mismatch">ახალი პროდუქტი</p>
-              <p className="-mt-2 text-sm text-ink-faint">{newBarcode} · ცალი</p>
+              {!cameraOn && (
+                <>
+                  <p className="text-lg font-semibold text-mismatch">ახალი პროდუქტი</p>
+                  <p className="-mt-2 text-sm text-ink-faint">{newBarcode} · ცალი</p>
+                </>
+              )}
               <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="დასახელება" className={`${inputClass} text-base`} />
             </div>
           )}

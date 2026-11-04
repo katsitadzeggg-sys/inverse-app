@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 type Detector = { detect: (s: ImageBitmapSource) => Promise<{ rawValue: string }[]> };
 
@@ -33,8 +33,26 @@ function getDetector(): Promise<Detector> {
  * EAN-8 on a cigarette pack need. Calls onCode once per new code; the same
  * code is ignored for 2 s so one item is not counted twice.
  */
-export default function Scanner({ onCode, label = 'კამერა' }: { onCode: (code: string) => void; label?: string }) {
+export default function Scanner({
+  onCode,
+  label = 'კამერა',
+  overlay,
+  onOpenChange,
+}: {
+  onCode: (code: string) => void;
+  label?: string;
+  /** Shown on the camera picture itself, at the bottom (e.g. the product just read). */
+  overlay?: ReactNode;
+  onOpenChange?: (open: boolean) => void;
+}) {
   const [on, setOn] = useState(false);
+  const onOpenRef = useRef(onOpenChange);
+  useEffect(() => {
+    onOpenRef.current = onOpenChange;
+  }, [onOpenChange]);
+  useEffect(() => {
+    onOpenRef.current?.(on);
+  }, [on]);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -107,7 +125,8 @@ export default function Scanner({ onCode, label = 'კამერა' }: { onCo
             if (code && (code !== last.current.code || now - last.current.at > 2000)) {
               last.current = { code, at: now };
               navigator.vibrate?.(60);
-              setStatus(`✓ ${code}`);
+              // The result is shown on the picture (overlay), not as a text line.
+              setStatus(null);
               onCodeRef.current(code);
             }
           }
@@ -144,9 +163,16 @@ export default function Scanner({ onCode, label = 'კამერა' }: { onCo
           <video ref={videoRef} muted playsInline autoPlay className="aspect-[4/3] w-full object-cover" />
           {/* Guide: the band the reader looks at. */}
           <div className="pointer-events-none absolute inset-x-[5%] top-1/2 h-[45%] -translate-y-1/2 rounded-md border-2 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
+          {status && (
+            <p className="pointer-events-none absolute inset-x-0 top-0 bg-black/40 px-3 py-1.5 text-center text-xs text-white">{status}</p>
+          )}
+          {overlay && (
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/60 to-transparent px-3 pb-2 pt-6 text-white">
+              {overlay}
+            </div>
+          )}
         </div>
       )}
-      {on && status && <p className="text-center text-sm text-ink-soft">{status}</p>}
       {error && <p className="text-sm text-mismatch">{error}</p>}
     </div>
   );
