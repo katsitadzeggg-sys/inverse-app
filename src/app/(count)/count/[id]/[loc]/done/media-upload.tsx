@@ -30,28 +30,40 @@ export default function MediaUpload({
 
   async function upload(files: FileList) {
     setError(null);
-    const supabase = createClient();
-    let i = 0;
-    for (const file of Array.from(files)) {
-      i += 1;
-      setBusy(`იტვირთება ${i} / ${files.length}…`);
-      const kind = file.type.startsWith('video/') ? 'video' : 'photo';
-      const ext = (file.name.split('.').pop() || (kind === 'video' ? 'mp4' : 'jpg')).toLowerCase();
-      const path = `${companyId}/${stocktakeId}/${locationId}/${crypto.randomUUID()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from('stocktake-media').upload(path, file, { contentType: file.type || undefined });
-      if (upErr) {
-        setError(upErr.message.includes('size') ? 'ფაილი ძალიან დიდია (მაქს. 100 MB).' : upErr.message);
-        continue;
+    const list = Array.from(files);
+    try {
+      const supabase = createClient();
+      let i = 0;
+      for (const file of list) {
+        i += 1;
+        setBusy(`იტვირთება ${i} / ${list.length}…`);
+        const kind = file.type.startsWith('video/') ? 'video' : 'photo';
+        const ext = (
+          file.name.split('.').pop() || (kind === 'video' ? 'mp4' : 'jpg')
+        ).toLowerCase();
+        const path = `${companyId}/${stocktakeId}/${locationId}/${crypto.randomUUID()}.${ext}`;
+        const { error: upErr } = await supabase.storage
+          .from('stocktake-media')
+          .upload(path, file, { contentType: file.type || undefined });
+        if (upErr) {
+          setError(
+            upErr.message.includes('size') ? 'ფაილი ძალიან დიდია (მაქს. 100 MB).' : upErr.message,
+          );
+          continue;
+        }
+        const { error: rowErr } = await supabase.from('stocktake_media').insert({
+          company_id: companyId,
+          stocktake_id: stocktakeId,
+          location_id: locationId,
+          path,
+          kind,
+          created_by: userId,
+        });
+        if (rowErr) setError(rowErr.message);
       }
-      const { error: rowErr } = await supabase.from('stocktake_media').insert({
-        company_id: companyId,
-        stocktake_id: stocktakeId,
-        location_id: locationId,
-        path,
-        kind,
-        created_by: userId,
-      });
-      if (rowErr) setError(rowErr.message);
+    } catch (e) {
+      // Never fail silently: show what went wrong on the phone.
+      setError(`ვერ აიტვირთა: ${e instanceof Error ? e.message : String(e)}`);
     }
     setBusy(null);
     router.refresh();
@@ -78,10 +90,21 @@ export default function MediaUpload({
         <div className="grid grid-cols-3 gap-2">
           {items.map((m) =>
             m.kind === 'video' ? (
-              <video key={m.id} src={m.url} controls playsInline className="aspect-square w-full rounded-control bg-black object-cover" />
+              <video
+                key={m.id}
+                src={m.url}
+                controls
+                playsInline
+                className="aspect-square w-full rounded-control bg-black object-cover"
+              />
             ) : (
               // eslint-disable-next-line @next/next/no-img-element
-              <img key={m.id} src={m.url} alt="" className="aspect-square w-full rounded-control object-cover" />
+              <img
+                key={m.id}
+                src={m.url}
+                alt=""
+                className="aspect-square w-full rounded-control object-cover"
+              />
             ),
           )}
         </div>
