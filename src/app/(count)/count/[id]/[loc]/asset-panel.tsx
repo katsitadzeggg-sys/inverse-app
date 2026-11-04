@@ -212,7 +212,7 @@ export default function AssetPanel({
 
           {savedId && (
             <>
-              <p className="text-sm text-ink-soft">ფოტოები: საერთო ხედი, ეტიკეტი / სერიული ფირფიტა, დაზიანება. ვიდეო 10–60 წამი.</p>
+              <p className="text-sm text-ink-soft">ფოტოები: საერთო ხედი, ეტიკეტი / სერიული ფირფიტა, დაზიანება. ვიდეო 10–20 წამი (მაქს. 50 MB).</p>
               <MediaUpload
                 key={savedId}
                 stocktakeId={stocktakeId}

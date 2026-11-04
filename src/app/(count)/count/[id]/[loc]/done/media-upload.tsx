@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { currentPosition } from '@/lib/geo';
 import { captionLines, captionPhoto, videoPoster } from '@/lib/caption';
+import { MAX_UPLOAD_MB, resumableUpload } from '@/lib/resumable-upload';
 
 type Item = { id: string; path: string; kind: 'photo' | 'video'; url: string; poster: string | null };
 
@@ -72,13 +73,22 @@ export default function MediaUpload({
         const { error: e } = await supabase.storage.from('stocktake-media').upload(path, stamped, { contentType: 'image/jpeg' });
         if (e) throw e;
       } else {
+        const mb = Math.round(file.size / 1048576);
+        if (file.size > MAX_UPLOAD_MB * 1048576) {
+          throw new Error(`size: ${mb} MB`);
+        }
         const ext = (file.name.split('.').pop() || 'mp4').toLowerCase();
         path = `${base}.${ext}`;
-        setBusy(`ვიდეო იტვირთება (${Math.round(file.size / 1048576)} MB)…`);
-        const { error: e } = await supabase.storage
-          .from('stocktake-media')
-          .upload(path, file, { contentType: file.type || 'video/mp4' });
-        if (e) throw e;
+        if (file.size > 6 * 1048576) {
+          // Large video: in parts, resumes after a dropped connection.
+          await resumableUpload(supabase, 'stocktake-media', path, file, (p) => setBusy(`ვიდეო იტვირთება: ${p}% (${mb} MB)`));
+        } else {
+          setBusy(`ვიდეო იტვირთება (${mb} MB)…`);
+          const { error: e } = await supabase.storage
+            .from('stocktake-media')
+            .upload(path, file, { contentType: file.type || 'video/mp4' });
+          if (e) throw e;
+        }
         try {
           setBusy('ვამზადებ ვიდეოს გარეკანს…');
           const poster = await videoPoster(file, lines);
@@ -109,7 +119,11 @@ export default function MediaUpload({
       setAdded((a) => [...a, { id: path, path, kind, url: URL.createObjectURL(preview), poster: null }]);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e);
-      setError(msg.includes('size') || msg.includes('large') ? 'ფაილი ძალიან დიდია (მაქს. 100 MB). გადაიღე უფრო მოკლე ვიდეო.' : `ვერ აიტვირთა: ${msg}`);
+      setError(
+        msg.includes('size') || msg.includes('large') || msg.includes('413')
+          ? `ვიდეო ძალიან დიდია (მაქს. ${MAX_UPLOAD_MB} MB). გადაიღე უფრო მოკლე, 20–30 წამი, ან კამერაში დააყენე 1080p.`
+          : `ვერ აიტვირთა: ${msg}`,
+      );
     }
     setBusy(null);
     router.refresh();
