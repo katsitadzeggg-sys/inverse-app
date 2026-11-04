@@ -3,6 +3,8 @@ import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
 import type { Stocktake } from '@/types/database';
+import { loadAssetResult } from '@/lib/assets-result';
+import AssetReport from './asset-report';
 import { EXPIRY_LABEL, expiryStatus, fmtDate, type ExpiryStatus } from '@/lib/expiry';
 
 type Book = { product_id: string; book_qty: number; unit_cost: number | null; expiry_date: string | null };
@@ -58,6 +60,9 @@ export default async function ReportPage({ params }: PageProps<'/count/[id]/repo
   const supabase = await createClient();
   const { data: stocktake } = await supabase.from('stocktakes').select('*').eq('id', id).maybeSingle<Stocktake>();
   if (!stocktake) notFound();
+  if (stocktake.kind === 'assets') {
+    return <AssetReport id={id} number={stocktake.number} rows={await loadAssetResult(supabase, id)} />;
+  }
 
   const { data: zones } = await supabase
     .from('stocktake_zones')

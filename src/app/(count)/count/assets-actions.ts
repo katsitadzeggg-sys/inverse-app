@@ -1,0 +1,180 @@
+'use server';
+
+import { revalidatePath } from 'next/cache';
+import { createClient } from '@/lib/supabase/server';
+import { requireSession } from '@/lib/session';
+import type { FormState } from './actions';
+
+export type RegisterRow = {
+  invNo: string;
+  name: string;
+  room: string;
+  responsible: string;
+  value: number | null;
+  serial: string;
+};
+
+export type AssetHit = {
+  registerId: string | null;
+  invNo: string;
+  name: string;
+  room: string | null;
+  responsible: string | null;
+  serial: string | null;
+  /** Already recorded in this stocktake (by anyone). */
+  checkedId: string | null;
+  checkedRoom: string | null;
+};
+
+const isManager = (role: string) => role === 'owner' || role === 'admin';
+
+/** Same inventory number however it was typed: spaces and case do not matter. */
+const normInv = (s: string) => s.trim().replace(/\s+/g, '').toUpperCase();
+
+/** The manager loads the asset register; a new file replaces the old one. */
+export async function importRegister(stocktakeId: string, rows: RegisterRow[]): Promise<FormState> {
+  const session = await requireSession();
+  if (!isManager(session.profile.role)) return { error: 'რეესტრს მხოლოდ მენეჯერი ტვირთავს.' };
+  const seen = new Set<string>();
+  const lines = [];
+  for (const r of rows) {
+    const inv = normInv(r.invNo);
+    if (!inv || seen.has(inv)) continue;
+    seen.add(inv);
+    lines.push({
+      company_id: session.company.id,
+      stocktake_id: stocktakeId,
+      inv_no: inv,
+      name: r.name.trim() || inv,
+      room: r.room.trim() || null,
+      responsible: r.responsible.trim() || null,
+      value: r.value != null && Number.isFinite(r.value) ? r.value : null,
+      serial: r.serial.trim() || null,
+    });
+  }
+  if (!lines.length) return { error: 'ფაილში ხაზი ვერ ვიპოვე: საჭიროა საინვენტარო ნომერი.' };
+  if (lines.length > 20000) return { error: 'ერთ ჯერზე მაქსიმუმ 20 000 ხაზი.' };
+
+  const supabase = await createClient();
+  const { error: delError } = await supabase.from('asset_register').delete().eq('stocktake_id', stocktakeId);
+  if (delError) return { error: delError.message };
+  for (let i = 0; i < lines.length; i += 1000) {
+    const { error } = await supabase.from('asset_register').insert(lines.slice(i, i + 1000));
+    if (error) return { error: error.message };
+  }
+  // Re-link records made before this import.
+  const { data: checks } = await supabase.from('asset_checks').select('id, inv_no').eq('stocktake_id', stocktakeId);
+  if (checks?.length) {
+    const { data: reg } = await supabase.from('asset_register').select('id, inv_no').eq('stocktake_id', stocktakeId).in('inv_no', checks.map((c) => c.inv_no));
+    const byInv = new Map((reg ?? []).map((r) => [r.inv_no, r.id]));
+    for (const c of checks) await supabase.from('asset_checks').update({ register_id: byInv.get(c.inv_no) ?? null }).eq('id', c.id);
+  }
+  revalidatePath(`/manage/${stocktakeId}`);
+  return { notice: `ჩაიტვირთა ${lines.length} ძირითადი საშუალება.` };
+}
+
+/** Finds an asset by its label (inventory number), serial number, or name. */
+export async function findAsset(stocktakeId: string, text: string): Promise<AssetHit[]> {
+  await requireSession();
+  const q = text.trim();
+  if (!q) return [];
+  const supabase = await createClient();
+  const inv = normInv(q);
+  const safe = q.replace(/[,()%"\\]/g, ' ').trim();
+  const { data: reg } = await supabase
+    .from('asset_register')
+    .select('id, inv_no, name, room, responsible, serial')
+    .eq('stocktake_id', stocktakeId)
+    .or(`inv_no.eq."${inv.replace(/[,()"\\]/g, '')}",serial.eq."${safe}",name.ilike."%${safe}%"`)
+    .limit(10);
+  const invs = [...new Set([inv, ...(reg ?? []).map((r) => r.inv_no)])];
+  const { data: checks } = await supabase
+    .from('asset_checks')
+    .select('id, inv_no, name, locations (code)')
+    .eq('stocktake_id', stocktakeId)
+    .in('inv_no', invs)
+    .returns<{ id: string; inv_no: string; name: string; locations: { code: string } | null }[]>();
+  const done = new Map((checks ?? []).map((c) => [c.inv_no, c]));
+  const hits: AssetHit[] = (reg ?? [])
+    .sort((a, b) => Number(b.inv_no === inv) - Number(a.inv_no === inv))
+    .map((r) => ({
+      registerId: r.id,
+      invNo: r.inv_no,
+      name: r.name,
+      room: r.room,
+      responsible: r.responsible,
+      serial: r.serial,
+      checkedId: done.get(r.inv_no)?.id ?? null,
+      checkedRoom: done.get(r.inv_no)?.locations?.code ?? null,
+    }));
+  // A surplus item recorded earlier is found by its number too.
+  const surplus = done.get(inv);
+  if (surplus && !hits.some((h) => h.invNo === inv)) {
+    hits.unshift({ registerId: null, invNo: inv, name: surplus.name, room: null, responsible: null, serial: null, checkedId: surplus.id, checkedRoom: surplus.locations?.code ?? null });
+  }
+  return hits;
+}
+
+export type AssetInput = {
+  registerId: string | null;
+  invNo: string;
+  name: string;
+  condition: 'good' | 'damaged' | 'writeoff';
+  responsible: string;
+  serial: string;
+  needsLabel: boolean;
+  note: string;
+  lat: number | null;
+  lng: number | null;
+};
+
+/** Records (or updates) one asset found in the room. Returns its record id. */
+export async function saveAssetCheck(
+  stocktakeId: string,
+  locationId: string,
+  input: AssetInput,
+): Promise<FormState & { id?: string }> {
+  const session = await requireSession();
+  if (!session.canWrite) return { error: 'შენს როლს ჩაწერა არ შეუძლია.' };
+  const inv = normInv(input.invNo);
+  if (!inv) return { error: 'ჩაწერე საინვენტარო ნომერი.' };
+  if (!input.name.trim()) return { error: 'ჩაწერე დასახელება.' };
+  const supabase = await createClient();
+  const row = {
+    company_id: session.company.id,
+    stocktake_id: stocktakeId,
+    register_id: input.registerId,
+    location_id: locationId,
+    inv_no: inv,
+    name: input.name.trim().slice(0, 300),
+    condition: input.condition,
+    responsible: input.responsible.trim() || null,
+    serial: input.serial.trim() || null,
+    needs_label: input.needsLabel,
+    note: input.note.trim().slice(0, 1000) || null,
+    lat: input.lat,
+    lng: input.lng,
+    checked_at: new Date().toISOString(),
+  };
+  const { data: existing } = await supabase
+    .from('asset_checks')
+    .select('id')
+    .eq('stocktake_id', stocktakeId)
+    .eq('inv_no', inv)
+    .maybeSingle<{ id: string }>();
+  const res = existing
+    ? await supabase.from('asset_checks').update(row).eq('id', existing.id).select('id').single<{ id: string }>()
+    : await supabase.from('asset_checks').insert({ ...row, counter_id: session.userId }).select('id').single<{ id: string }>();
+  if (res.error) {
+    return { error: res.error.message.includes('closed') ? 'ინვენტარიზაცია დახურულია.' : res.error.message.includes('row-level') ? 'ეს ჩანაწერი სხვა აღმწერს ეკუთვნის.' : res.error.message };
+  }
+  revalidatePath(`/count/${stocktakeId}/${locationId}`);
+  return { id: res.data.id, notice: existing ? 'განახლდა' : 'ჩაიწერა' };
+}
+
+export async function deleteAssetCheck(stocktakeId: string, locationId: string, id: string): Promise<void> {
+  await requireSession();
+  const supabase = await createClient();
+  await supabase.from('asset_checks').delete().eq('id', id);
+  revalidatePath(`/count/${stocktakeId}/${locationId}`);
+}

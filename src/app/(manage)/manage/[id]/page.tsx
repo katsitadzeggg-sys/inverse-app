@@ -42,6 +42,13 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
   const diffs = count(checks);
   const shots = count(media);
   const list = zones ?? [];
+  const [{ count: regCount }, { count: foundCount }] =
+    st.kind === 'assets'
+      ? await Promise.all([
+          supabase.from('asset_register').select('id', { count: 'exact', head: true }).eq('stocktake_id', id),
+          supabase.from('asset_checks').select('id', { count: 'exact', head: true }).eq('stocktake_id', id),
+        ])
+      : [{ count: 0 }, { count: 0 }];
   const done = list.filter((z) => z.status === 'done').length;
 
   return (
@@ -49,7 +56,7 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
       <div className="grid gap-1">
         <Link href={`/manage?kind=${st.kind}`} className="text-sm text-ink-faint">← ინვენტარიზაციები</Link>
         <p className="text-sm text-ink-faint">
-          {st.number} · {new Date(st.count_date).toLocaleDateString('ka-GE')} · {st.kind === 'expiry' ? '⏳ ვადიანი პროდუქცია' : '📦 მარაგები'}
+          {st.number} · {new Date(st.count_date).toLocaleDateString('ka-GE')} · {st.kind === 'expiry' ? '⏳ ვადიანი პროდუქცია' : st.kind === 'assets' ? '🏷 ძირითადი საშუალებები' : '📦 მარაგები'}
         </p>
         <h1 className="text-2xl font-semibold">{st.client_name ?? st.name}</h1>
         {st.branch && <p className="text-ink-soft">{st.branch}</p>}
@@ -63,15 +70,33 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
 
       <div className="grid grid-cols-2 gap-2 text-center text-sm sm:grid-cols-4">
         <div className="rounded-control border border-rule/70 p-3"><p className="text-2xl font-semibold">{done}/{list.length}</p>თარო დასრულდა</div>
-        <div className="rounded-control border border-rule/70 p-3"><p className="text-2xl font-semibold">{entries?.length ?? 0}</p>ჩანაწერი</div>
-        <div className="rounded-control border border-rule/70 p-3"><p className="text-2xl font-semibold text-mismatch">{checks?.length ?? 0}</p>სხვაობა</div>
-        <div className="rounded-control border border-rule/70 p-3"><p className="text-2xl font-semibold">{bookLines ?? 0}</p>ხაზი ნაშთში</div>
+        {st.kind === 'assets' ? (
+          <>
+            <div className="rounded-control border border-rule/70 p-3"><p className="text-2xl font-semibold">{foundCount ?? 0}</p>ჩაწერილი</div>
+            <div className="rounded-control border border-rule/70 p-3"><p className="text-2xl font-semibold">{regCount ?? 0}</p>რეესტრში</div>
+            <div className="rounded-control border border-rule/70 p-3"><p className="text-2xl font-semibold text-review">{Math.max(0, (regCount ?? 0) - (foundCount ?? 0))}</p>ჯერ ვერ ნაპოვნი</div>
+          </>
+        ) : (
+          <>
+            <div className="rounded-control border border-rule/70 p-3"><p className="text-2xl font-semibold">{entries?.length ?? 0}</p>ჩანაწერი</div>
+            <div className="rounded-control border border-rule/70 p-3"><p className="text-2xl font-semibold text-mismatch">{checks?.length ?? 0}</p>სხვაობა</div>
+            <div className="rounded-control border border-rule/70 p-3"><p className="text-2xl font-semibold">{bookLines ?? 0}</p>ხაზი ნაშთში</div>
+          </>
+        )}
       </div>
 
+      {st.kind === 'assets' ? (
+        <div className="grid grid-cols-3 gap-2 text-sm">
+          <Link href={`/count/${id}/register`} className="rounded-control border border-rule-strong px-3 py-3 text-center">📄 რეესტრი</Link>
+          <Link href={`/count/${id}/report`} className="rounded-control border border-rule-strong px-3 py-3 text-center">📊 შედეგი</Link>
+          <Link href={`/count/${id}/labels`} className="rounded-control border border-rule-strong px-3 py-3 text-center">🏷 QR ეტიკეტები</Link>
+        </div>
+      ) : (
       <div className="grid grid-cols-2 gap-2 text-sm">
         <Link href={`/count/${id}/book`} className="rounded-control border border-rule-strong px-3 py-3 text-center">📄 ნაშთის ჩატვირთვა</Link>
         <Link href={`/count/${id}/report`} className="rounded-control border border-rule-strong px-3 py-3 text-center">{st.kind === 'expiry' ? '📊 სხვაობები და ვადები' : '📊 სხვაობები'}</Link>
       </div>
+      )}
 
       {list.length > 0 && <ExportBox stocktakeId={id} number={st.number} shelves={list.map((z) => ({ id: z.location_id, code: z.locations?.code ?? '' }))} />}
 

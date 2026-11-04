@@ -26,7 +26,8 @@ async function readLabel(file: File): Promise<string> {
  * warehouse whose shelves have no numbers — create a zone on the spot.
  * Scans and photos ask for confirmation before the shelf opens.
  */
-export default function ZoneOpener({ stocktakeId, client, branch }: { stocktakeId: string; client: string; branch: string }) {
+export default function ZoneOpener({ stocktakeId, client, branch, rooms = false }: { stocktakeId: string; client: string; branch: string; rooms?: boolean }) {
+  const place = rooms ? 'ოთახი' : 'თარო';
   const [state, action, pending] = useActionState(openZone.bind(null, stocktakeId), EMPTY);
   const [candidate, setCandidate] = useState<Shelf | null>(null);
   const [reading, setReading] = useState<string | null>(null);
@@ -57,7 +58,7 @@ export default function ZoneOpener({ stocktakeId, client, branch }: { stocktakeI
       if (shelf) setCandidate(shelf);
       else {
         setCandidate(null);
-        setReadError(`„${text}“ — ასეთი თარო სისტემაში არ არის.`);
+        setReadError(`„${text}“ — ასეთი ${place} სისტემაში არ არის.`);
         setTyped(text.split(' ')[0] ?? '');
         setOffer(true);
       }
@@ -68,9 +69,9 @@ export default function ZoneOpener({ stocktakeId, client, branch }: { stocktakeI
 
   return (
     <section className="grid gap-3 rounded-control border border-rule/70 p-4">
-      <p className="text-base font-semibold">აირჩიე თარო</p>
+      <p className="text-base font-semibold">აირჩიე {place}</p>
 
-      <Scanner label="თაროს QR / შტრიხკოდი" onCode={propose} />
+      <Scanner label={rooms ? 'ოთახის QR / ნომერი' : 'თაროს QR / შტრიხკოდი'} onCode={propose} />
 
       <label className="cursor-pointer rounded-control border border-rule-strong bg-paper-sunk px-4 py-3 text-center text-base font-semibold">
         🔤 წარწერის ფოტო (მაგ. T-01)
@@ -104,7 +105,7 @@ export default function ZoneOpener({ stocktakeId, client, branch }: { stocktakeI
             {branch && (<><dt className="text-ink-faint">ფილიალი</dt><dd>{branch}</dd></>)}
             <dt className="text-ink-faint">მდებარეობა</dt>
             <dd className={pos ? 'text-match' : 'text-ink-faint'}>{pos ? `📍 დადგენილია (±${Math.round(pos.accuracy)} მ)` : 'არ არის დაშვებული'}</dd>
-            <dt className="text-ink-faint">თარო</dt>
+            <dt className="text-ink-faint">{place}</dt>
             <dd><b className="text-xl">{candidate.code}</b>{candidate.name !== candidate.code && <span className="text-ink-soft"> · {candidate.name}</span>}</dd>
           </dl>
           <div className="grid grid-cols-2 gap-2">
@@ -133,14 +134,14 @@ export default function ZoneOpener({ stocktakeId, client, branch }: { stocktakeI
           <input type="hidden" name="create" value="1" />
           <input type="hidden" name="code" value={typed} />
           {geo}
-          <p className="text-sm">დავამატო ახალი თარო <b>{typed}</b>?</p>
+          <p className="text-sm">დავამატო ახალი {rooms ? 'ოთახი' : 'თარო'} <b>{typed}</b>?</p>
           <input name="name" placeholder="აღწერა (არასავალდებულო)" className={`${inputClass} text-base`} />
           <Button type="submit" disabled={pending}>+ დამატება და გახსნა</Button>
         </form>
       )}
 
       <button type="button" onClick={() => setNewZone((v) => !v)} className="text-left text-sm text-ink-soft underline">
-        თაროები დანომრილი არ არის? → ახალი ზონა
+        {rooms ? 'ოთახები დანომრილი არ არის? → ახალი ზონა' : 'თაროები დანომრილი არ არის? → ახალი ზონა'}
       </button>
       {newZone && (
         <form action={action} className="grid gap-2 rounded-control border border-rule/70 p-3">

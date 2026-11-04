@@ -31,7 +31,7 @@ export default async function CountHome() {
                 href={`/count/${s.id}`}
                 className="block rounded-control border border-rule-strong bg-paper-sunk px-4 py-4 text-lg font-semibold"
               >
-                <span className="block text-sm font-normal text-ink-faint">{s.number} · {new Date(s.count_date).toLocaleDateString('ka-GE')}{s.kind === 'expiry' ? ' · ⏳ ვადიანი' : ''}</span>
+                <span className="block text-sm font-normal text-ink-faint">{s.number} · {new Date(s.count_date).toLocaleDateString('ka-GE')}{s.kind === 'expiry' ? ' · ⏳ ვადიანი' : s.kind === 'assets' ? ' · 🏷 ძირ. საშუალებები' : ''}</span>
                 {s.client_name ?? s.name}
                 {s.branch && <span className="block text-base font-normal text-ink-soft">{s.branch}</span>}
               </Link>

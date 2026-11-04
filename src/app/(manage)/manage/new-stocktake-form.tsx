@@ -22,6 +22,7 @@ export default function NewStocktakeForm({ kind = 'stock' }: { kind?: string }) 
         <select name="kind" defaultValue={kind} className={inputClass}>
           <option value="stock">მარაგები</option>
           <option value="expiry">ვადიანი პროდუქცია</option>
+          <option value="assets">ძირითადი საშუალებები</option>
         </select>
       </label>
       <label className="grid gap-1 text-sm">

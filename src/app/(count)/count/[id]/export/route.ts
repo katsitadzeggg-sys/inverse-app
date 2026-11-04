@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
 import type { Stocktake } from '@/types/database';
 import { mapsLink } from '@/lib/geo';
+import { assetsAct } from './assets-act';
 import { EXPIRY_LABEL, expiryStatus, fmtDate, type ExpiryStatus } from '@/lib/expiry';
 
 type Entry = {
@@ -31,6 +32,17 @@ export async function GET(request: Request, { params }: RouteContext<'/count/[id
 
   const { data: st } = await supabase.from('stocktakes').select('*').eq('id', id).maybeSingle<Stocktake>();
   if (!st) return new NextResponse('Not found', { status: 404 });
+
+  if (st.kind === 'assets') {
+    const buffer = await assetsAct(supabase, st, shelf, new URL(request.url).origin);
+    const name = `${st.number}_ძირითადი.xlsx`;
+    return new NextResponse(new Uint8Array(buffer), {
+      headers: {
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': `attachment; filename="${st.number}.xlsx"; filename*=UTF-8''${encodeURIComponent(name)}`,
+      },
+    });
+  }
 
   const entries: Entry[] = [];
   for (let from = 0; ; from += 1000) {

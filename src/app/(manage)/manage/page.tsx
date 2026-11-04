@@ -8,6 +8,7 @@ import NewStocktakeForm from './new-stocktake-form';
 const TABS = [
   { kind: 'stock', label: '📦 მარაგები' },
   { kind: 'expiry', label: '⏳ ვადიანი' },
+  { kind: 'assets', label: '🏷 ძირ. საშუალებები' },
 ];
 
 export default async function ManageHome({ searchParams }: PageProps<'/manage'>) {
@@ -40,7 +41,7 @@ export default async function ManageHome({ searchParams }: PageProps<'/manage'>)
     <div className="grid gap-6 md:grid-cols-[1fr_20rem]">
       <section className="grid content-start gap-3">
         <h1 className="text-xl font-semibold">ინვენტარიზაციები</h1>
-        <nav className="flex gap-2 text-sm">
+        <nav className="flex flex-wrap gap-2 text-sm">
           {TABS.map((t) => (
             <Link
               key={t.kind}

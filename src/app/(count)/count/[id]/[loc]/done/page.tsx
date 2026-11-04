@@ -33,16 +33,22 @@ export default async function ShelfDonePage({ params }: PageProps<'/count/[id]/[
   ]);
 
   const differences = (checks ?? []).filter((c) => c.status !== 'ok').length;
+  const isAssets = st.kind === 'assets';
+  const { count: assetCount } = isAssets
+    ? await supabase.from('asset_checks').select('id', { count: 'exact', head: true }).eq('stocktake_id', id).eq('location_id', loc)
+    : { count: 0 };
   const when = new Date(zone.done_at ?? zone.started_at);
-  const result = !bookLines
+  const result = isAssets
+    ? `ჩაწერილია ${assetCount ?? 0} ძირითადი საშუალება`
+    : !bookLines
     ? 'ნაშთთან შედარება არ ჩატარებულა'
     : differences === 0
       ? 'ყველაფერი ზუსტია'
       : `გამოვლინდა ${differences} სხვაობა`;
   const statement =
-    `თარო აღწერილია. ${counter?.full_name ?? counter?.email ?? ''}, ${when.toLocaleDateString('ka-GE')} ` +
+    `${isAssets ? 'ოთახი' : 'თარო'} აღწერილია. ${counter?.full_name ?? counter?.email ?? ''}, ${when.toLocaleDateString('ka-GE')} ` +
     `${when.toLocaleTimeString('ka-GE', { hour: '2-digit', minute: '2-digit' })}, ` +
-    `${st.client_name ?? st.name}${st.branch ? ` / ${st.branch}` : ''}, თარო ${location.code}. ${result}.`;
+    `${st.client_name ?? st.name}${st.branch ? ` / ${st.branch}` : ''}, ${isAssets ? 'ოთახი' : 'თარო'} ${location.code}. ${result}.`;
 
   // Where the shelf was opened, and how far that is from the warehouse point.
   const here = zone.lat != null && zone.lng != null ? { lat: zone.lat, lng: zone.lng } : null;
@@ -67,7 +73,7 @@ export default async function ShelfDonePage({ params }: PageProps<'/count/[id]/[
         <h1 className="mt-1 text-2xl font-semibold">{location.code}</h1>
       </div>
 
-      <div className={`rounded-control border-2 p-4 ${differences ? 'border-mismatch/50' : 'border-match/50'}`}>
+      <div className={`rounded-control border-2 p-4 ${differences && !isAssets ? 'border-mismatch/50' : 'border-match/50'}`}>
         <p className="text-base leading-relaxed">{statement}</p>
         <p className="mt-2 text-sm text-ink-soft">
           {st.address && <>მისამართი: {st.address}. </>}

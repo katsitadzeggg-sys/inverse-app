@@ -495,17 +495,18 @@ export async function mediaForExport(stocktakeId: string, shelf: string): Promis
   const supabase = await createClient();
   let q = supabase
     .from('stocktake_media')
-    .select('path, kind, poster_path, created_at, locations (code)')
+    .select('path, kind, poster_path, created_at, locations (code), asset_checks (inv_no)')
     .eq('stocktake_id', stocktakeId)
     .order('created_at');
   if (shelf !== 'all') q = q.eq('location_id', shelf);
-  const { data } = await q.returns<{ path: string; kind: string; poster_path: string | null; created_at: string; locations: { code: string } | null }[]>();
+  const { data } = await q.returns<{ path: string; kind: string; poster_path: string | null; created_at: string; locations: { code: string } | null; asset_checks: { inv_no: string } | null }[]>();
   const counters = new Map<string, number>();
   const sign = async (path: string) =>
     (await supabase.storage.from('stocktake-media').createSignedUrl(path, 60 * 30)).data?.signedUrl ?? '';
   const files = await Promise.all(
     (data ?? []).map(async (m) => {
-      const folder = (m.locations?.code ?? 'თარო').replace(/[\\/:*?"<>|]/g, '_');
+      // Fixed assets: one folder per inventory number; otherwise per shelf.
+      const folder = (m.asset_checks?.inv_no ?? m.locations?.code ?? 'თარო').replace(/[\\/:*?"<>|]/g, '_');
       const n = (counters.get(folder) ?? 0) + 1;
       counters.set(folder, n);
       const ext = m.path.split('.').pop() ?? (m.kind === 'video' ? 'mp4' : 'jpg');

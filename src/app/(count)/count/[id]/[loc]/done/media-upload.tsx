@@ -25,6 +25,9 @@ export default function MediaUpload({
   branch,
   shelf,
   items,
+  assetCheckId = null,
+  extra = null,
+  compact = false,
 }: {
   stocktakeId: string;
   locationId: string;
@@ -35,8 +38,15 @@ export default function MediaUpload({
   branch: string | null;
   shelf: string;
   items: Item[];
+  /** Fixed assets: the media belong to this asset record. */
+  assetCheckId?: string | null;
+  /** One more caption line, e.g. the inventory number and name. */
+  extra?: string | null;
+  compact?: boolean;
 }) {
   const router = useRouter();
+  // Shown right away from the phone, before the page reloads.
+  const [added, setAdded] = useState<Item[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,7 +56,8 @@ export default function MediaUpload({
       setBusy('ვიღებ მდებარეობას…');
       const pos = await currentPosition(6000);
       const when = new Date();
-      const lines = captionLines({ when, author, company, branch, shelf: `თარო ${shelf}`, pos });
+      const lines = captionLines({ when, author, company, branch, shelf: assetCheckId ? `ოთახი ${shelf}` : `თარო ${shelf}`, pos, extra });
+      let preview: Blob = file;
       const supabase = createClient();
       const base = `${companyId}/${stocktakeId}/${locationId}/${crypto.randomUUID()}`;
       let path: string;
@@ -55,6 +66,7 @@ export default function MediaUpload({
       if (kind === 'photo') {
         setBusy('ვაწერ თარიღს და ლოკაციას…');
         const stamped = await captionPhoto(file, lines);
+        preview = stamped;
         path = `${base}.jpg`;
         setBusy('იტვირთება…');
         const { error: e } = await supabase.storage.from('stocktake-media').upload(path, stamped, { contentType: 'image/jpeg' });
@@ -91,8 +103,10 @@ export default function MediaUpload({
         lng: pos?.lng ?? null,
         accuracy_m: pos?.accuracy ?? null,
         poster_path: posterPath,
+        asset_check_id: assetCheckId,
       });
       if (rowErr) throw rowErr;
+      setAdded((a) => [...a, { id: path, path, kind, url: URL.createObjectURL(preview), poster: null }]);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e);
       setError(msg.includes('size') || msg.includes('large') ? 'ფაილი ძალიან დიდია (მაქს. 100 MB). გადაიღე უფრო მოკლე ვიდეო.' : `ვერ აიტვირთა: ${msg}`);
@@ -137,12 +151,12 @@ export default function MediaUpload({
           />
         </label>
       </div>
-      <p className="text-center text-xs text-ink-faint">მხოლოდ კამერით. ფოტოს ეწერება თარიღი, შენი სახელი და ლოკაცია.</p>
+      {!compact && <p className="text-center text-xs text-ink-faint">მხოლოდ კამერით. ფოტოს ეწერება თარიღი, შენი სახელი და ლოკაცია.</p>}
       {busy && <p className="text-center text-sm text-ink-soft">{busy}</p>}
       {error && <p className="text-sm text-mismatch">{error}</p>}
-      {items.length > 0 && (
+      {items.length + added.length > 0 && (
         <div className="grid grid-cols-3 gap-2">
-          {items.map((m) =>
+          {[...items, ...added.filter((a) => !items.some((i) => i.path === a.path))].map((m) =>
             m.kind === 'video' ? (
               <video
                 key={m.id}

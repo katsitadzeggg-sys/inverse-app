@@ -43,11 +43,11 @@ export default async function StocktakePage({ params }: PageProps<'/count/[id]'>
         <p className="text-ink-soft">ინვენტარიზაცია დახურულია.</p>
       ) : open ? (
         <Link href={`/count/${id}/${open.location_id}`} className="rounded-control bg-ink px-4 py-4 text-center text-base font-semibold text-paper">
-          გააგრძელე თარო {open.locations?.code} →
+          გააგრძელე {stocktake.kind === 'assets' ? 'ოთახი' : 'თარო'} {open.locations?.code} →
         </Link>
       ) : (
         <div id="shelf">
-          <ZoneOpener stocktakeId={id} client={stocktake.client_name ?? stocktake.name} branch={stocktake.branch ?? ''} />
+          <ZoneOpener stocktakeId={id} client={stocktake.client_name ?? stocktake.name} branch={stocktake.branch ?? ''} rooms={stocktake.kind === 'assets'} />
         </div>
       )}
 

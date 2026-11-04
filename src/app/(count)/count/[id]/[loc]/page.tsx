@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
 import type { Stocktake, StocktakeZone } from '@/types/database';
 import CountPanel from './count-panel';
+import AssetPanel from './asset-panel';
 import RecountList from './recount-list';
 import { closeZone, finishZone } from '../../actions';
 
@@ -15,7 +16,7 @@ import { closeZone, finishZone } from '../../actions';
  */
 export default async function ZonePage({ params }: PageProps<'/count/[id]/[loc]'>) {
   const { id, loc } = await params;
-  const { userId, profile } = await requireSession();
+  const { userId, profile, company } = await requireSession();
   const supabase = await createClient();
 
   const [{ data: stocktake }, { data: location }, { data: zone }] = await Promise.all([
@@ -28,6 +29,60 @@ export default async function ZonePage({ params }: PageProps<'/count/[id]/[loc]'
 
   const manager = profile.role === 'owner' || profile.role === 'admin';
   const canCount = stocktake.status === 'open' && (zone.counter_id === userId || manager);
+
+  // Fixed assets: a room, not a shelf. Scan labels, then close the room.
+  if (stocktake.kind === 'assets') {
+    const { data: found } = await supabase
+      .from('asset_checks')
+      .select('id, inv_no, name, condition, register_id, needs_label')
+      .eq('stocktake_id', id)
+      .eq('location_id', loc)
+      .order('checked_at', { ascending: false })
+      .returns<{ id: string; inv_no: string; name: string; condition: string; register_id: string | null; needs_label: boolean }[]>();
+    const COND: Record<string, string> = { good: 'კარგი', damaged: 'დაზიანებული', writeoff: 'ჩამოსაწერი' };
+    return (
+      <div className="grid gap-5">
+        <div>
+          <Link href={`/count/${id}`} className="text-sm text-ink-faint">← {stocktake.number}</Link>
+          <h1 className="mt-1 text-2xl font-semibold">
+            ოთახი {location.code} {location.name !== location.code && <span className="text-base font-normal text-ink-soft">{location.name}</span>}
+          </h1>
+        </div>
+        {!canCount ? (
+          <p className="text-ink-soft">ამ ოთახში ჩაწერა შენთვის დახურულია.</p>
+        ) : (
+          <AssetPanel
+            stocktakeId={id}
+            locationId={loc}
+            room={location.code}
+            companyId={company.id}
+            userId={userId}
+            author={profile.full_name ?? profile.email}
+            company={stocktake.client_name ?? stocktake.name}
+            branch={stocktake.branch}
+          />
+        )}
+        {(found ?? []).length > 0 && (
+          <section className="grid gap-1 text-sm">
+            <h2 className="font-semibold">ამ ოთახში ჩაწერილია: {(found ?? []).length}</h2>
+            {(found ?? []).map((a) => (
+              <p key={a.id} className="flex justify-between gap-2 border-t border-rule/60 py-1.5">
+                <span className="min-w-0 truncate">{a.name} <span className="text-ink-faint">· {a.inv_no}</span></span>
+                <span className={a.register_id ? (a.condition === 'good' ? 'text-match' : 'text-review') : 'text-mismatch'}>
+                  {a.register_id ? COND[a.condition] : 'ზედმეტი'}{a.needs_label ? ' · 🏷' : ''}
+                </span>
+              </p>
+            ))}
+          </section>
+        )}
+        {canCount && (
+          <form action={finishZone.bind(null, id, loc)}>
+            <button type="submit" className="w-full rounded-control border-2 border-rule-strong px-4 py-3 text-base font-semibold">🔒 ოთახის დახურვა</button>
+          </form>
+        )}
+      </div>
+    );
+  }
 
   const { data: checks } = await supabase
     .from('stocktake_checks')
