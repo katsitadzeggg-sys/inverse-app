@@ -28,8 +28,8 @@ export default async function ShelfDonePage({ params }: PageProps<'/count/[id]/[
     supabase.from('user_profiles').select('full_name, email').eq('id', zone.counter_id ?? '').maybeSingle<{ full_name: string | null; email: string }>(),
     supabase.from('stocktake_checks').select('id', { count: 'exact', head: true }).eq('stocktake_id', id).eq('location_id', loc),
     supabase.from('stocktake_checks').select('status').eq('stocktake_id', id).eq('location_id', loc).returns<{ status: string }[]>(),
-    supabase.from('stocktake_media').select('id, path, kind').eq('stocktake_id', id).eq('location_id', loc).order('created_at')
-      .returns<{ id: string; path: string; kind: 'photo' | 'video' }[]>(),
+    supabase.from('stocktake_media').select('id, path, kind, poster_path').eq('stocktake_id', id).eq('location_id', loc).order('created_at')
+      .returns<{ id: string; path: string; kind: 'photo' | 'video'; poster_path: string | null }[]>(),
   ]);
 
   const differences = (checks ?? []).filter((c) => c.status !== 'ok').length;
@@ -52,7 +52,10 @@ export default async function ShelfDonePage({ params }: PageProps<'/count/[id]/[
   const signed = await Promise.all(
     (media ?? []).map(async (m) => {
       const { data } = await supabase.storage.from('stocktake-media').createSignedUrl(m.path, 60 * 30);
-      return { ...m, url: data?.signedUrl ?? '' };
+      const poster = m.poster_path
+        ? (await supabase.storage.from('stocktake-media').createSignedUrl(m.poster_path, 60 * 30)).data?.signedUrl ?? null
+        : null;
+      return { id: m.id, path: m.path, kind: m.kind, url: data?.signedUrl ?? '', poster };
     }),
   );
   const canEdit = zone.counter_id === userId || profile.role === 'owner' || profile.role === 'admin';
@@ -85,7 +88,17 @@ export default async function ShelfDonePage({ params }: PageProps<'/count/[id]/[
       </div>
 
       {canEdit && (
-        <MediaUpload stocktakeId={id} locationId={loc} companyId={company.id} userId={userId} items={signed} />
+        <MediaUpload
+          stocktakeId={id}
+          locationId={loc}
+          companyId={company.id}
+          userId={userId}
+          author={profile.full_name ?? profile.email}
+          company={st.client_name ?? st.name}
+          branch={st.branch}
+          shelf={location.code}
+          items={signed}
+        />
       )}
 
       {canEdit ? (

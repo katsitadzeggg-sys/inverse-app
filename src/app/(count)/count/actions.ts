@@ -486,22 +486,28 @@ export async function mediaForExport(stocktakeId: string, shelf: string): Promis
   const supabase = await createClient();
   let q = supabase
     .from('stocktake_media')
-    .select('path, kind, created_at, locations (code)')
+    .select('path, kind, poster_path, created_at, locations (code)')
     .eq('stocktake_id', stocktakeId)
     .order('created_at');
   if (shelf !== 'all') q = q.eq('location_id', shelf);
-  const { data } = await q.returns<{ path: string; kind: string; created_at: string; locations: { code: string } | null }[]>();
+  const { data } = await q.returns<{ path: string; kind: string; poster_path: string | null; created_at: string; locations: { code: string } | null }[]>();
   const counters = new Map<string, number>();
-  return Promise.all(
+  const sign = async (path: string) =>
+    (await supabase.storage.from('stocktake-media').createSignedUrl(path, 60 * 30)).data?.signedUrl ?? '';
+  const files = await Promise.all(
     (data ?? []).map(async (m) => {
       const folder = (m.locations?.code ?? 'თარო').replace(/[\\/:*?"<>|]/g, '_');
       const n = (counters.get(folder) ?? 0) + 1;
       counters.set(folder, n);
       const ext = m.path.split('.').pop() ?? (m.kind === 'video' ? 'mp4' : 'jpg');
-      const { data: signed } = await supabase.storage.from('stocktake-media').createSignedUrl(m.path, 60 * 30);
-      return { name: `${folder}/${folder}_${String(n).padStart(2, '0')}.${ext}`, url: signed?.signedUrl ?? '' };
+      const name = `${folder}/${folder}_${String(n).padStart(2, '0')}`;
+      const out = [{ name: `${name}.${ext}`, url: await sign(m.path) }];
+      // A video's captioned poster frame goes next to it.
+      if (m.poster_path) out.push({ name: `${name}_გარეკანი.jpg`, url: await sign(m.poster_path) });
+      return out;
     }),
   );
+  return files.flat();
 }
 
 /** Owners/admins close a stocktake (no more counting) or reopen it. */
