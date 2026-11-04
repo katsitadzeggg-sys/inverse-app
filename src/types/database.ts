@@ -151,3 +151,43 @@ export type CheckSummary = {
   mismatch_count: number;
   needs_barcode_count: number;
 };
+
+export type StocktakeStatus = 'open' | 'closed';
+export type ZoneStatus = 'counting' | 'done';
+
+export type Stocktake = {
+  id: string;
+  company_id: string;
+  name: string;
+  status: StocktakeStatus;
+  created_by: string | null;
+  created_at: string;
+  closed_at: string | null;
+};
+
+export type StocktakeZone = {
+  id: string;
+  company_id: string;
+  stocktake_id: string;
+  location_id: string;
+  counter_id: string | null;
+  status: ZoneStatus;
+  started_at: string;
+  done_at: string | null;
+};
+
+export type StocktakeEntry = {
+  id: string;
+  company_id: string;
+  stocktake_id: string;
+  location_id: string;
+  product_id: string | null;
+  unknown_label: string | null;
+  quantity: number;
+  boxes: number | null;
+  per_box: number | null;
+  counter_id: string | null;
+  photo_path: string | null;
+  created_at: string;
+  updated_at: string;
+};
