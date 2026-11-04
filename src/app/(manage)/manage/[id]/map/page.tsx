@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
 import type { Stocktake } from '@/types/database';
 import AutoRefresh from './auto-refresh';
+import Map3D from './map-3d';
 
 type State = 'idle' | 'counting' | 'ok' | 'diff';
 
@@ -25,8 +26,9 @@ const natural = (a: string, b: string) => a.localeCompare(b, undefined, { numeri
  * done with differences. Shelves in the book that nobody opened show grey.
  * Refreshes itself every 30 seconds.
  */
-export default async function StocktakeMap({ params }: PageProps<'/manage/[id]/map'>) {
+export default async function StocktakeMap({ params, searchParams }: PageProps<'/manage/[id]/map'>) {
   const { id } = await params;
+  const view3d = (await searchParams).view === '3d';
   await requireSession();
   const supabase = await createClient();
   const { data: st } = await supabase.from('stocktakes').select('*').eq('id', id).maybeSingle<Stocktake>();
@@ -66,6 +68,10 @@ export default async function StocktakeMap({ params }: PageProps<'/manage/[id]/m
         <Link href={`/manage/${id}`} className="text-sm text-ink-faint">← {st.number}</Link>
         <h1 className="mt-1 text-xl font-semibold">რუკა · {st.client_name ?? st.name}</h1>
         <p className="text-sm text-ink-soft">ახლდება ყოველ 30 წამში. დააჭირე თაროს — გაიხსნება მისი შედეგი.</p>
+        <div className="mt-2 flex gap-2 text-sm">
+          <Link href={`/manage/${id}/map`} className={`rounded-control border px-3 py-2 ${!view3d ? 'border-ink bg-ink text-paper' : 'border-rule-strong'}`}>▦ ბადე</Link>
+          <Link href={`/manage/${id}/map?view=3d`} className={`rounded-control border px-3 py-2 ${view3d ? 'border-ink bg-ink text-paper' : 'border-rule-strong'}`}>🧊 3D</Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
@@ -84,7 +90,9 @@ export default async function StocktakeMap({ params }: PageProps<'/manage/[id]/m
         </div>
       )}
 
-      {all === 0 ? (
+      {all > 0 && view3d ? (
+        <Map3D rows={ordered.map(([row, list]) => ({ row, tiles: [...list].sort((a, b) => natural(a.code, b.code)) }))} />
+      ) : all === 0 ? (
         <p className="text-sm text-ink-soft">ჯერ არცერთი თარო არ არის: ჩატვირთე ნაშთი თაროს სვეტით ან დაიწყე დათვლა.</p>
       ) : (
         <div className="grid gap-3">
