@@ -158,6 +158,10 @@ export type ZoneStatus = 'counting' | 'done';
 export type Stocktake = {
   id: string;
   company_id: string;
+  number: string;
+  count_date: string;
+  client_name: string | null;
+  branch: string | null;
   name: string;
   status: StocktakeStatus;
   created_by: string | null;
@@ -189,6 +193,7 @@ export type StocktakeEntry = {
   per_box: number | null;
   counter_id: string | null;
   photo_path: string | null;
+  recounted: boolean;
   created_at: string;
   updated_at: string;
 };

@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
 import type { Stocktake, StocktakeZone } from '@/types/database';
 import ZoneOpener from './zone-opener';
+import ExportBox from './export-box';
 
 type ZoneRow = StocktakeZone & {
   locations: { code: string; name: string } | null;
@@ -34,11 +35,15 @@ export default async function StocktakePage({ params }: PageProps<'/count/[id]'>
     <div className="grid gap-6">
       <div>
         <Link href="/count" className="text-sm text-ink-faint">← ინვენტარიზაციები</Link>
-        <h1 className="mt-1 text-xl font-semibold">{stocktake.name}</h1>
+        <p className="mt-1 text-sm text-ink-faint">{stocktake.number} · {new Date(stocktake.count_date).toLocaleDateString('ka-GE')}</p>
+        <h1 className="text-xl font-semibold">{stocktake.client_name ?? stocktake.name}</h1>
+        {stocktake.branch && <p className="text-ink-soft">{stocktake.branch}</p>}
         <p className="text-sm text-ink-faint">
-          ზონები: {zones?.length ?? 0} · დასრულებული: {done}
+          თაროები: {zones?.length ?? 0} · დასრულებული: {done}
         </p>
       </div>
+
+      {(zones ?? []).length > 0 && <ExportBox stocktakeId={id} shelves={(zones ?? []).map((z) => ({ id: z.location_id, code: z.locations?.code ?? '' }))} />}
 
       {manager && (
         <div className="grid grid-cols-2 gap-2 text-sm">
@@ -48,7 +53,9 @@ export default async function StocktakePage({ params }: PageProps<'/count/[id]'>
       )}
 
       {stocktake.status === 'open' ? (
-        <ZoneOpener stocktakeId={id} />
+        <div id="shelf">
+          <ZoneOpener stocktakeId={id} client={stocktake.client_name ?? stocktake.name} branch={stocktake.branch ?? ''} />
+        </div>
       ) : (
         <p className="text-ink-soft">ინვენტარიზაცია დახურულია.</p>
       )}
@@ -68,7 +75,7 @@ export default async function StocktakePage({ params }: PageProps<'/count/[id]'>
                     <span className="text-ink-soft">{z.locations?.name}</span>
                   </span>
                   <span className={z.status === 'done' ? 'text-match' : 'text-review'}>
-                    {z.status === 'done' ? 'დასრულდა' : 'ითვლება'}
+                    {z.status === 'done' ? 'დასრულება' : 'ითვლება'}
                   </span>
                 </Link>
               </li>
@@ -87,7 +94,7 @@ export default async function StocktakePage({ params }: PageProps<'/count/[id]'>
                   {z.locations?.code} · {z.user_profiles?.full_name ?? z.user_profiles?.email}
                 </span>
                 <span className={z.status === 'done' ? 'text-match' : 'text-review'}>
-                  {z.status === 'done' ? 'დასრულდა' : 'ითვლება'}
+                  {z.status === 'done' ? 'დასრულება' : 'ითვლება'}
                 </span>
               </li>
             ))}

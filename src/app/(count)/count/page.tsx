@@ -33,10 +33,9 @@ export default async function CountHome() {
                 href={`/count/${s.id}`}
                 className="block rounded-control border border-rule-strong bg-paper-sunk px-4 py-4 text-lg font-semibold"
               >
-                {s.name}
-                <span className="block text-sm font-normal text-ink-faint">
-                  გაიხსნა {new Date(s.created_at).toLocaleDateString('ka-GE')}
-                </span>
+                <span className="block text-sm font-normal text-ink-faint">{s.number} · {new Date(s.count_date).toLocaleDateString('ka-GE')}</span>
+                {s.client_name ?? s.name}
+                {s.branch && <span className="block text-base font-normal text-ink-soft">{s.branch}</span>}
               </Link>
             </li>
           ))}
@@ -50,7 +49,9 @@ export default async function CountHome() {
           <h2 className="text-sm font-semibold text-ink-faint">დახურული</h2>
           <ul className="grid gap-1 text-sm text-ink-soft">
             {closed.map((s) => (
-              <li key={s.id}>{s.name}</li>
+              <li key={s.id}>
+                <Link href={`/count/${s.id}`} className="underline">{s.number}</Link> · {s.client_name ?? s.name}{s.branch ? ` · ${s.branch}` : ''}
+              </li>
             ))}
           </ul>
         </section>

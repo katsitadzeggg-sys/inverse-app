@@ -25,34 +25,37 @@ async function readLabel(file: File): Promise<string> {
  * warehouse whose shelves have no numbers — create a zone on the spot.
  * Scans and photos ask for confirmation before the shelf opens.
  */
-export default function ZoneOpener({ stocktakeId }: { stocktakeId: string }) {
+export default function ZoneOpener({ stocktakeId, client, branch }: { stocktakeId: string; client: string; branch: string }) {
   const [state, action, pending] = useActionState(openZone.bind(null, stocktakeId), EMPTY);
   const [candidate, setCandidate] = useState<Shelf | null>(null);
   const [reading, setReading] = useState<string | null>(null);
   const [readError, setReadError] = useState<string | null>(null);
   const [busy, start] = useTransition();
   const [newZone, setNewZone] = useState(false);
+  const [offer, setOffer] = useState(false);
   const [typed, setTyped] = useState('');
 
   function propose(text: string) {
     setReadError(null);
+    setOffer(false);
     setReading(text);
     start(async () => {
       const shelf = await matchShelf(text);
       if (shelf) setCandidate(shelf);
       else {
         setCandidate(null);
-        setReadError(`„${text}“ — ასეთი თარო ვერ ვიპოვე. შეასწორე ხელით ქვემოთ.`);
+        setReadError(`„${text}“ — ასეთი თარო სისტემაში არ არის.`);
         setTyped(text.split(' ')[0] ?? '');
+        setOffer(true);
       }
     });
   }
 
-  const missing = state.notice === 'missing';
+  const missing = offer || state.notice === 'missing';
 
   return (
     <section className="grid gap-3 rounded-control border border-rule/70 p-4">
-      <p className="text-base font-semibold">1. აირჩიე თარო</p>
+      <p className="text-base font-semibold">აირჩიე თარო</p>
 
       <Scanner label="თაროს QR / შტრიხკოდი" onCode={propose} />
 
@@ -82,20 +85,29 @@ export default function ZoneOpener({ stocktakeId }: { stocktakeId: string }) {
       {candidate && (
         <form action={action} className="grid gap-2 rounded-control border-2 border-match/60 bg-match/5 p-3">
           <input type="hidden" name="code" value={candidate.code} />
-          <p className="text-base">
-            თარო <b className="text-xl">{candidate.code}</b> {candidate.name !== candidate.code && <span className="text-ink-soft">· {candidate.name}</span>}?
-          </p>
+          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-base">
+            <dt className="text-ink-faint">კომპანია</dt><dd>{client}</dd>
+            {branch && (<><dt className="text-ink-faint">ფილიალი</dt><dd>{branch}</dd></>)}
+            <dt className="text-ink-faint">თარო</dt>
+            <dd><b className="text-xl">{candidate.code}</b>{candidate.name !== candidate.code && <span className="text-ink-soft"> · {candidate.name}</span>}</dd>
+          </dl>
           <div className="grid grid-cols-2 gap-2">
             <button type="button" onClick={() => setCandidate(null)} className="rounded-control border border-rule-strong py-3">✗ არა</button>
-            <button type="submit" disabled={pending} className="rounded-control bg-ink py-3 font-semibold text-paper">✓ დიახ, გახსნა</button>
+            <button type="submit" disabled={pending} className="rounded-control bg-ink py-3 font-semibold text-paper">✓ ვადასტურებ</button>
           </div>
         </form>
       )}
       {readError && <p className="text-sm text-mismatch">{readError}</p>}
 
-      <form action={action} className="flex gap-2">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (typed.trim()) propose(typed.trim());
+        }}
+        className="flex gap-2"
+      >
         <input value={typed} onChange={(e) => setTyped(e.target.value)} name="code" required autoCapitalize="characters" placeholder="ან ჩაწერე, მაგ. T-01" className={`${inputClass} text-base`} />
-        <Button type="submit" disabled={pending}>{pending ? '…' : 'გახსნა'}</Button>
+        <Button type="submit" disabled={busy}>{busy ? '…' : 'გახსნა'}</Button>
       </form>
 
       {state.error && <Alert>{state.error}</Alert>}

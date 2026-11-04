@@ -10,17 +10,27 @@ export type FormState = { error?: string; notice?: string };
 
 const isManager = (role: string) => role === 'owner' || role === 'admin';
 
-/** Owners/admins open a new stocktake. */
+/** Owners/admins open a new stocktake; the database gives it its number. */
 export async function createStocktake(_prev: FormState, formData: FormData): Promise<FormState> {
   const session = await requireSession();
   if (!isManager(session.profile.role)) return { error: 'ინვენტარიზაციას მხოლოდ მენეჯერი ხსნის.' };
-  const name = String(formData.get('name') ?? '').trim();
-  if (!name) return { error: 'ჩაწერე სახელი.' };
+  const client = String(formData.get('client_name') ?? '').trim();
+  const branch = String(formData.get('branch') ?? '').trim();
+  const date = String(formData.get('count_date') ?? '').trim();
+  if (!client) return { error: 'ჩაწერე კომპანია.' };
+  if (!branch) return { error: 'ჩაწერე საწყობი ან ფილიალი.' };
 
   const supabase = await createClient();
   const { data, error } = await supabase
     .from('stocktakes')
-    .insert({ company_id: session.company.id, name, created_by: session.userId })
+    .insert({
+      company_id: session.company.id,
+      name: `${client} · ${branch}`,
+      client_name: client,
+      branch,
+      ...(/^\d{4}-\d{2}-\d{2}$/.test(date) ? { count_date: date } : {}),
+      created_by: session.userId,
+    })
     .select('id')
     .single();
   if (error) return { error: error.message };
@@ -154,7 +164,7 @@ export async function finishZone(stocktakeId: string, locationId: string): Promi
   const { error } = await supabase.rpc('finish_stocktake_zone', { p_stocktake: stocktakeId, p_location: locationId });
   if (error) throw new Error(error.message);
   revalidatePath(`/count/${stocktakeId}`);
-  redirect(`/count/${stocktakeId}`);
+  redirect(`/count/${stocktakeId}/${locationId}/done`);
 }
 
 /** A note for the whole shelf (damage, mixed goods, no label …). */
@@ -168,7 +178,11 @@ export async function saveZoneNote(stocktakeId: string, locationId: string, _pre
     .eq('stocktake_id', stocktakeId)
     .eq('location_id', locationId);
   if (error) return { error: error.message };
-  revalidatePath(`/count/${stocktakeId}/${locationId}`);
+  revalidatePath(`/count/${stocktakeId}`);
+  // The summary page saves the note and then leaves: back to the stocktake or straight to the next shelf.
+  const next = String(formData.get('next') ?? '');
+  if (next === 'close') redirect(`/count/${stocktakeId}`);
+  if (next === 'new') redirect(`/count/${stocktakeId}#shelf`);
   return { notice: 'შენახულია' };
 }
 
@@ -286,7 +300,7 @@ export async function closeZone(stocktakeId: string, locationId: string): Promis
   revalidatePath(`/count/${stocktakeId}`);
   revalidatePath(`/count/${stocktakeId}/${locationId}`);
   const recount = ((data ?? []) as RecheckItem[]).some((r) => r.status === 'recount');
-  if (!recount) redirect(`/count/${stocktakeId}`);
+  if (!recount) redirect(`/count/${stocktakeId}/${locationId}/done`);
 }
 
 /** A recount replaces the counter's earlier lines for that item on this shelf. */
@@ -317,10 +331,11 @@ export async function recountItem(
     product_id: productId,
     quantity: qty,
     counter_id: session.userId,
+    recounted: true,
   });
   if (error) return { error: error.message.includes('frozen') ? 'ეს პოზიცია გაყინულია.' : error.message };
   revalidatePath(`/count/${stocktakeId}/${locationId}`);
-  return { notice: 'ჩაიწერა' };
+  return { notice: 'დადასტურდა' };
 }
 
 export type BookRow = {
