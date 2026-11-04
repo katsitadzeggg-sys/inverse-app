@@ -98,6 +98,8 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
       </div>
       )}
 
+      <Link href={`/manage/${id}/map`} className="rounded-control border-2 border-rule-strong px-3 py-3 text-center text-sm font-semibold">🗺 რუკა — რომელი თარო დაითვალა, სად არის სხვაობა</Link>
+
       {list.length > 0 && <ExportBox stocktakeId={id} number={st.number} shelves={list.map((z) => ({ id: z.location_id, code: z.locations?.code ?? '' }))} />}
 
       <section className="grid gap-2">
