@@ -17,6 +17,10 @@ export async function createStocktake(_prev: FormState, formData: FormData): Pro
   const client = String(formData.get('client_name') ?? '').trim();
   const branch = String(formData.get('branch') ?? '').trim();
   const date = String(formData.get('count_date') ?? '').trim();
+  const address = String(formData.get('address') ?? '').trim().slice(0, 300);
+  const lat = Number(formData.get('lat'));
+  const lng = Number(formData.get('lng'));
+  const point = formData.get('lat') && Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : {};
   if (!client) return { error: 'ჩაწერე კომპანია.' };
   if (!branch) return { error: 'ჩაწერე საწყობი ან ფილიალი.' };
 
@@ -28,6 +32,8 @@ export async function createStocktake(_prev: FormState, formData: FormData): Pro
       name: `${client} · ${branch}`,
       client_name: client,
       branch,
+      address: address || null,
+      ...point,
       ...(/^\d{4}-\d{2}-\d{2}$/.test(date) ? { count_date: date } : {}),
       created_by: session.userId,
     })
@@ -86,6 +92,14 @@ export async function openZone(stocktakeId: string, _prev: FormState, formData: 
   if (!session.canWrite) return { error: 'შენს როლს დათვლა არ შეუძლია.' };
   const code = String(formData.get('code') ?? '').trim();
   const create = formData.get('create') === '1';
+  // Where the phone was when the shelf was opened (if the person allowed it).
+  const gLat = Number(formData.get('lat'));
+  const gLng = Number(formData.get('lng'));
+  const gAcc = Number(formData.get('acc'));
+  const position =
+    formData.get('lat') && Number.isFinite(gLat) && Number.isFinite(gLng)
+      ? { lat: gLat, lng: gLng, accuracy_m: Number.isFinite(gAcc) ? gAcc : null, located_at: new Date().toISOString() }
+      : {};
   const description = String(formData.get('name') ?? '').trim();
   if (!code && !create) return { error: 'დაასკანერე ან ჩაწერე თაროს კოდი.' };
 
@@ -141,7 +155,9 @@ export async function openZone(stocktakeId: string, _prev: FormState, formData: 
     }
     if (zone.status === 'done') {
       if (!isManager(session.profile.role)) return { error: `თარო ${location.code} უკვე დახურულია. ხელახლა გახსნა მხოლოდ მენეჯერს შეუძლია.` };
-      await supabase.from('stocktake_zones').update({ status: 'counting', done_at: null }).eq('id', zone.id);
+      await supabase.from('stocktake_zones').update({ status: 'counting', done_at: null, ...position }).eq('id', zone.id);
+    } else if ('lat' in position) {
+      await supabase.from('stocktake_zones').update(position).eq('id', zone.id);
     }
   } else {
     const { error } = await supabase.from('stocktake_zones').insert({
@@ -149,6 +165,7 @@ export async function openZone(stocktakeId: string, _prev: FormState, formData: 
       stocktake_id: stocktakeId,
       location_id: location.id,
       counter_id: session.userId,
+      ...position,
     });
     if (error) {
       return { error: error.code === '23505' ? 'ჯერ დახურე შენი ღია თარო, ან ამ თაროს სხვა ითვლის.' : error.message };

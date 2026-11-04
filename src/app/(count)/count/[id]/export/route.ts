@@ -3,6 +3,7 @@ import writeXlsxFile from 'write-excel-file/node';
 import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
 import type { Stocktake } from '@/types/database';
+import { mapsLink } from '@/lib/geo';
 
 type Entry = {
   location_id: string;
@@ -44,8 +45,8 @@ export async function GET(request: Request, { params }: RouteContext<'/count/[id
   }
 
   const [{ data: zones }, { data: checks }, { data: people }, { data: media }] = await Promise.all([
-    supabase.from('stocktake_zones').select('location_id, note, counter_id, locations (code)').eq('stocktake_id', id)
-      .returns<{ location_id: string; note: string | null; counter_id: string | null; locations: { code: string } | null }[]>(),
+    supabase.from('stocktake_zones').select('location_id, note, counter_id, lat, lng, locations (code)').eq('stocktake_id', id)
+      .returns<{ location_id: string; note: string | null; counter_id: string | null; lat: number | null; lng: number | null; locations: { code: string } | null }[]>(),
     supabase.from('stocktake_checks').select('location_id, product_id, attempts, status').eq('stocktake_id', id)
       .returns<{ location_id: string; product_id: string; attempts: number; status: string }[]>(),
     supabase.from('user_profiles').select('id, full_name, email').returns<{ id: string; full_name: string | null; email: string }[]>(),
@@ -64,7 +65,7 @@ export async function GET(request: Request, { params }: RouteContext<'/count/[id
   const checkBy = new Map((checks ?? []).map((c) => [`${c.location_id}|${c.product_id}`, c]));
   const who = new Map((people ?? []).map((p) => [p.id, p.full_name ?? p.email]));
 
-  const head = ['ინვენტარიზაცია №', 'თარიღი', 'კომპანია', 'საწყობი / ფილიალი', 'თარო', 'დასახელება', 'შტრიხკოდი', 'რაოდენობა', 'ერთეული', 'ავტორი', 'გადათვლილი', 'სტატუსი', 'კომენტარი თაროზე', 'ფოტო/ვიდეო', 'ბმული'];
+  const head = ['ინვენტარიზაცია №', 'თარიღი', 'კომპანია', 'საწყობი / ფილიალი', 'თარო', 'დასახელება', 'შტრიხკოდი', 'რაოდენობა', 'ერთეული', 'ავტორი', 'გადათვლილი', 'სტატუსი', 'კომენტარი თაროზე', 'ფოტო/ვიდეო', 'ბმული', 'მისამართი', 'აღწერის ადგილი (GPS)'];
   const header = head.map((value) => ({ value, fontWeight: 'bold' as const, backgroundColor: '#1D2939', color: '#FFFFFF' }));
 
   const rows = entries.map((e) => {
@@ -94,13 +95,15 @@ export async function GET(request: Request, { params }: RouteContext<'/count/[id
         return [c.photo ? `${c.photo} ფოტო` : '', c.video ? `${c.video} ვიდეო` : ''].filter(Boolean).join(', ');
       })(),
       mediaBy.has(e.location_id) ? `${origin}/count/${id}/${e.location_id}/done` : '',
+      st.address ?? '',
+      z?.lat != null && z?.lng != null ? mapsLink(z.lat, z.lng) : '',
     ].map((value) => ({ value, type: typeof value === 'number' ? Number : String, backgroundColor: color }));
   });
 
   const buffer = await writeXlsxFile([header, ...rows], {
     buffer: true,
     sheet: 'დათვლა',
-    columns: [{ width: 16 }, { width: 11 }, { width: 18 }, { width: 22 }, { width: 8 }, { width: 34 }, { width: 16 }, { width: 11 }, { width: 8 }, { width: 20 }, { width: 12 }, { width: 16 }, { width: 30 }, { width: 16 }, { width: 50 }],
+    columns: [{ width: 16 }, { width: 11 }, { width: 18 }, { width: 22 }, { width: 8 }, { width: 34 }, { width: 16 }, { width: 11 }, { width: 8 }, { width: 20 }, { width: 12 }, { width: 16 }, { width: 30 }, { width: 16 }, { width: 50 }, { width: 30 }, { width: 40 }],
   });
 
   const shelfCode = shelf === 'all' ? 'ყველა' : (zoneBy.get(shelf)?.locations?.code ?? 'თარო');

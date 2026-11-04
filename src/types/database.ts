@@ -162,6 +162,9 @@ export type Stocktake = {
   count_date: string;
   client_name: string | null;
   branch: string | null;
+  address: string | null;
+  lat: number | null;
+  lng: number | null;
   name: string;
   status: StocktakeStatus;
   created_by: string | null;
@@ -179,6 +182,10 @@ export type StocktakeZone = {
   started_at: string;
   done_at: string | null;
   note: string | null;
+  lat: number | null;
+  lng: number | null;
+  accuracy_m: number | null;
+  located_at: string | null;
 };
 
 export type StocktakeEntry = {

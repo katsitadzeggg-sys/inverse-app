@@ -5,6 +5,7 @@ import { requireSession } from '@/lib/session';
 import type { Stocktake, StocktakeZone } from '@/types/database';
 import ZoneOpener from './zone-opener';
 import ExportBox from './export-box';
+import { mapsLink } from '@/lib/geo';
 
 type ZoneRow = StocktakeZone & {
   locations: { code: string; name: string } | null;
@@ -38,6 +39,14 @@ export default async function StocktakePage({ params }: PageProps<'/count/[id]'>
         <p className="mt-1 text-sm text-ink-faint">{stocktake.number} · {new Date(stocktake.count_date).toLocaleDateString('ka-GE')}</p>
         <h1 className="text-xl font-semibold">{stocktake.client_name ?? stocktake.name}</h1>
         {stocktake.branch && <p className="text-ink-soft">{stocktake.branch}</p>}
+        {(stocktake.address || stocktake.lat != null) && (
+          <p className="text-sm text-ink-soft">
+            📍 {stocktake.address ?? ''}
+            {stocktake.lat != null && stocktake.lng != null && (
+              <> <a href={mapsLink(stocktake.lat, stocktake.lng)} target="_blank" rel="noreferrer" className="underline">რუკაზე</a></>
+            )}
+          </p>
+        )}
         <p className="text-sm text-ink-faint">
           თაროები: {zones?.length ?? 0} · დასრულებული: {done}
         </p>

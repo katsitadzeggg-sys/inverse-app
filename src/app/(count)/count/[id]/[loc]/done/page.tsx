@@ -5,6 +5,7 @@ import { requireSession } from '@/lib/session';
 import type { Stocktake, StocktakeZone } from '@/types/database';
 import ShelfSummaryForm from './summary-form';
 import MediaUpload from './media-upload';
+import { distanceM, mapsLink } from '@/lib/geo';
 
 /**
  * Shelf summary after closing: one generated statement (who, when, where,
@@ -43,6 +44,11 @@ export default async function ShelfDonePage({ params }: PageProps<'/count/[id]/[
     `${when.toLocaleTimeString('ka-GE', { hour: '2-digit', minute: '2-digit' })}, ` +
     `${st.client_name ?? st.name}${st.branch ? ` / ${st.branch}` : ''}, თარო ${location.code}. ${result}.`;
 
+  // Where the shelf was opened, and how far that is from the warehouse point.
+  const here = zone.lat != null && zone.lng != null ? { lat: zone.lat, lng: zone.lng } : null;
+  const away = here && st.lat != null && st.lng != null ? Math.round(distanceM(here, { lat: st.lat, lng: st.lng })) : null;
+  const far = away != null && away > 300 + (zone.accuracy_m ?? 0);
+
   const signed = await Promise.all(
     (media ?? []).map(async (m) => {
       const { data } = await supabase.storage.from('stocktake-media').createSignedUrl(m.path, 60 * 30);
@@ -60,6 +66,22 @@ export default async function ShelfDonePage({ params }: PageProps<'/count/[id]/[
 
       <div className={`rounded-control border-2 p-4 ${differences ? 'border-mismatch/50' : 'border-match/50'}`}>
         <p className="text-base leading-relaxed">{statement}</p>
+        <p className="mt-2 text-sm text-ink-soft">
+          {st.address && <>მისამართი: {st.address}. </>}
+          {here ? (
+            <>
+              📍 <a href={mapsLink(here.lat, here.lng)} target="_blank" rel="noreferrer" className="underline">აღწერის ადგილი რუკაზე</a>
+              {zone.accuracy_m != null && <> (±{Math.round(zone.accuracy_m)} მ)</>}
+              {away != null && (
+                <span className={far ? ' font-semibold text-mismatch' : ''}>
+                  {' '}· საწყობიდან {away >= 1000 ? `${(away / 1000).toFixed(1)} კმ` : `${away} მ`}{far ? ' ⚠' : ''}
+                </span>
+              )}
+            </>
+          ) : (
+            'მდებარეობა არ ჩაწერილა.'
+          )}
+        </p>
       </div>
 
       {canEdit && (

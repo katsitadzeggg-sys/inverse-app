@@ -1,6 +1,7 @@
 'use client';
 
-import { useActionState, useState, useTransition } from 'react';
+import { useActionState, useEffect, useState, useTransition } from 'react';
+import { currentPosition } from '@/lib/geo';
 import { Alert, Button, inputClass } from '@/components/ui';
 import Scanner from '../scanner';
 import { matchShelf, openZone, type FormState } from '../actions';
@@ -33,6 +34,18 @@ export default function ZoneOpener({ stocktakeId, client, branch }: { stocktakeI
   const [busy, start] = useTransition();
   const [newZone, setNewZone] = useState(false);
   const [offer, setOffer] = useState(false);
+  // The phone's position goes with the shelf when it is opened.
+  const [pos, setPos] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
+  useEffect(() => {
+    currentPosition().then(setPos);
+  }, []);
+  const geo = pos ? (
+    <>
+      <input type="hidden" name="lat" value={pos.lat} />
+      <input type="hidden" name="lng" value={pos.lng} />
+      <input type="hidden" name="acc" value={Math.round(pos.accuracy)} />
+    </>
+  ) : null;
   const [typed, setTyped] = useState('');
 
   function propose(text: string) {
@@ -85,9 +98,12 @@ export default function ZoneOpener({ stocktakeId, client, branch }: { stocktakeI
       {candidate && (
         <form action={action} className="grid gap-2 rounded-control border-2 border-match/60 bg-match/5 p-3">
           <input type="hidden" name="code" value={candidate.code} />
+          {geo}
           <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-base">
             <dt className="text-ink-faint">კომპანია</dt><dd>{client}</dd>
             {branch && (<><dt className="text-ink-faint">ფილიალი</dt><dd>{branch}</dd></>)}
+            <dt className="text-ink-faint">მდებარეობა</dt>
+            <dd className={pos ? 'text-match' : 'text-ink-faint'}>{pos ? `📍 დადგენილია (±${Math.round(pos.accuracy)} მ)` : 'არ არის დაშვებული'}</dd>
             <dt className="text-ink-faint">თარო</dt>
             <dd><b className="text-xl">{candidate.code}</b>{candidate.name !== candidate.code && <span className="text-ink-soft"> · {candidate.name}</span>}</dd>
           </dl>
@@ -116,6 +132,7 @@ export default function ZoneOpener({ stocktakeId, client, branch }: { stocktakeI
         <form action={action} className="grid gap-2 rounded-control border border-review/50 p-3">
           <input type="hidden" name="create" value="1" />
           <input type="hidden" name="code" value={typed} />
+          {geo}
           <p className="text-sm">დავამატო ახალი თარო <b>{typed}</b>?</p>
           <input name="name" placeholder="აღწერა (არასავალდებულო)" className={`${inputClass} text-base`} />
           <Button type="submit" disabled={pending}>+ დამატება და გახსნა</Button>
@@ -128,6 +145,7 @@ export default function ZoneOpener({ stocktakeId, client, branch }: { stocktakeI
       {newZone && (
         <form action={action} className="grid gap-2 rounded-control border border-rule/70 p-3">
           <input type="hidden" name="create" value="1" />
+          {geo}
           <p className="text-sm text-ink-soft">
             ზონას ნომერს თავად მივანიჭებ (Z-001, Z-002…). მოკლედ აღწერე, სად არის — მერე ამ ნომრით ეტიკეტსაც დავბეჭდავთ.
           </p>
