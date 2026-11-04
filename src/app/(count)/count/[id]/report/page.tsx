@@ -143,7 +143,10 @@ export default async function ReportPage({ params }: PageProps<'/count/[id]/repo
     <div className="grid gap-6">
       <div>
         <Link href={`/manage/${id}`} className="text-sm text-ink-faint">← {stocktake.number}</Link>
-        <h1 className="mt-1 text-xl font-semibold">სხვაობები</h1>
+        <div className="mt-1 flex items-center justify-between gap-2">
+          <h1 className="text-xl font-semibold">სხვაობები</h1>
+          <a href={`/count/${id}/report/excel`} className="rounded-control border border-rule-strong px-3 py-2 text-sm font-semibold">⬇ Excel</a>
+        </div>
         {book.length === 0 && <p className="mt-2 text-sm text-review">ნაშთი არ არის ჩატვირთული — <Link className="underline" href={`/count/${id}/book`}>ჩატვირთე</Link>.</p>}
       </div>
 
