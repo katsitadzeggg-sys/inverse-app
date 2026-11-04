@@ -191,3 +191,5 @@ export type StocktakeEntry = {
   created_at: string;
   updated_at: string;
 };
+
+export type StocktakeCheckStatus = 'ok' | 'recount' | 'frozen';

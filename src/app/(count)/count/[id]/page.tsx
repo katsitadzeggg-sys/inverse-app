@@ -12,7 +12,8 @@ type ZoneRow = StocktakeZone & {
 
 export default async function StocktakePage({ params }: PageProps<'/count/[id]'>) {
   const { id } = await params;
-  const { userId } = await requireSession();
+  const { userId, profile } = await requireSession();
+  const manager = profile.role === 'owner' || profile.role === 'admin';
   const supabase = await createClient();
 
   const { data: stocktake } = await supabase.from('stocktakes').select('*').eq('id', id).maybeSingle<Stocktake>();
@@ -38,6 +39,13 @@ export default async function StocktakePage({ params }: PageProps<'/count/[id]'>
           ზონები: {zones?.length ?? 0} · დასრულებული: {done}
         </p>
       </div>
+
+      {manager && (
+        <div className="grid grid-cols-2 gap-2 text-sm">
+          <Link href={`/count/${id}/book`} className="rounded-control border border-rule-strong px-3 py-3 text-center">📄 ნაშთის ჩატვირთვა</Link>
+          <Link href={`/count/${id}/report`} className="rounded-control border border-rule-strong px-3 py-3 text-center">📊 სხვაობები</Link>
+        </div>
+      )}
 
       {stocktake.status === 'open' ? (
         <ZoneOpener stocktakeId={id} />

@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
 import type { Stocktake, StocktakeEntry, StocktakeZone } from '@/types/database';
 import CountPanel from './count-panel';
+import RecountList from './recount-list';
 import { closeZone, deleteEntry } from '../../actions';
 
 type EntryRow = StocktakeEntry & { products: { name: string; sku: string; unit: string } | null };
@@ -38,6 +39,18 @@ export default async function ZonePage({ params }: PageProps<'/count/[id]/[loc]'
     .returns<EntryRow[]>();
   const rows = entries ?? [];
 
+  const { data: checks } = await supabase
+    .from('stocktake_checks')
+    .select('product_id, attempts, status, products (name, sku)')
+    .eq('stocktake_id', id)
+    .eq('location_id', loc)
+    .neq('status', 'ok')
+    .returns<{ product_id: string; attempts: number; status: 'recount' | 'frozen'; products: { name: string; sku: string } | null }[]>();
+  const recheck = (checks ?? [])
+    .map((c) => ({ product_id: c.product_id, attempts: c.attempts, status: c.status, name: c.products?.name ?? '', sku: c.products?.sku ?? '' }))
+    .sort((a, b) => (a.status === b.status ? a.name.localeCompare(b.name) : a.status === 'recount' ? -1 : 1));
+  const recountDue = recheck.some((c) => c.status === 'recount');
+
   return (
     <div className="grid gap-5">
       <div>
@@ -49,6 +62,8 @@ export default async function ZonePage({ params }: PageProps<'/count/[id]/[loc]'
           {zone.status === 'done' ? 'ზონა დასრულებულია' : 'ითვლება'} · ჩანაწერები: {rows.length}
         </p>
       </div>
+
+      {canCount && recheck.length > 0 && <RecountList stocktakeId={id} locationId={loc} items={recheck} />}
 
       {canCount ? (
         <CountPanel stocktakeId={id} locationId={loc} />
@@ -93,7 +108,7 @@ export default async function ZonePage({ params }: PageProps<'/count/[id]/[loc]'
             type="submit"
             className="w-full rounded-control bg-ink px-4 py-4 text-base font-semibold text-paper"
           >
-            ✓ ზონის დასრულება
+            {recountDue ? '↻ შემოწმება' : '✓ ზონის დასრულება'}
           </button>
         </form>
       )}

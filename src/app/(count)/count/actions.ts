@@ -143,14 +143,147 @@ export async function deleteEntry(stocktakeId: string, locationId: string, entry
   revalidatePath(`/count/${stocktakeId}/${locationId}`);
 }
 
+export type RecheckItem = {
+  product_id: string;
+  product_name: string;
+  sku: string;
+  status: 'recount' | 'frozen';
+  attempts: number;
+};
+
+/**
+ * Closing a zone compares it with the book (database function, so the book
+ * never reaches the phone). Items that do not match come back for recount;
+ * after three failed recounts they freeze. With nothing left to recount the
+ * zone is done and the counter goes back to the zone list.
+ */
 export async function closeZone(stocktakeId: string, locationId: string): Promise<void> {
   await requireSession();
   const supabase = await createClient();
-  await supabase
-    .from('stocktake_zones')
-    .update({ status: 'done', done_at: new Date().toISOString() })
-    .eq('stocktake_id', stocktakeId)
-    .eq('location_id', locationId);
+  const { data, error } = await supabase.rpc('close_stocktake_zone', {
+    p_stocktake: stocktakeId,
+    p_location: locationId,
+  });
+  if (error) throw new Error(error.message);
   revalidatePath(`/count/${stocktakeId}`);
-  redirect(`/count/${stocktakeId}`);
+  revalidatePath(`/count/${stocktakeId}/${locationId}`);
+  const recount = ((data ?? []) as RecheckItem[]).some((r) => r.status === 'recount');
+  if (!recount) redirect(`/count/${stocktakeId}`);
+}
+
+/** A recount replaces the counter's earlier lines for that item on this shelf. */
+export async function recountItem(
+  stocktakeId: string,
+  locationId: string,
+  productId: string,
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const session = await requireSession();
+  const qty = Number(String(formData.get('qty') ?? '').replace(',', '.'));
+  if (String(formData.get('qty') ?? '').trim() === '' || !Number.isFinite(qty) || qty < 0) {
+    return { error: 'ჩაწერე რაოდენობა.' };
+  }
+  const supabase = await createClient();
+  const { error: delError } = await supabase
+    .from('stocktake_entries')
+    .delete()
+    .eq('stocktake_id', stocktakeId)
+    .eq('location_id', locationId)
+    .eq('product_id', productId);
+  if (delError) return { error: delError.message.includes('frozen') ? 'ეს პოზიცია გაყინულია.' : delError.message };
+  const { error } = await supabase.from('stocktake_entries').insert({
+    company_id: session.company.id,
+    stocktake_id: stocktakeId,
+    location_id: locationId,
+    product_id: productId,
+    quantity: qty,
+    counter_id: session.userId,
+  });
+  if (error) return { error: error.message.includes('frozen') ? 'ეს პოზიცია გაყინულია.' : error.message };
+  revalidatePath(`/count/${stocktakeId}/${locationId}`);
+  return { notice: 'ჩაიწერა' };
+}
+
+export type BookRow = { code: string; name: string; location: string; qty: number; cost: number | null };
+
+/**
+ * Loads the book balance for a stocktake (owners/admins). Products and shelves
+ * that are not in the system yet are created from the file, so a client's
+ * export can be used as it is. Loading again replaces the previous book.
+ */
+export async function importBook(stocktakeId: string, rows: BookRow[]): Promise<FormState> {
+  const session = await requireSession();
+  if (!isManager(session.profile.role)) return { error: 'ნაშთს მხოლოდ მენეჯერი ტვირთავს.' };
+  const clean = rows
+    .map((r) => ({ ...r, code: r.code.trim(), name: r.name.trim(), location: r.location.trim() }))
+    .filter((r) => r.code && Number.isFinite(r.qty));
+  if (!clean.length) return { error: 'ფაილში ხაზი ვერ ვიპოვე: საჭიროა კოდი და რაოდენობა.' };
+  if (clean.length > 20000) return { error: 'ერთ ჯერზე მაქსიმუმ 20 000 ხაზი.' };
+
+  const supabase = await createClient();
+  const company = session.company.id;
+
+  // Products: match by SKU, then by barcode; create the rest.
+  const codes = [...new Set(clean.map((r) => r.code))];
+  const products = new Map<string, string>();
+  for (let i = 0; i < codes.length; i += 500) {
+    const chunk = codes.slice(i, i + 500);
+    const [{ data: bySku }, { data: byBarcode }] = await Promise.all([
+      supabase.from('products').select('id, sku').eq('company_id', company).in('sku', chunk),
+      supabase.from('products').select('id, barcode').eq('company_id', company).in('barcode', chunk),
+    ]);
+    for (const p of byBarcode ?? []) if (p.barcode) products.set(p.barcode, p.id);
+    for (const p of bySku ?? []) products.set(p.sku, p.id);
+  }
+  const missing = codes.filter((c) => !products.has(c));
+  for (let i = 0; i < missing.length; i += 500) {
+    const chunk = missing.slice(i, i + 500).map((code) => ({
+      company_id: company,
+      sku: code,
+      name: clean.find((r) => r.code === code)?.name || code,
+    }));
+    const { data, error } = await supabase.from('products').insert(chunk).select('id, sku');
+    if (error) return { error: `პროდუქტების დამატება ვერ მოხერხდა: ${error.message}` };
+    for (const p of data ?? []) products.set(p.sku, p.id);
+  }
+
+  // Shelves: match by code; create the rest.
+  const locCodes = [...new Set(clean.map((r) => r.location).filter(Boolean))];
+  const locations = new Map<string, string>();
+  let newShelves = 0;
+  if (locCodes.length) {
+    const { data } = await supabase.from('locations').select('id, code').eq('company_id', company).in('code', locCodes);
+    for (const l of data ?? []) locations.set(l.code, l.id);
+    const newLocs = locCodes.filter((c) => !locations.has(c)).map((code) => ({ company_id: company, code, name: code, kind: 'shelf' as const }));
+    newShelves = newLocs.length;
+    if (newLocs.length) {
+      const { data: made, error } = await supabase.from('locations').insert(newLocs).select('id, code');
+      if (error) return { error: `თაროების დამატება ვერ მოხერხდა: ${error.message}` };
+      for (const l of made ?? []) locations.set(l.code, l.id);
+    }
+  }
+
+  // Same item on the same shelf twice in the file: add the quantities up.
+  const merged = new Map<string, { product_id: string; location_id: string | null; book_qty: number; unit_cost: number | null }>();
+  for (const r of clean) {
+    const product_id = products.get(r.code)!;
+    const location_id = r.location ? locations.get(r.location)! : null;
+    const key = `${product_id}|${location_id ?? ''}`;
+    const prev = merged.get(key);
+    if (prev) prev.book_qty += r.qty;
+    else merged.set(key, { product_id, location_id, book_qty: r.qty, unit_cost: r.cost });
+  }
+
+  const { error: delError } = await supabase.from('stocktake_book').delete().eq('stocktake_id', stocktakeId);
+  if (delError) return { error: delError.message };
+  const lines = [...merged.values()].map((m) => ({ ...m, company_id: company, stocktake_id: stocktakeId }));
+  for (let i = 0; i < lines.length; i += 1000) {
+    const { error } = await supabase.from('stocktake_book').insert(lines.slice(i, i + 1000));
+    if (error) return { error: error.message };
+  }
+  revalidatePath(`/count/${stocktakeId}`);
+  return {
+    notice: `ჩაიტვირთა ${lines.length} ხაზი. ახალი პროდუქტი: ${missing.length}, ახალი თარო: ${newShelves}.`,
+  };
 }
