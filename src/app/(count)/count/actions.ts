@@ -335,9 +335,24 @@ export async function recountItem(
   formData: FormData,
 ): Promise<FormState> {
   const session = await requireSession();
-  const qty = Number(String(formData.get('qty') ?? '').replace(',', '.'));
-  if (String(formData.get('qty') ?? '').trim() === '' || !Number.isFinite(qty) || qty < 0) {
-    return { error: 'ჩაწერე რაოდენობა.' };
+  // Expiry-date count: one line per batch, sent as JSON [{ qty, expiry }].
+  let lines: { qty: number; expiry: string | null }[];
+  const batches = formData.get('batches');
+  if (batches) {
+    try {
+      lines = (JSON.parse(String(batches)) as { qty: unknown; expiry: unknown }[])
+        .map((b) => ({ qty: Number(b.qty), expiry: typeof b.expiry === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(b.expiry) ? b.expiry : null }))
+        .filter((b) => Number.isFinite(b.qty) && b.qty >= 0);
+    } catch {
+      return { error: 'მონაცემები ვერ წავიკითხე.' };
+    }
+    if (!lines.length) return { error: 'ჩაწერე რაოდენობა.' };
+  } else {
+    const qty = Number(String(formData.get('qty') ?? '').replace(',', '.'));
+    if (String(formData.get('qty') ?? '').trim() === '' || !Number.isFinite(qty) || qty < 0) {
+      return { error: 'ჩაწერე რაოდენობა.' };
+    }
+    lines = [{ qty, expiry: null }];
   }
   const supabase = await createClient();
   const { error: delError } = await supabase
@@ -347,15 +362,18 @@ export async function recountItem(
     .eq('location_id', locationId)
     .eq('product_id', productId);
   if (delError) return { error: delError.message.includes('frozen') ? 'ეს პოზიცია გაყინულია.' : delError.message };
-  const { error } = await supabase.from('stocktake_entries').insert({
-    company_id: session.company.id,
-    stocktake_id: stocktakeId,
-    location_id: locationId,
-    product_id: productId,
-    quantity: qty,
-    counter_id: session.userId,
-    recounted: true,
-  });
+  const { error } = await supabase.from('stocktake_entries').insert(
+    lines.map((l) => ({
+      company_id: session.company.id,
+      stocktake_id: stocktakeId,
+      location_id: locationId,
+      product_id: productId,
+      quantity: l.qty,
+      expiry_date: l.expiry,
+      counter_id: session.userId,
+      recounted: true,
+    })),
+  );
   if (error) return { error: error.message.includes('frozen') ? 'ეს პოზიცია გაყინულია.' : error.message };
   revalidatePath(`/count/${stocktakeId}/${locationId}`);
   return { notice: 'დადასტურდა' };
