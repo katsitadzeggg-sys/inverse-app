@@ -58,6 +58,13 @@ export default async function ReportPage({ params }: PageProps<'/count/[id]/repo
   const { data: stocktake } = await supabase.from('stocktakes').select('*').eq('id', id).maybeSingle<Stocktake>();
   if (!stocktake) notFound();
 
+  const { data: zones } = await supabase
+    .from('stocktake_zones')
+    .select('id, status, note, started_at, done_at, locations (code), user_profiles (full_name, email)')
+    .eq('stocktake_id', id)
+    .order('started_at')
+    .returns<{ id: string; status: string; note: string | null; started_at: string; done_at: string | null; locations: { code: string } | null; user_profiles: { full_name: string | null; email: string } | null }[]>();
+
   const [book, entries, checks] = await Promise.all([
     all<Book>((a, b) => supabase.from('stocktake_book').select('product_id, book_qty, unit_cost').eq('stocktake_id', id).range(a, b)),
     all<Entry>((a, b) => supabase.from('stocktake_entries').select('product_id, unknown_label, quantity, location_id').eq('stocktake_id', id).range(a, b)),
@@ -131,6 +138,25 @@ export default async function ReportPage({ params }: PageProps<'/count/[id]/repo
       {diffs.length > 0 && <section className="grid gap-2"><h2 className="font-semibold text-mismatch">⚠ სხვაობები</h2><Table items={diffs} tone="text-mismatch" /></section>}
       {missed.length > 0 && <section className="grid gap-2"><h2 className="font-semibold text-review">გამორჩენილი — ნაშთშია, არავის დაუთვლია</h2><Table items={missed} tone="text-review" /></section>}
       {extra.length > 0 && <section className="grid gap-2"><h2 className="font-semibold">დათვლილია, ნაშთში არ არის</h2><Table items={extra} tone="text-ink" /></section>}
+      {(zones ?? []).length > 0 && (
+        <section className="grid gap-2">
+          <h2 className="font-semibold">თაროები და მთვლელები</h2>
+          <ul className="grid gap-1 text-sm">
+            {(zones ?? []).map((z) => (
+              <li key={z.id} className="border-t border-rule/60 py-1.5">
+                <div className="flex justify-between gap-2">
+                  <span><b>{z.locations?.code}</b> · {z.user_profiles?.full_name ?? z.user_profiles?.email}</span>
+                  <span className={z.status === 'done' ? 'text-match' : 'text-review'}>
+                    {z.status === 'done' ? `✓ ${new Date(z.done_at ?? z.started_at).toLocaleTimeString('ka-GE', { hour: '2-digit', minute: '2-digit' })}` : 'ითვლება'}
+                  </span>
+                </div>
+                {z.note && <p className="text-ink-soft">💬 {z.note}</p>}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {unknown.length > 0 && (
         <section className="grid gap-2">
           <h2 className="font-semibold">❓ უცნობი პროდუქტები</h2>

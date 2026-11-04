@@ -27,24 +27,91 @@ export async function createStocktake(_prev: FormState, formData: FormData): Pro
   redirect(`/count/${data.id}`);
 }
 
+/** T-01, t1, "T 1" and T-001 are the same shelf. */
+function normCode(code: string): string {
+  return code
+    .toUpperCase()
+    .replace(/[^A-Z0-9\u10D0-\u10FF]+/g, '')
+    .replace(/(^|[^0-9])0+(?=[0-9])/g, '$1');
+}
+
+type Loc = { id: string; code: string; name: string };
+
+async function findShelf(companyId: string, text: string): Promise<Loc | null> {
+  const supabase = await createClient();
+  const { data: exact } = await supabase
+    .from('locations')
+    .select('id, code, name')
+    .eq('company_id', companyId)
+    .ilike('code', text.replace(/[%_]/g, ''))
+    .maybeSingle<Loc>();
+  if (exact) return exact;
+  const want = normCode(text);
+  if (!want) return null;
+  const { data } = await supabase.from('locations').select('id, code, name').eq('company_id', companyId).limit(5000);
+  return ((data ?? []) as Loc[]).find((l) => normCode(l.code) === want) ?? null;
+}
+
 /**
- * The counter scans or types a shelf code. The zone is claimed for them, or
- * reopened if it is already theirs; someone else's zone is refused.
+ * Text read off a shelf label by the camera (or typed) → the shelf it names,
+ * for the counter to confirm. Tries each word of the reading.
+ */
+export async function matchShelf(text: string): Promise<Loc | null> {
+  const session = await requireSession();
+  const words = [text, ...text.split(/\s+/)].map((w) => w.trim()).filter((w) => w.length >= 2);
+  for (const w of words) {
+    const hit = await findShelf(session.company.id, w);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+/**
+ * The counter scans, reads or types a shelf code. One shelf at a time: while
+ * they have an open shelf in this stocktake, another is refused. A shelf that
+ * is not in the system can be created on the spot (unnumbered warehouses).
  */
 export async function openZone(stocktakeId: string, _prev: FormState, formData: FormData): Promise<FormState> {
   const session = await requireSession();
   if (!session.canWrite) return { error: 'შენს როლს დათვლა არ შეუძლია.' };
   const code = String(formData.get('code') ?? '').trim();
-  if (!code) return { error: 'დაასკანერე ან ჩაწერე თაროს კოდი.' };
+  const create = formData.get('create') === '1';
+  const description = String(formData.get('name') ?? '').trim();
+  if (!code && !create) return { error: 'დაასკანერე ან ჩაწერე თაროს კოდი.' };
 
   const supabase = await createClient();
-  const { data: location } = await supabase
-    .from('locations')
-    .select('id, code, name')
-    .eq('company_id', session.company.id)
-    .ilike('code', code)
-    .maybeSingle<{ id: string; code: string; name: string }>();
-  if (!location) return { error: `ლოკაცია „${code}“ ვერ მოიძებნა.` };
+
+  // One shelf at a time.
+  const { data: open } = await supabase
+    .from('stocktake_zones')
+    .select('location_id, locations (code)')
+    .eq('stocktake_id', stocktakeId)
+    .eq('counter_id', session.userId)
+    .eq('status', 'counting')
+    .maybeSingle<{ location_id: string; locations: { code: string } | null }>();
+
+  let location = code ? await findShelf(session.company.id, code) : null;
+
+  if (open && open.location_id !== location?.id) {
+    return { error: `ჯერ დახურე თარო ${open.locations?.code ?? ''}, მერე გახსენი ახალი.` };
+  }
+
+  if (!location) {
+    if (!create) return { error: `თარო „${code}“ სისტემაში არ არის.`, notice: 'missing' };
+    let newCode = code;
+    if (!newCode) {
+      const { data: zs } = await supabase.from('locations').select('code').eq('company_id', session.company.id).like('code', 'Z-%');
+      const max = Math.max(0, ...((zs ?? []) as { code: string }[]).map((z) => Number(z.code.slice(2)) || 0));
+      newCode = `Z-${String(max + 1).padStart(3, '0')}`;
+    }
+    const { data: made, error } = await supabase
+      .from('locations')
+      .insert({ company_id: session.company.id, code: newCode, name: description || newCode, kind: 'shelf' })
+      .select('id, code, name')
+      .single<Loc>();
+    if (error) return { error: error.message };
+    location = made;
+  }
 
   const { data: zone } = await supabase
     .from('stocktake_zones')
@@ -60,9 +127,10 @@ export async function openZone(stocktakeId: string, _prev: FormState, formData: 
         .select('full_name, email')
         .eq('id', zone.counter_id ?? '')
         .maybeSingle<{ full_name: string | null; email: string }>();
-      return { error: `ამ ზონას ითვლის ${who?.full_name ?? who?.email ?? 'სხვა თანამშრომელი'}.` };
+      return { error: `თარო ${location.code} ითვლის ${who?.full_name ?? who?.email ?? 'სხვა თანამშრომელი'}.` };
     }
     if (zone.status === 'done') {
+      if (!isManager(session.profile.role)) return { error: `თარო ${location.code} უკვე დახურულია. ხელახლა გახსნა მხოლოდ მენეჯერს შეუძლია.` };
       await supabase.from('stocktake_zones').update({ status: 'counting', done_at: null }).eq('id', zone.id);
     }
   } else {
@@ -73,10 +141,35 @@ export async function openZone(stocktakeId: string, _prev: FormState, formData: 
       counter_id: session.userId,
     });
     if (error) {
-      return { error: error.code === '23505' ? 'ამ ზონას უკვე სხვა ითვლის.' : error.message };
+      return { error: error.code === '23505' ? 'ჯერ დახურე შენი ღია თარო, ან ამ თაროს სხვა ითვლის.' : error.message };
     }
   }
   redirect(`/count/${stocktakeId}/${location.id}`);
+}
+
+/** Close the shelf now: unresolved items freeze and go to the recheck list. */
+export async function finishZone(stocktakeId: string, locationId: string): Promise<void> {
+  await requireSession();
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('finish_stocktake_zone', { p_stocktake: stocktakeId, p_location: locationId });
+  if (error) throw new Error(error.message);
+  revalidatePath(`/count/${stocktakeId}`);
+  redirect(`/count/${stocktakeId}`);
+}
+
+/** A note for the whole shelf (damage, mixed goods, no label …). */
+export async function saveZoneNote(stocktakeId: string, locationId: string, _prev: FormState, formData: FormData): Promise<FormState> {
+  await requireSession();
+  const note = String(formData.get('note') ?? '').trim().slice(0, 2000);
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('stocktake_zones')
+    .update({ note: note || null })
+    .eq('stocktake_id', stocktakeId)
+    .eq('location_id', locationId);
+  if (error) return { error: error.message };
+  revalidatePath(`/count/${stocktakeId}/${locationId}`);
+  return { notice: 'შენახულია' };
 }
 
 export type ProductHit = Pick<Product, 'id' | 'sku' | 'barcode' | 'name' | 'variant' | 'unit'>;
@@ -107,6 +200,9 @@ export async function findProducts(query: string): Promise<ProductHit[]> {
 
 export type EntryInput = {
   productId: string | null;
+  /** Counting without a product list: a scanned barcode that is not known yet. */
+  newBarcode?: string | null;
+  newName?: string | null;
   unknownLabel: string | null;
   quantity: number;
   boxes: number | null;
@@ -117,9 +213,31 @@ export async function addEntry(stocktakeId: string, locationId: string, input: E
   const session = await requireSession();
   if (!session.canWrite) return { error: 'შენს როლს დათვლა არ შეუძლია.' };
   if (!Number.isFinite(input.quantity) || input.quantity < 0) return { error: 'რაოდენობა არასწორია.' };
+  const supabase = await createClient();
+
+  // A new barcode becomes a product on the spot, so the next scan finds it.
+  if (!input.productId && input.newBarcode?.trim()) {
+    const barcode = input.newBarcode.trim();
+    const { data: existing } = await supabase
+      .from('products')
+      .select('id')
+      .eq('company_id', session.company.id)
+      .or(`barcode.eq.${barcode.replace(/[,()]/g, '')},sku.eq.${barcode.replace(/[,()]/g, '')}`)
+      .limit(1)
+      .maybeSingle<{ id: string }>();
+    if (existing) input.productId = existing.id;
+    else {
+      const { data: made, error: pErr } = await supabase
+        .from('products')
+        .insert({ company_id: session.company.id, sku: barcode, barcode, name: input.newName?.trim() || `ახალი · ${barcode}`, unit: 'ცალი' })
+        .select('id')
+        .single<{ id: string }>();
+      if (pErr) return { error: pErr.message };
+      input.productId = made.id;
+    }
+  }
   if (!input.productId && !input.unknownLabel?.trim()) return { error: 'აირჩიე პროდუქტი ან აღწერე.' };
 
-  const supabase = await createClient();
   const { error } = await supabase.from('stocktake_entries').insert({
     company_id: session.company.id,
     stocktake_id: stocktakeId,
@@ -205,7 +323,27 @@ export async function recountItem(
   return { notice: 'ჩაიწერა' };
 }
 
-export type BookRow = { code: string; name: string; location: string; qty: number; cost: number | null };
+export type BookRow = {
+  code: string;
+  barcode: string;
+  name: string;
+  location: string;
+  qty: number;
+  cost: number | null;
+  unit: string;
+};
+
+/** Units as people write them → one spelling. Pieces are the default. */
+function normUnit(u: string): string {
+  const v = u.trim().toLowerCase().replace(/\.$/, '');
+  if (!v || ['ც', 'ცალი', 'pcs', 'pc', 'шт', 'ea', 'unit'].includes(v)) return 'ცალი';
+  if (['კგ', 'kg', 'кг'].includes(v)) return 'კგ';
+  if (['გრ', 'g', 'гр', 'г'].includes(v)) return 'გრ';
+  if (['ლ', 'ლიტრი', 'l', 'л'].includes(v)) return 'ლ';
+  if (['მ', 'm', 'м'].includes(v)) return 'მ';
+  if (['კოლოფი', 'ყუთი', 'box', 'кор', 'уп'].includes(v)) return 'ყუთი';
+  return u.trim();
+}
 
 /**
  * Loads the book balance for a stocktake (owners/admins). Products and shelves
@@ -215,17 +353,21 @@ export type BookRow = { code: string; name: string; location: string; qty: numbe
 export async function importBook(stocktakeId: string, rows: BookRow[]): Promise<FormState> {
   const session = await requireSession();
   if (!isManager(session.profile.role)) return { error: 'ნაშთს მხოლოდ მენეჯერი ტვირთავს.' };
+  // The barcode stands in for the code when the file has no article number.
   const clean = rows
-    .map((r) => ({ ...r, code: r.code.trim(), name: r.name.trim(), location: r.location.trim() }))
+    .map((r) => {
+      const barcode = r.barcode.trim();
+      return { ...r, barcode, code: r.code.trim() || barcode, name: r.name.trim(), location: r.location.trim(), unit: normUnit(r.unit), unitGiven: r.unit.trim() !== '' };
+    })
     .filter((r) => r.code && Number.isFinite(r.qty));
-  if (!clean.length) return { error: 'ფაილში ხაზი ვერ ვიპოვე: საჭიროა კოდი და რაოდენობა.' };
+  if (!clean.length) return { error: 'ფაილში ხაზი ვერ ვიპოვე: საჭიროა შტრიხკოდი (ან კოდი) და ნაშთი.' };
   if (clean.length > 20000) return { error: 'ერთ ჯერზე მაქსიმუმ 20 000 ხაზი.' };
 
   const supabase = await createClient();
   const company = session.company.id;
 
   // Products: match by SKU, then by barcode; create the rest.
-  const codes = [...new Set(clean.map((r) => r.code))];
+  const codes = [...new Set(clean.flatMap((r) => [r.code, r.barcode]).filter(Boolean))];
   const products = new Map<string, string>();
   for (let i = 0; i < codes.length; i += 500) {
     const chunk = codes.slice(i, i + 500);
@@ -236,16 +378,34 @@ export async function importBook(stocktakeId: string, rows: BookRow[]): Promise<
     for (const p of byBarcode ?? []) if (p.barcode) products.set(p.barcode, p.id);
     for (const p of bySku ?? []) products.set(p.sku, p.id);
   }
-  const missing = codes.filter((c) => !products.has(c));
+  const known = (r: { code: string; barcode: string }) => products.get(r.code) ?? (r.barcode ? products.get(r.barcode) : undefined);
+  const firstByCode = new Map<string, (typeof clean)[number]>();
+  for (const r of clean) if (!known(r) && !firstByCode.has(r.code)) firstByCode.set(r.code, r);
+  const missing = [...firstByCode.values()];
   for (let i = 0; i < missing.length; i += 500) {
-    const chunk = missing.slice(i, i + 500).map((code) => ({
+    const chunk = missing.slice(i, i + 500).map((r) => ({
       company_id: company,
-      sku: code,
-      name: clean.find((r) => r.code === code)?.name || code,
+      sku: r.code,
+      barcode: r.barcode || null,
+      name: r.name || r.code,
+      unit: r.unit,
     }));
     const { data, error } = await supabase.from('products').insert(chunk).select('id, sku');
     if (error) return { error: `პროდუქტების დამატება ვერ მოხერხდა: ${error.message}` };
     for (const p of data ?? []) products.set(p.sku, p.id);
+  }
+  // A unit given in the file updates existing products too.
+  const unitUpdates = new Map<string, string>();
+  for (const r of clean) {
+    const id = known(r);
+    if (id && r.unitGiven) unitUpdates.set(id, r.unit);
+  }
+  const byUnit = new Map<string, string[]>();
+  for (const [id, unit] of unitUpdates) byUnit.set(unit, [...(byUnit.get(unit) ?? []), id]);
+  for (const [unit, ids] of byUnit) {
+    for (let i = 0; i < ids.length; i += 300) {
+      await supabase.from('products').update({ unit }).in('id', ids.slice(i, i + 300));
+    }
   }
 
   // Shelves: match by code; create the rest.
@@ -267,7 +427,7 @@ export async function importBook(stocktakeId: string, rows: BookRow[]): Promise<
   // Same item on the same shelf twice in the file: add the quantities up.
   const merged = new Map<string, { product_id: string; location_id: string | null; book_qty: number; unit_cost: number | null }>();
   for (const r of clean) {
-    const product_id = products.get(r.code)!;
+    const product_id = known(r)!;
     const location_id = r.location ? locations.get(r.location)! : null;
     const key = `${product_id}|${location_id ?? ''}`;
     const prev = merged.get(key);

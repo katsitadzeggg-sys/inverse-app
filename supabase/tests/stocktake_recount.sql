@@ -71,6 +71,26 @@ begin
   set local request.jwt.claim.sub = 'c1111111-1111-1111-1111-111111111111';
   update public.stocktake_entries set quantity = 5 where product_id = p2;
   perform pg_temp.expect((select quantity from public.stocktake_entries where product_id = p2) = 5, 'the manager can still correct a frozen item');
+  -- 0019: one open zone per counter; Close freezes what is left.
+  set local request.jwt.claim.sub = 'c1111111-1111-1111-1111-111111111111';
+  insert into public.stocktakes (company_id, name) values (co, 'R2') returning id into st;
+  insert into public.stocktake_book (company_id, stocktake_id, product_id, location_id, book_qty) values (co, st, p1, loc, 10);
+  perform set_config('request.jwt.claim.sub', me::text, true);
+  insert into public.stocktake_zones (company_id, stocktake_id, location_id, counter_id) values (co, st, loc, me);
+  begin
+    insert into public.stocktake_zones (company_id, stocktake_id, location_id, counter_id)
+      values (co, st, (select id from public.locations where company_id = co order by code desc limit 1), me);
+    raise exception 'FAILED: a counter opened a second zone';
+  exception when unique_violation then
+    perform pg_temp.expect(true, 'one open zone per counter');
+  end;
+  insert into public.stocktake_entries (company_id, stocktake_id, location_id, product_id, quantity, counter_id) values (co, st, loc, p1, 9, me);
+  perform public.close_stocktake_zone(st, loc);
+  perform public.finish_stocktake_zone(st, loc);
+  perform pg_temp.expect((select status from public.stocktake_checks where stocktake_id = st and product_id = p1) = 'frozen', 'Close freezes an unresolved item');
+  perform pg_temp.expect((select status from public.stocktake_zones where stocktake_id = st) = 'done', 'Close marks the zone done');
+  update public.stocktake_zones set note = 'ზედა თარო დაზიანებულია' where stocktake_id = st;
+  perform pg_temp.expect((select note from public.stocktake_zones where stocktake_id = st) is not null, 'the counter writes a shelf note');
 end;
 $$;
 

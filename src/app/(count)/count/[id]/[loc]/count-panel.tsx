@@ -13,6 +13,9 @@ export default function CountPanel({ stocktakeId, locationId }: { stocktakeId: s
   const [hits, setHits] = useState<ProductHit[] | null>(null);
   const [product, setProduct] = useState<ProductHit | null>(null);
   const [unknown, setUnknown] = useState<string | null>(null);
+  // Counting without a product list: an unknown scanned barcode.
+  const [newBarcode, setNewBarcode] = useState<string | null>(null);
+  const [newName, setNewName] = useState('');
   const [mode, setMode] = useState<Mode>('pieces');
   const [qty, setQty] = useState('');
   const [boxes, setBoxes] = useState('');
@@ -27,6 +30,7 @@ export default function CountPanel({ stocktakeId, locationId }: { stocktakeId: s
   function choose(p: ProductHit) {
     setProduct(p);
     setUnknown(null);
+    setNewBarcode(null);
     setHits(null);
     setMessage(null);
     setTimeout(() => qtyRef.current?.focus(), 50);
@@ -41,7 +45,16 @@ export default function CountPanel({ stocktakeId, locationId }: { stocktakeId: s
       else {
         setHits(found);
         setProduct(null);
-        if (!found.length) setMessage({ tone: 'error', text: `„${q}“ სიაში ვერ მოიძებნა. შეგიძლია ჩაწერო უცნობ პროდუქტად.` });
+        if (!found.length && /^\d{6,14}$/.test(q.trim())) {
+          // Not in the list: count it anyway under its barcode.
+          setNewBarcode(q.trim());
+          setNewName('');
+          setUnknown(null);
+          setMessage(null);
+          setTimeout(() => qtyRef.current?.focus(), 50);
+        } else if (!found.length) {
+          setMessage({ tone: 'error', text: `„${q}“ სიაში ვერ მოიძებნა. შეგიძლია ჩაწერო უცნობ პროდუქტად.` });
+        }
       }
     });
   }
@@ -49,6 +62,8 @@ export default function CountPanel({ stocktakeId, locationId }: { stocktakeId: s
   function reset() {
     setProduct(null);
     setUnknown(null);
+    setNewBarcode(null);
+    setNewName('');
     setQuery('');
     setHits(null);
     setQty('');
@@ -57,21 +72,23 @@ export default function CountPanel({ stocktakeId, locationId }: { stocktakeId: s
   }
 
   function save() {
-    if (!product && !unknown?.trim()) return setMessage({ tone: 'error', text: 'აირჩიე პროდუქტი.' });
+    if (!product && !newBarcode && !unknown?.trim()) return setMessage({ tone: 'error', text: 'აირჩიე პროდუქტი.' });
     if (!Number.isFinite(total) || total < 0 || (mode === 'pieces' && qty === '')) {
       return setMessage({ tone: 'error', text: 'ჩაწერე რაოდენობა.' });
     }
     start(async () => {
       const res = await addEntry(stocktakeId, locationId, {
         productId: product?.id ?? null,
-        unknownLabel: product ? null : unknown,
+        unknownLabel: product || newBarcode ? null : unknown,
+        newBarcode: product ? null : newBarcode,
+        newName: product ? null : newName,
         quantity: total,
         boxes: mode === 'boxes' ? Number(boxes) || 0 : null,
         perBox: mode === 'boxes' ? Number(perBox.replace(',', '.')) || 0 : null,
       });
       if (res.error) setMessage({ tone: 'error', text: res.error });
       else {
-        setMessage({ tone: 'info', text: `✓ ${product?.name ?? unknown} — ${total}` });
+        setMessage({ tone: 'info', text: `✓ ${product?.name ?? (newBarcode ? newName || newBarcode : unknown)} — ${total}` });
         navigator.vibrate?.([40, 40, 40]);
         reset();
       }
@@ -113,7 +130,21 @@ export default function CountPanel({ stocktakeId, locationId }: { stocktakeId: s
         </ul>
       )}
 
-      {!product && unknown === null && (
+      {newBarcode && !product && (
+        <div className="grid gap-2 rounded-control border border-review/50 bg-review/5 p-3">
+          <p className="text-sm">
+            🆕 ახალი შტრიხკოდი <b>{newBarcode}</b> — სიაში არ არის, მაგრამ ჩაიწერება.
+          </p>
+          <input
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            placeholder="დასახელება (არასავალდებულო)"
+            className={`${inputClass} text-base`}
+          />
+        </div>
+      )}
+
+      {!product && !newBarcode && unknown === null && (
         <button type="button" onClick={() => { setUnknown(query); setHits(null); }} className="text-left text-sm text-ink-soft underline">
           ❓ სიაში არ არის — ჩავწერო უცნობ პროდუქტად
         </button>
@@ -128,12 +159,12 @@ export default function CountPanel({ stocktakeId, locationId }: { stocktakeId: s
         />
       )}
 
-      {(product || unknown !== null) && (
+      {(product || newBarcode || unknown !== null) && (
         <div className="grid gap-3 border-t border-rule/70 pt-3">
           {product && (
             <p className="text-lg font-semibold">
               {product.name}
-              <span className="block text-sm font-normal text-ink-faint">{product.sku} · {product.unit}</span>
+              <span className="block text-sm font-normal text-ink-faint">{product.sku} · {product.unit === 'pcs' ? 'ცალი' : product.unit}</span>
             </p>
           )}
           <div className="grid grid-cols-2 gap-2 text-sm">

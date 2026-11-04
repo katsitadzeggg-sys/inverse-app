@@ -5,7 +5,8 @@ import { requireSession } from '@/lib/session';
 import type { Stocktake, StocktakeEntry, StocktakeZone } from '@/types/database';
 import CountPanel from './count-panel';
 import RecountList from './recount-list';
-import { closeZone, deleteEntry } from '../../actions';
+import { closeZone, deleteEntry, finishZone } from '../../actions';
+import ZoneNote from './zone-note';
 
 type EntryRow = StocktakeEntry & { products: { name: string; sku: string; unit: string } | null };
 
@@ -28,7 +29,12 @@ export default async function ZonePage({ params }: PageProps<'/count/[id]/[loc]'
   if (!stocktake || !location || !zone) notFound();
 
   const manager = profile.role === 'owner' || profile.role === 'admin';
-  const canCount = stocktake.status === 'open' && (zone.counter_id === userId || manager);
+  const canCount = stocktake.status === 'open' && zone.status === 'counting' && (zone.counter_id === userId || manager);
+  const { data: counter } = await supabase
+    .from('user_profiles')
+    .select('full_name, email')
+    .eq('id', zone.counter_id ?? '')
+    .maybeSingle<{ full_name: string | null; email: string }>();
 
   const { data: entries } = await supabase
     .from('stocktake_entries')
@@ -59,20 +65,28 @@ export default async function ZonePage({ params }: PageProps<'/count/[id]/[loc]'
           {location.code} <span className="text-base font-normal text-ink-soft">{location.name}</span>
         </h1>
         <p className="text-sm text-ink-faint">
-          {zone.status === 'done' ? 'ზონა დასრულებულია' : 'ითვლება'} · ჩანაწერები: {rows.length}
+          {zone.status === 'done' ? '🔒 თარო დახურულია' : 'ითვლება'} · აღწერს: {counter?.full_name ?? counter?.email ?? '—'} ·
+          ჩანაწერები: {rows.length}
         </p>
       </div>
 
-      {canCount && recheck.length > 0 && <RecountList stocktakeId={id} locationId={loc} items={recheck} />}
-
-      {canCount ? (
+      {/* After the book check only the differing items stay on screen. */}
+      {canCount && recountDue ? (
+        <RecountList stocktakeId={id} locationId={loc} items={recheck} />
+      ) : canCount ? (
         <CountPanel stocktakeId={id} locationId={loc} />
       ) : (
-        <p className="text-ink-soft">ამ ზონაში ჩაწერა შენთვის დახურულია.</p>
+        <p className="text-ink-soft">
+          {zone.status === 'done' ? 'თარო დახურულია. ახალი თარო გახსენი ინვენტარიზაციის გვერდიდან.' : 'ამ თაროზე ჩაწერა შენთვის დახურულია.'}
+        </p>
       )}
 
-      <section className="grid gap-2">
-        <h2 className="text-sm font-semibold text-ink-faint">დათვლილი ამ ზონაში</h2>
+      {!recountDue && recheck.some((c) => c.status === 'frozen') && (
+        <p className="text-sm text-ink-faint">🔒 გადასამოწმებელში გადავიდა: {recheck.filter((c) => c.status === 'frozen').map((c) => c.name).join(', ')}</p>
+      )}
+
+      <details open={!recountDue} className="grid gap-2">
+        <summary className="cursor-pointer text-sm font-semibold text-ink-faint">დათვლილი ამ თაროზე ({rows.length})</summary>
         {rows.length === 0 ? (
           <p className="text-sm text-ink-faint">ჯერ არაფერი.</p>
         ) : (
@@ -89,7 +103,7 @@ export default async function ZonePage({ params }: PageProps<'/count/[id]/[loc]'
                   </p>
                 </div>
                 <p className="text-lg font-semibold tabular-nums">
-                  {fmt(e.quantity)} <span className="text-xs font-normal text-ink-faint">{e.products?.unit ?? ''}</span>
+                  {fmt(e.quantity)} <span className="text-xs font-normal text-ink-faint">{e.products?.unit === 'pcs' ? 'ცალი' : (e.products?.unit ?? '')}</span>
                 </p>
                 {canCount && (e.counter_id === userId || manager) && (
                   <form action={deleteEntry.bind(null, id, loc, e.id)}>
@@ -100,17 +114,33 @@ export default async function ZonePage({ params }: PageProps<'/count/[id]/[loc]'
             ))}
           </ul>
         )}
-      </section>
+      </details>
 
-      {canCount && zone.status === 'counting' && (
+      <ZoneNote stocktakeId={id} locationId={loc} note={zone.note ?? ''} canEdit={zone.counter_id === userId || manager} />
+
+      {canCount && !recountDue && (
         <form action={closeZone.bind(null, id, loc)}>
-          <button
-            type="submit"
-            className="w-full rounded-control bg-ink px-4 py-4 text-base font-semibold text-paper"
-          >
-            {recountDue ? '↻ შემოწმება' : '✓ ზონის დასრულება'}
+          <button type="submit" className="w-full rounded-control bg-ink px-4 py-4 text-base font-semibold text-paper">
+            ✓ თაროს დასრულება
           </button>
+          <p className="mt-1 text-center text-xs text-ink-faint">ნაშთთან შედარდება; სხვაობიანი პროდუქტები გაწითლდება</p>
         </form>
+      )}
+
+      {canCount && recountDue && (
+        <div className="grid gap-2">
+          <form action={closeZone.bind(null, id, loc)}>
+            <button type="submit" className="w-full rounded-control bg-ink px-4 py-4 text-base font-semibold text-paper">
+              ↻ შემოწმება
+            </button>
+          </form>
+          <form action={finishZone.bind(null, id, loc)}>
+            <button type="submit" className="w-full rounded-control border-2 border-mismatch/60 px-4 py-3 text-base font-semibold text-mismatch">
+              🔒 თაროს დახურვა
+            </button>
+            <p className="mt-1 text-center text-xs text-ink-faint">დარჩენილი სხვაობები გადავა გადასამოწმებელში</p>
+          </form>
+        </div>
       )}
     </div>
   );

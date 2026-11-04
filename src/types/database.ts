@@ -174,6 +174,7 @@ export type StocktakeZone = {
   status: ZoneStatus;
   started_at: string;
   done_at: string | null;
+  note: string | null;
 };
 
 export type StocktakeEntry = {
