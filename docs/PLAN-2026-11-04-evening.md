@@ -64,7 +64,16 @@ code base, so fixes reach all three.
   inventory number or name.
   - Record found / not found, condition (good / damaged / for write-off),
     the actual room and the responsible person.
-  - An optional photo.
+  - **Several photos per asset**, captured live only:
+    - overall view;
+    - label / serial plate;
+    - defects.
+    Each photo gets the caption (date, author, GPS, inventory number) and
+    shows as a gallery on the asset card.
+  - **Video per asset**, so condition is clear: the phone's own camera at
+    full quality (no in-app compression), with a 10–60 s hint. Uploaded in
+    parts so a weak signal does not break it. The caption is on the poster
+    frame and the metadata on the row.
 - **Tagging**: print a QR label for an asset without one and attach it, so
   the next count is a scan.
 - **Result**:
@@ -74,7 +83,8 @@ code base, so fixes reach all three.
   - moved (found in another room);
   - condition summary.
 - **Act**: the standard asset inventory form, with signatures of the
-  commission.
+  commission. The ZIP of photos/videos has one folder per asset (inventory
+  number).
 
 ## Order for the evening
 
