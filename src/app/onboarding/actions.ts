@@ -29,5 +29,5 @@ export async function createCompany(
   if (error) return { error: error.message };
 
   revalidatePath('/', 'layout');
-  redirect('/dashboard');
+  redirect('/manage');
 }

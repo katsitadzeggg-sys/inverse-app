@@ -45,8 +45,7 @@ export default async function SettingsPage() {
           ))}
         </ul>
         <p className="mt-4 text-xs text-ink-faint">
-          Colleagues join by signing up and being added to this workspace by an owner or
-          admin. Invitations are not wired up yet.
+          Invite counters and managers on the team page: /manage/team.
         </p>
       </Card>
     </div>

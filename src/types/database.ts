@@ -27,8 +27,22 @@ export type UserProfile = {
   email: string;
   full_name: string | null;
   role: UserRole;
+  /** Set when an owner/admin removed this person: no access, name kept on past work. */
+  disabled_at: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type CompanyInvite = {
+  id: string;
+  company_id: string;
+  email: string;
+  role: UserRole;
+  invited_by: string | null;
+  created_at: string;
+  expires_at: string;
+  accepted_at: string | null;
+  accepted_by: string | null;
 };
 
 export type Location = {

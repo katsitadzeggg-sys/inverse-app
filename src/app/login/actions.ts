@@ -28,7 +28,7 @@ export async function signIn(_prev: AuthState, formData: FormData): Promise<Auth
 
   if (error) return { error: error.message };
 
-  const next = String(formData.get('next') ?? '') || '/dashboard';
+  const next = String(formData.get('next') ?? '') || '/count';
   revalidatePath('/', 'layout');
   redirect(next);
 }

@@ -16,6 +16,9 @@ export default async function ManageLayout({ children }: LayoutProps<'/'>) {
           <Link href="/manage" className="text-base font-semibold tracking-tight">
             Inverse · მართვა
           </Link>
+          <Link href="/manage/team" className="text-sm text-ink-soft underline">
+            👥 გუნდი
+          </Link>
           <Link href="/count" className="text-sm text-ink-soft underline">
             აღმწერის ეკრანი
           </Link>
