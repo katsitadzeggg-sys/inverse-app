@@ -3,9 +3,10 @@
 import { useState, useTransition } from 'react';
 import readXlsxFile from 'read-excel-file';
 import { Alert } from '@/components/ui';
+import { fmtDate, parseDate } from '@/lib/expiry';
 import { importBook, type BookRow } from '../../actions';
 
-type Field = 'barcode' | 'code' | 'name' | 'location' | 'qty' | 'unit' | 'cost';
+type Field = 'barcode' | 'code' | 'name' | 'location' | 'qty' | 'unit' | 'cost' | 'expiry';
 
 // Header words seen in exports from Balance, FINA, 1C and hand-made sheets.
 const GUESS: Record<Field, RegExp> = {
@@ -16,6 +17,7 @@ const GUESS: Record<Field, RegExp> = {
   qty: /(ნაშთ|რაოდ|qty|quant|кол|остат|balance)/i,
   unit: /(ერთეულ|ზომის|unit|uom|ед\.?\s*изм|единиц)/i,
   cost: /(ფასი|თვითღ|ღირებ|cost|price|цена|себест)/i,
+  expiry: /(ვადა|ვარგ|expir|exp\b|best before|срок|годен)/i,
 };
 
 const LABELS: Record<Field, string> = {
@@ -26,6 +28,7 @@ const LABELS: Record<Field, string> = {
   unit: 'ზომის ერთეული',
   code: 'შიდა კოდი / არტიკული',
   cost: 'ერთეულის ფასი',
+  expiry: 'ვარგისიანობის ვადა',
 };
 
 function parseCsv(text: string): string[][] {
@@ -38,10 +41,10 @@ function parseCsv(text: string): string[][] {
 
 const num = (v: string) => Number(String(v ?? '').replace(/\s/g, '').replace(',', '.'));
 
-export default function BookImport({ stocktakeId }: { stocktakeId: string }) {
+export default function BookImport({ stocktakeId, expiry = false }: { stocktakeId: string; expiry?: boolean }) {
   const [table, setTable] = useState<string[][] | null>(null);
   const [headerRow, setHeaderRow] = useState(0);
-  const [map, setMap] = useState<Record<Field, number>>({ barcode: -1, code: -1, name: -1, location: -1, qty: -1, unit: -1, cost: -1 });
+  const [map, setMap] = useState<Record<Field, number>>({ barcode: -1, code: -1, name: -1, location: -1, qty: -1, unit: -1, cost: -1, expiry: -1 });
   const [msg, setMsg] = useState<{ tone: 'error' | 'info'; text: string } | null>(null);
   const [pending, start] = useTransition();
 
@@ -49,7 +52,8 @@ export default function BookImport({ stocktakeId }: { stocktakeId: string }) {
     setMsg(null);
     let rows: string[][];
     if (/\.(xlsx|xlsm)$/i.test(file.name)) {
-      rows = (await readXlsxFile(file)).map((r) => r.map((c) => (c == null ? '' : String(c))));
+      // A date cell comes as a Date at UTC midnight: keep it as YYYY-MM-DD.
+      rows = (await readXlsxFile(file)).map((r) => r.map((c) => (c == null ? '' : c instanceof Date ? c.toISOString().slice(0, 10) : String(c))));
     } else {
       rows = parseCsv(await file.text());
     }
@@ -82,6 +86,7 @@ export default function BookImport({ stocktakeId }: { stocktakeId: string }) {
     location: map.location >= 0 ? r[map.location] ?? '' : '',
     qty: map.qty >= 0 ? num(r[map.qty]) : NaN,
     cost: map.cost >= 0 && r[map.cost] !== '' ? num(r[map.cost]) : null,
+    expiry: expiry && map.expiry >= 0 ? parseDate(r[map.expiry]) : null,
   }));
   const valid = preview.filter((r) => (r.code.trim() || r.barcode.trim()) && Number.isFinite(r.qty));
 
@@ -89,7 +94,7 @@ export default function BookImport({ stocktakeId }: { stocktakeId: string }) {
     <div className="grid gap-4">
       <label className="grid cursor-pointer gap-2 rounded-control border-2 border-dashed border-rule-strong p-6 text-center">
         <span className="text-base font-semibold">📄 აირჩიე Excel ან CSV ფაილი</span>
-        <span className="text-sm text-ink-faint">საჭიროა: დასახელება, შტრიხკოდი, თაროს ნომერი, ნაშთი. ზომის ერთეული — სურვილისამებრ (თუ არ წერია, „ცალი“)</span>
+        <span className="text-sm text-ink-faint">საჭიროა: დასახელება, შტრიხკოდი, თაროს ნომერი, ნაშთი{expiry ? ', ვარგისიანობის ვადა (ყოველ პარტიას თავისი ხაზი)' : ''}. ზომის ერთეული — სურვილისამებრ (თუ არ წერია, „ცალი“)</span>
         <input type="file" accept=".xlsx,.xlsm,.csv,.txt" className="hidden" onChange={(e) => e.target.files?.[0] && load(e.target.files[0])} />
       </label>
 
@@ -97,7 +102,7 @@ export default function BookImport({ stocktakeId }: { stocktakeId: string }) {
         <>
           <div className="grid gap-2 rounded-control border border-rule/70 p-4">
             <p className="text-sm font-semibold">სვეტები</p>
-            {(Object.keys(LABELS) as Field[]).map((f) => (
+            {(Object.keys(LABELS) as Field[]).filter((f) => expiry || f !== 'expiry').map((f) => (
               <label key={f} className="grid grid-cols-[9rem_1fr] items-center gap-2 text-sm">
                 <span>{LABELS[f]}</span>
                 <select
@@ -117,7 +122,7 @@ export default function BookImport({ stocktakeId }: { stocktakeId: string }) {
           <div className="overflow-x-auto rounded-control border border-rule/70">
             <table className="w-full text-sm">
               <thead className="bg-paper-sunk text-left">
-                <tr><th className="p-2">დასახელება</th><th className="p-2">შტრიხკოდი</th><th className="p-2">თარო</th><th className="p-2 text-right">ნაშთი</th><th className="p-2">ერთ.</th></tr>
+                <tr><th className="p-2">დასახელება</th><th className="p-2">შტრიხკოდი</th><th className="p-2">თარო</th><th className="p-2 text-right">ნაშთი</th><th className="p-2">ერთ.</th>{expiry && <th className="p-2">ვადა</th>}</tr>
               </thead>
               <tbody>
                 {preview.slice(0, 8).map((r, i) => (
@@ -125,6 +130,7 @@ export default function BookImport({ stocktakeId }: { stocktakeId: string }) {
                     <td className="p-2">{r.name}</td><td className="p-2">{r.barcode || r.code}</td><td className="p-2">{r.location}</td>
                     <td className={`p-2 text-right ${Number.isFinite(r.qty) ? '' : 'text-mismatch'}`}>{Number.isFinite(r.qty) ? r.qty : '?'}</td>
                     <td className="p-2 text-ink-faint">{r.unit || 'ცალი'}</td>
+                    {expiry && <td className={`p-2 ${r.expiry ? '' : 'text-review'}`}>{fmtDate(r.expiry)}</td>}
                   </tr>
                 ))}
               </tbody>

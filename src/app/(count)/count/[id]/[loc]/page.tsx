@@ -63,7 +63,7 @@ export default async function ZonePage({ params }: PageProps<'/count/[id]/[loc]'
         </>
       ) : (
         <>
-          <CountPanel stocktakeId={id} locationId={loc} />
+          <CountPanel stocktakeId={id} locationId={loc} expiry={stocktake.kind === 'expiry'} countDate={stocktake.count_date} />
           <form action={closeZone.bind(null, id, loc)}>
             <button type="submit" className="w-full rounded-control bg-ink px-4 py-4 text-base font-semibold text-paper">✓ თაროს გადამოწმება</button>
           </form>

@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
 import type { Stocktake } from '@/types/database';
 import { mapsLink } from '@/lib/geo';
+import { EXPIRY_LABEL, expiryStatus, fmtDate, type ExpiryStatus } from '@/lib/expiry';
 
 type Entry = {
   location_id: string;
@@ -13,6 +14,7 @@ type Entry = {
   recounted: boolean;
   counter_id: string | null;
   created_at: string;
+  expiry_date: string | null;
   products: { name: string; sku: string; barcode: string | null; unit: string } | null;
 };
 
@@ -34,7 +36,7 @@ export async function GET(request: Request, { params }: RouteContext<'/count/[id
   for (let from = 0; ; from += 1000) {
     let q = supabase
       .from('stocktake_entries')
-      .select('location_id, product_id, unknown_label, quantity, recounted, counter_id, created_at, products (name, sku, barcode, unit)')
+      .select('location_id, product_id, unknown_label, quantity, recounted, counter_id, created_at, expiry_date, products (name, sku, barcode, unit)')
       .eq('stocktake_id', id)
       .order('created_at')
       .range(from, from + 999);
@@ -62,6 +64,9 @@ export async function GET(request: Request, { params }: RouteContext<'/count/[id
     mediaBy.set(m.location_id, c);
   }
   const zoneBy = new Map((zones ?? []).map((z) => [z.location_id, z]));
+  // Expiry-date act: lines grouped by expiry date, soonest first, unknown last.
+  const isExpiry = st.kind === 'expiry';
+  if (isExpiry) entries.sort((a, b) => (a.expiry_date ?? '9999').localeCompare(b.expiry_date ?? '9999'));
   const checkBy = new Map((checks ?? []).map((c) => [`${c.location_id}|${c.product_id}`, c]));
   const who = new Map((people ?? []).map((p) => [p.id, p.full_name ?? p.email]));
 
@@ -100,7 +105,7 @@ export async function GET(request: Request, { params }: RouteContext<'/count/[id
         : '';
 
   const data: Cell[][] = [
-    full(`ინვენტარიზაციის აქტი № ${st.number}`, { fontWeight: 'bold', fontSize: 14, align: 'center', height: 24 }),
+    full(`${isExpiry ? 'ვადიანი პროდუქციის ინვენტარიზაციის აქტი' : 'ინვენტარიზაციის აქტი'} № ${st.number}`, { fontWeight: 'bold', fontSize: 14, align: 'center', height: 24 }),
     blank(),
     line('კომპანია', st.client_name ?? st.name),
     line('საწყობი / ფილიალი', st.branch ?? ''),
@@ -110,7 +115,7 @@ export async function GET(request: Request, { params }: RouteContext<'/count/[id
     line('თარიღი', new Date(st.count_date).toLocaleDateString('ka-GE')),
     line('თარო', shelf === 'all' ? `ყველა (${shelfIds.length})` : (shelfZone?.locations?.code ?? '')),
     blank(),
-    ['№', 'თარო', 'დასახელება', 'შტრიხკოდი', 'რაოდ.', 'ერთ.', 'შენიშვნა'].map((v) =>
+    ['№', 'თარო', 'დასახელება', 'შტრიხკოდი', 'რაოდ.', isExpiry ? 'ვადა' : 'ერთ.', isExpiry ? 'სტატუსი' : 'შენიშვნა'].map((v) =>
       txt(v, { fontWeight: 'bold', backgroundColor: '#E4E7EC', align: 'center', ...border }),
     ),
   ];
@@ -121,19 +126,37 @@ export async function GET(request: Request, { params }: RouteContext<'/count/[id
     const recount = e.recounted || (c?.attempts ?? 0) > 0;
     const unit = e.products?.unit === 'pcs' || !e.products ? 'ცალი' : e.products.unit;
     const status = c?.status === 'frozen' ? 'გადასამოწმებელი' : c?.status === 'ok' ? 'ზუსტი' : c?.status === 'recount' ? 'სხვაობა' : '';
-    const fill = recount ? { backgroundColor: '#FEF0C7' } : {}; // recounted lines stand out in yellow
+    const exp = isExpiry ? expiryStatus(e.expiry_date, st.count_date) : null;
+    // Expired lines in red, recounted lines in yellow.
+    const fill = exp === 'expired' ? { backgroundColor: '#FEE4E2' } : recount ? { backgroundColor: '#FEF0C7' } : {};
+    const note = c?.status === 'frozen' ? 'გადასამოწმებელი' : recount ? `გადათვლილი${c?.attempts ? ` (${c.attempts})` : ''}` : status;
     data.push([
       txt(i + 1, { align: 'center', ...border, ...fill }),
       txt(z?.locations?.code ?? '', { ...border, ...fill }),
       txt(e.products?.name ?? `❓ ${e.unknown_label ?? ''}`, { wrap: true, ...border, ...fill }),
       txt(e.products?.barcode ?? e.products?.sku ?? '', { ...border, ...fill }),
       txt(Number(e.quantity), { align: 'right', ...border, ...fill }),
-      txt(unit, { align: 'center', ...border, ...fill }),
-      txt(c?.status === 'frozen' ? 'გადასამოწმებელი' : recount ? `გადათვლილი${c?.attempts ? ` (${c.attempts})` : ''}` : status, { wrap: true, ...border, ...fill }),
+      isExpiry ? txt(fmtDate(e.expiry_date), { align: 'center', ...border, ...fill }) : txt(unit, { align: 'center', ...border, ...fill }),
+      txt(exp ? [EXPIRY_LABEL[exp], note].filter(Boolean).join(', ') : note, { wrap: true, ...border, ...fill, ...(exp === 'expired' || exp === 'd15' ? { fontWeight: 'bold' } : {}) }),
     ]);
   });
 
-  data.push(blank(), full(`სულ პოზიცია: ${entries.length}. ყვითლად მონიშნული — გადათვლილი პოზიცია.`, { fontSize: 9, color: '#475467' }));
+  data.push(blank(), full(`სულ პოზიცია: ${entries.length}. ყვითლად მონიშნული — გადათვლილი პოზიცია.${isExpiry ? ' წითლად — ვადაგასული.' : ''}`, { fontSize: 9, color: '#475467' }));
+  if (isExpiry) {
+    const sum = new Map<ExpiryStatus, { lines: number; qty: number }>();
+    for (const e of entries) {
+      const k = expiryStatus(e.expiry_date, st.count_date);
+      const v = sum.get(k) ?? { lines: 0, qty: 0 };
+      v.lines += 1;
+      v.qty += Number(e.quantity);
+      sum.set(k, v);
+    }
+    data.push(blank(), full(`ვადების შეჯამება (${fmtDate(st.count_date)}-ის მდგომარეობით)`, { fontWeight: 'bold' }));
+    for (const k of ['expired', 'd15', 'd40', 'ok', 'unknown'] as ExpiryStatus[]) {
+      const v = sum.get(k);
+      if (v) data.push(line(EXPIRY_LABEL[k], `${v.lines} პოზიცია, ${v.qty} ერთეული`));
+    }
+  }
 
   const notes: string[] = [];
   for (const l of shelfIds) {
@@ -163,7 +186,9 @@ export async function GET(request: Request, { params }: RouteContext<'/count/[id
   const buffer = await writeXlsxFile(data as never, {
     buffer: true,
     sheet: 'აქტი',
-    columns: [{ width: 4 }, { width: 9 }, { width: 24 }, { width: 13 }, { width: 6 }, { width: 5 }, { width: 14 }],
+    columns: isExpiry
+      ? [{ width: 4 }, { width: 8 }, { width: 20 }, { width: 13 }, { width: 6 }, { width: 10 }, { width: 14 }]
+      : [{ width: 4 }, { width: 9 }, { width: 24 }, { width: 13 }, { width: 6 }, { width: 5 }, { width: 14 }],
   });
 
   const shelfCode = shelf === 'all' ? 'ყველა' : (zoneBy.get(shelf)?.locations?.code ?? 'თარო');

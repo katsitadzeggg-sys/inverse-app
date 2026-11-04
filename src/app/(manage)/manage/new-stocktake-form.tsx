@@ -8,7 +8,7 @@ import { createStocktake, type FormState } from '@/app/(count)/count/actions';
 const EMPTY: FormState = {};
 
 /** The number (INV-2026-0001…) is given by the database when it is saved. */
-export default function NewStocktakeForm() {
+export default function NewStocktakeForm({ kind = 'stock' }: { kind?: string }) {
   const [state, action, pending] = useActionState(createStocktake, EMPTY);
   const [point, setPoint] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
   const [locating, setLocating] = useState<string | null>(null);
@@ -17,6 +17,13 @@ export default function NewStocktakeForm() {
   return (
     <form action={action} className="grid gap-3 rounded-control border border-rule/70 p-4">
       <p className="text-sm font-semibold">ახალი ინვენტარიზაცია</p>
+      <label className="grid gap-1 text-sm">
+        მოდული
+        <select name="kind" defaultValue={kind} className={inputClass}>
+          <option value="stock">მარაგები</option>
+          <option value="expiry">ვადიანი პროდუქცია</option>
+        </select>
+      </label>
       <label className="grid gap-1 text-sm">
         თარიღი
         <input name="count_date" type="date" defaultValue={today} className={inputClass} />

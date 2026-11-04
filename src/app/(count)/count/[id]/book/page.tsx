@@ -27,7 +27,7 @@ export default async function BookPage({ params }: PageProps<'/count/[id]/book'>
           თუ არა — შედარება ანგარიშში, ბოლოს.
         </p>
       </div>
-      <BookImport stocktakeId={id} />
+      <BookImport stocktakeId={id} expiry={stocktake.kind === 'expiry'} />
     </div>
   );
 }

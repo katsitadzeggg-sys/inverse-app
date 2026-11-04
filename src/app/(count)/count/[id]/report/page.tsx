@@ -3,9 +3,10 @@ import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
 import type { Stocktake } from '@/types/database';
+import { EXPIRY_LABEL, expiryStatus, fmtDate, type ExpiryStatus } from '@/lib/expiry';
 
-type Book = { product_id: string; book_qty: number; unit_cost: number | null };
-type Entry = { product_id: string | null; unknown_label: string | null; quantity: number; location_id: string };
+type Book = { product_id: string; book_qty: number; unit_cost: number | null; expiry_date: string | null };
+type Entry = { product_id: string | null; unknown_label: string | null; quantity: number; location_id: string; expiry_date: string | null };
 type Check = { product_id: string; location_id: string; status: string; attempts: number };
 
 const fmt = (n: number) => Number(n).toLocaleString('ka-GE', { maximumFractionDigits: 3 });
@@ -66,8 +67,8 @@ export default async function ReportPage({ params }: PageProps<'/count/[id]/repo
     .returns<{ id: string; status: string; note: string | null; started_at: string; done_at: string | null; locations: { code: string } | null; user_profiles: { full_name: string | null; email: string } | null }[]>();
 
   const [book, entries, checks] = await Promise.all([
-    all<Book>((a, b) => supabase.from('stocktake_book').select('product_id, book_qty, unit_cost').eq('stocktake_id', id).range(a, b)),
-    all<Entry>((a, b) => supabase.from('stocktake_entries').select('product_id, unknown_label, quantity, location_id').eq('stocktake_id', id).range(a, b)),
+    all<Book>((a, b) => supabase.from('stocktake_book').select('product_id, book_qty, unit_cost, expiry_date').eq('stocktake_id', id).range(a, b)),
+    all<Entry>((a, b) => supabase.from('stocktake_entries').select('product_id, unknown_label, quantity, location_id, expiry_date').eq('stocktake_id', id).range(a, b)),
     all<Check>((a, b) => supabase.from('stocktake_checks').select('product_id, location_id, status, attempts').eq('stocktake_id', id).eq('status', 'frozen').range(a, b)),
   ]);
 
@@ -106,6 +107,33 @@ export default async function ReportPage({ params }: PageProps<'/count/[id]/repo
   const ok = list.filter((r) => r.diff === 0).length;
   const value = list.reduce((s, r) => s + (r.cost != null ? r.diff * r.cost : 0), 0);
 
+  // Expiry-date count: one line per product and expiry date (batch).
+  const isExpiry = stocktake.kind === 'expiry';
+  const batches = new Map<string, { pid: string; expiry: string | null; book: number; counted: number }>();
+  if (isExpiry) {
+    const add = (pid: string, expiry: string | null, book: number, counted: number) => {
+      const key = `${pid}|${expiry ?? ''}`;
+      const b = batches.get(key) ?? { pid, expiry, book: 0, counted: 0 };
+      b.book += book;
+      b.counted += counted;
+      batches.set(key, b);
+    };
+    for (const b of book) add(b.product_id, b.expiry_date, Number(b.book_qty), 0);
+    for (const e of entries) if (e.product_id) add(e.product_id, e.expiry_date, 0, Number(e.quantity));
+  }
+  const batchRows = [...batches.values()]
+    .map((b) => ({ ...b, status: expiryStatus(b.expiry, stocktake.count_date), name: names.get(b.pid)?.name ?? '', sku: names.get(b.pid)?.sku ?? '' }))
+    .sort((a, b) => (a.expiry ?? '9999').localeCompare(b.expiry ?? '9999') || a.name.localeCompare(b.name));
+  const byStatus = new Map<ExpiryStatus, { lines: number; qty: number }>();
+  for (const r of batchRows) {
+    if (r.counted <= 0) continue;
+    const s = byStatus.get(r.status) ?? { lines: 0, qty: 0 };
+    s.lines += 1;
+    s.qty += r.counted;
+    byStatus.set(r.status, s);
+  }
+  const TONE: Record<ExpiryStatus, string> = { expired: 'text-mismatch', d15: 'text-mismatch', d40: 'text-review', ok: 'text-match', unknown: 'text-ink-faint' };
+
   return (
     <div className="grid gap-6">
       <div>
@@ -120,6 +148,39 @@ export default async function ReportPage({ params }: PageProps<'/count/[id]/repo
         <div className="rounded-control border border-rule/70 p-3"><p className="text-2xl font-semibold text-review">{missed.length}</p>გამორჩენილი</div>
         <div className="rounded-control border border-rule/70 p-3"><p className="text-2xl font-semibold">{checks.length}</p>გადასამოწმებელი</div>
       </div>
+      {isExpiry && batchRows.length > 0 && (
+        <section className="grid gap-3">
+          <h2 className="font-semibold">⏳ ვადები (დათვლის დღეს: {fmtDate(stocktake.count_date)})</h2>
+          <div className="grid grid-cols-2 gap-2 text-center text-sm sm:grid-cols-5">
+            {(['expired', 'd15', 'd40', 'ok', 'unknown'] as ExpiryStatus[]).map((k) => (
+              <div key={k} className="rounded-control border border-rule/70 p-2">
+                <p className={`text-xl font-semibold ${TONE[k]}`}>{fmt(byStatus.get(k)?.qty ?? 0)}</p>
+                <p>{EXPIRY_LABEL[k]}</p>
+                <p className="text-xs text-ink-faint">{byStatus.get(k)?.lines ?? 0} პარტია</p>
+              </div>
+            ))}
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-left text-xs text-ink-faint">
+                <tr><th className="py-1 pr-2">პროდუქტი</th><th className="px-2">ვადა</th><th className="px-2 text-right">ნაშთი</th><th className="px-2 text-right">დათვლა</th><th className="pl-2">სტატუსი</th></tr>
+              </thead>
+              <tbody>
+                {batchRows.map((r) => (
+                  <tr key={`${r.pid}|${r.expiry}`} className={`border-t border-rule/60 ${r.status === 'expired' ? 'bg-mismatch/10' : ''}`}>
+                    <td className="py-1.5 pr-2">{r.name}<span className="block text-xs text-ink-faint">{r.sku}</span></td>
+                    <td className="px-2 tabular-nums">{fmtDate(r.expiry)}</td>
+                    <td className="px-2 text-right tabular-nums">{fmt(r.book)}</td>
+                    <td className={`px-2 text-right font-semibold tabular-nums ${r.counted !== r.book ? 'text-mismatch' : ''}`}>{fmt(r.counted)}</td>
+                    <td className={`pl-2 font-semibold ${TONE[r.status]}`}>{EXPIRY_LABEL[r.status]}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
       {value !== 0 && <p className="text-sm">სხვაობა თანხით: <b className={value < 0 ? 'text-mismatch' : 'text-match'}>{money(value)}</b></p>}
 
       {checks.length > 0 && (

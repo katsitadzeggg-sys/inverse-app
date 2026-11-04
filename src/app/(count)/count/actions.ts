@@ -21,6 +21,8 @@ export async function createStocktake(_prev: FormState, formData: FormData): Pro
   const lat = Number(formData.get('lat'));
   const lng = Number(formData.get('lng'));
   const point = formData.get('lat') && Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : {};
+  const kindRaw = String(formData.get('kind') ?? 'stock');
+  const kind = kindRaw === 'expiry' || kindRaw === 'assets' ? kindRaw : 'stock';
   if (!client) return { error: 'ჩაწერე კომპანია.' };
   if (!branch) return { error: 'ჩაწერე საწყობი ან ფილიალი.' };
 
@@ -32,6 +34,7 @@ export async function createStocktake(_prev: FormState, formData: FormData): Pro
       name: `${client} · ${branch}`,
       client_name: client,
       branch,
+      kind,
       address: address || null,
       ...point,
       ...(/^\d{4}-\d{2}-\d{2}$/.test(date) ? { count_date: date } : {}),
@@ -238,6 +241,8 @@ export type EntryInput = {
   quantity: number;
   boxes: number | null;
   perBox: number | null;
+  /** Expiry-date count: YYYY-MM-DD, or null when the date is unknown. */
+  expiryDate?: string | null;
 };
 
 export async function addEntry(stocktakeId: string, locationId: string, input: EntryInput): Promise<FormState> {
@@ -278,6 +283,7 @@ export async function addEntry(stocktakeId: string, locationId: string, input: E
     quantity: input.quantity,
     boxes: input.boxes,
     per_box: input.perBox,
+    expiry_date: input.expiryDate && /^\d{4}-\d{2}-\d{2}$/.test(input.expiryDate) ? input.expiryDate : null,
     counter_id: session.userId,
   });
   if (error) return { error: error.message.includes('closed') ? 'ინვენტარიზაცია დახურულია.' : error.message };
@@ -363,6 +369,8 @@ export type BookRow = {
   qty: number;
   cost: number | null;
   unit: string;
+  /** YYYY-MM-DD; expiry-date counts keep the book per batch. */
+  expiry?: string | null;
 };
 
 /** Units as people write them → one spelling. Pieces are the default. */
@@ -457,14 +465,15 @@ export async function importBook(stocktakeId: string, rows: BookRow[]): Promise<
   }
 
   // Same item on the same shelf twice in the file: add the quantities up.
-  const merged = new Map<string, { product_id: string; location_id: string | null; book_qty: number; unit_cost: number | null }>();
+  const merged = new Map<string, { product_id: string; location_id: string | null; book_qty: number; unit_cost: number | null; expiry_date: string | null }>();
   for (const r of clean) {
     const product_id = known(r)!;
     const location_id = r.location ? locations.get(r.location)! : null;
-    const key = `${product_id}|${location_id ?? ''}`;
+    const expiry_date = r.expiry && /^\d{4}-\d{2}-\d{2}$/.test(r.expiry) ? r.expiry : null;
+    const key = `${product_id}|${location_id ?? ''}|${expiry_date ?? ''}`;
     const prev = merged.get(key);
     if (prev) prev.book_qty += r.qty;
-    else merged.set(key, { product_id, location_id, book_qty: r.qty, unit_cost: r.cost });
+    else merged.set(key, { product_id, location_id, book_qty: r.qty, unit_cost: r.cost, expiry_date });
   }
 
   const { error: delError } = await supabase.from('stocktake_book').delete().eq('stocktake_id', stocktakeId);

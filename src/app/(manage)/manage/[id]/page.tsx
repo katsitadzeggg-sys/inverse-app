@@ -47,8 +47,10 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
   return (
     <div className="grid gap-6">
       <div className="grid gap-1">
-        <Link href="/manage" className="text-sm text-ink-faint">← ინვენტარიზაციები</Link>
-        <p className="text-sm text-ink-faint">{st.number} · {new Date(st.count_date).toLocaleDateString('ka-GE')}</p>
+        <Link href={`/manage?kind=${st.kind}`} className="text-sm text-ink-faint">← ინვენტარიზაციები</Link>
+        <p className="text-sm text-ink-faint">
+          {st.number} · {new Date(st.count_date).toLocaleDateString('ka-GE')} · {st.kind === 'expiry' ? '⏳ ვადიანი პროდუქცია' : '📦 მარაგები'}
+        </p>
         <h1 className="text-2xl font-semibold">{st.client_name ?? st.name}</h1>
         {st.branch && <p className="text-ink-soft">{st.branch}</p>}
         {(st.address || st.lat != null) && (
@@ -68,7 +70,7 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
 
       <div className="grid grid-cols-2 gap-2 text-sm">
         <Link href={`/count/${id}/book`} className="rounded-control border border-rule-strong px-3 py-3 text-center">📄 ნაშთის ჩატვირთვა</Link>
-        <Link href={`/count/${id}/report`} className="rounded-control border border-rule-strong px-3 py-3 text-center">📊 სხვაობები</Link>
+        <Link href={`/count/${id}/report`} className="rounded-control border border-rule-strong px-3 py-3 text-center">{st.kind === 'expiry' ? '📊 სხვაობები და ვადები' : '📊 სხვაობები'}</Link>
       </div>
 
       {list.length > 0 && <ExportBox stocktakeId={id} number={st.number} shelves={list.map((z) => ({ id: z.location_id, code: z.locations?.code ?? '' }))} />}

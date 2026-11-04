@@ -184,6 +184,7 @@ export type Stocktake = {
   created_by: string | null;
   created_at: string;
   closed_at: string | null;
+  kind: 'stock' | 'expiry' | 'assets';
 };
 
 export type StocktakeZone = {
@@ -217,6 +218,7 @@ export type StocktakeEntry = {
   recounted: boolean;
   created_at: string;
   updated_at: string;
+  expiry_date: string | null;
 };
 
 export type StocktakeCheckStatus = 'ok' | 'recount' | 'frozen';

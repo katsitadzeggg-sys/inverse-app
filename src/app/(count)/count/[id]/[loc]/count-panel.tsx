@@ -4,6 +4,25 @@ import { useRef, useState, useTransition } from 'react';
 import { Alert, inputClass } from '@/components/ui';
 import Scanner from '../../scanner';
 import { addEntry, findProducts, type ProductHit } from '../../actions';
+import { EXPIRY_LABEL, expiryFromText, expiryStatus, fmtDate, parseGs1, type ExpiryStatus } from '@/lib/expiry';
+
+const STATUS_TONE: Record<ExpiryStatus, string> = {
+  expired: 'text-mismatch',
+  d15: 'text-mismatch',
+  d40: 'text-review',
+  ok: 'text-match',
+  unknown: 'text-ink-faint',
+};
+
+/** Reads the text of an expiry label photo on the phone, then finds the date in it. */
+async function readExpiry(file: File): Promise<{ date: string | null; text: string }> {
+  const { createWorker } = await import('tesseract.js');
+  const worker = await createWorker('eng');
+  await worker.setParameters({ tessedit_char_whitelist: '0123456789./-: EXPBexpbUSYTOuseytoБГДОгодеснрк' });
+  const { data } = await worker.recognize(file);
+  await worker.terminate();
+  return { date: expiryFromText(data.text), text: data.text.replace(/\s+/g, ' ').trim() };
+}
 
 const unitLabel = (u?: string | null) => (!u || u === 'pcs' ? 'ცალი' : u);
 
@@ -12,7 +31,18 @@ const unitLabel = (u?: string | null) => (!u || u === 'pcs' ? 'ცალი' : u
  * product's unit (pieces unless the book file said otherwise). A barcode that
  * is not on the list is counted anyway as a new product.
  */
-export default function CountPanel({ stocktakeId, locationId }: { stocktakeId: string; locationId: string }) {
+export default function CountPanel({
+  stocktakeId,
+  locationId,
+  expiry = false,
+  countDate,
+}: {
+  stocktakeId: string;
+  locationId: string;
+  /** Expiry-date count: each line also needs the batch's expiry date. */
+  expiry?: boolean;
+  countDate?: string;
+}) {
   const [query, setQuery] = useState('');
   const [hits, setHits] = useState<ProductHit[] | null>(null);
   const [product, setProduct] = useState<ProductHit | null>(null);
@@ -24,6 +54,10 @@ export default function CountPanel({ stocktakeId, locationId }: { stocktakeId: s
   const [pending, start] = useTransition();
   const qtyRef = useRef<HTMLInputElement>(null);
   const [cameraOn, setCameraOn] = useState(false);
+  const [expiryDate, setExpiryDate] = useState('');
+  const [expiryUnknown, setExpiryUnknown] = useState(false);
+  const [reading, setReading] = useState<string | null>(null);
+  const status = expiryUnknown ? 'unknown' : expiryDate ? expiryStatus(expiryDate, countDate) : null;
 
   const total = Number(qty.replace(',', '.'));
 
@@ -31,8 +65,10 @@ export default function CountPanel({ stocktakeId, locationId }: { stocktakeId: s
     setTimeout(() => qtyRef.current?.focus(), 50);
   }
 
-  function choose(p: ProductHit) {
+  function choose(p: ProductHit, exp: string | null = null) {
     setQty('');
+    setExpiryDate(exp ?? '');
+    setExpiryUnknown(false);
     setProduct(p);
     setUnknown(null);
     setNewBarcode(null);
@@ -41,8 +77,16 @@ export default function CountPanel({ stocktakeId, locationId }: { stocktakeId: s
     focusQty();
   }
 
-  function search(q: string) {
+  function search(raw: string) {
+    // A GS1 DataMatrix / GS1-128 carries the GTIN and the expiry date (AI 17).
+    const gs1 = parseGs1(raw);
+    const q = gs1 ? gs1.ean : raw;
     const code = q.trim();
+    if (gs1 && expiry && product && product.barcode === code && gs1.expiry && gs1.expiry !== expiryDate) {
+      // Same product, another batch: start a new line for it.
+      choose(product, gs1.expiry);
+      return;
+    }
     // The same item scanned again before Next: one more piece.
     if (product && (product.barcode === code || product.sku.toLowerCase() === code.toLowerCase())) {
       setQty((v) => String((Number(v) || 0) + 1));
@@ -58,11 +102,13 @@ export default function CountPanel({ stocktakeId, locationId }: { stocktakeId: s
     start(async () => {
       const found = await findProducts(q);
       const exact = found.find((p) => p.barcode === q.trim() || p.sku.toLowerCase() === q.trim().toLowerCase());
-      if (exact) return choose(exact);
+      if (exact) return choose(exact, gs1?.expiry ?? null);
       setHits(found);
       setProduct(null);
       if (!found.length && /^\d{6,14}$/.test(q.trim())) {
         setNewBarcode(q.trim());
+        setExpiryDate(gs1?.expiry ?? '');
+        setExpiryUnknown(false);
         setNewName('');
         setUnknown(null);
         setMessage(null);
@@ -81,11 +127,15 @@ export default function CountPanel({ stocktakeId, locationId }: { stocktakeId: s
     setQuery('');
     setHits(null);
     setQty('');
+    setExpiryDate('');
+    setExpiryUnknown(false);
   }
 
   function next() {
     if (!product && !newBarcode && !unknown?.trim()) return setMessage({ tone: 'error', text: 'აირჩიე პროდუქტი.' });
     if (qty === '' || !Number.isFinite(total) || total < 0) return setMessage({ tone: 'error', text: 'ჩაწერე რაოდენობა.' });
+    if (expiry && !expiryDate && !expiryUnknown) return setMessage({ tone: 'error', text: 'ჩაწერე ვარგისიანობის ვადა, ან მონიშნე „ვადა არ ჩანს“.' });
+    const exp = expiry && !expiryUnknown ? expiryDate : null;
     start(async () => {
       const res = await addEntry(stocktakeId, locationId, {
         productId: product?.id ?? null,
@@ -95,10 +145,12 @@ export default function CountPanel({ stocktakeId, locationId }: { stocktakeId: s
         quantity: total,
         boxes: null,
         perBox: null,
+        expiryDate: exp,
       });
       if (res.error) setMessage({ tone: 'error', text: res.error });
       else {
-        setMessage({ tone: 'info', text: `✓ ${product?.name ?? (newBarcode ? newName || newBarcode : unknown)} — ${total}` });
+        const batch = expiry ? ` · ${exp ? fmtDate(exp) : 'ვადა უცნობია'}${status && status !== 'ok' ? ` (${EXPIRY_LABEL[status]})` : ''}` : '';
+        setMessage({ tone: 'info', text: `✓ ${product?.name ?? (newBarcode ? newName || newBarcode : unknown)} — ${total}${batch}` });
         navigator.vibrate?.([40, 40, 40]);
         reset();
       }
@@ -112,6 +164,7 @@ export default function CountPanel({ stocktakeId, locationId }: { stocktakeId: s
     <>
       <p className="truncate text-sm font-semibold leading-tight">{product.name}</p>
       <p className="text-xs leading-tight text-white/75">{product.barcode ?? product.sku} · {unitLabel(product.unit)}</p>
+      {expiry && expiryDate && <p className="text-xs leading-tight text-white/90">ვადა {fmtDate(expiryDate)}</p>}
     </>
   ) : newBarcode ? (
     <>
@@ -183,6 +236,54 @@ export default function CountPanel({ stocktakeId, locationId }: { stocktakeId: s
             <div className="grid gap-2">
               <p className="text-lg font-semibold text-mismatch">ახალი პროდუქტი</p>
               <input value={unknown} onChange={(e) => setUnknown(e.target.value)} placeholder="დასახელება, ზომა, ფერი" className={`${inputClass} text-base`} />
+            </div>
+          )}
+
+          {expiry && (
+            <div className="grid gap-2 rounded-control border border-rule/70 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-semibold">ვარგისიანობის ვადა</span>
+                {status && <span className={`text-sm font-semibold ${STATUS_TONE[status]}`}>{EXPIRY_LABEL[status]}</span>}
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="date"
+                  value={expiryDate}
+                  disabled={expiryUnknown}
+                  onChange={(e) => setExpiryDate(e.target.value)}
+                  className={`${inputClass} text-base`}
+                />
+                <label className="cursor-pointer whitespace-nowrap rounded-control border border-rule-strong px-3 py-2 text-sm">
+                  📷 წაკითხვა
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const f = e.target.files?.[0];
+                      e.target.value = '';
+                      if (!f) return;
+                      setReading('ვკითხულობ ეტიკეტს…');
+                      try {
+                        const { date, text } = await readExpiry(f);
+                        if (date) {
+                          setExpiryDate(date);
+                          setExpiryUnknown(false);
+                          setReading(`წავიკითხე: ${fmtDate(date)}. შეამოწმე.`);
+                        } else setReading(`თარიღი ვერ ვიპოვე${text ? ` („${text.slice(0, 40)}“)` : ''}. ჩაწერე ხელით.`);
+                      } catch {
+                        setReading('ვერ წავიკითხე. ჩაწერე ხელით.');
+                      }
+                    }}
+                  />
+                </label>
+              </div>
+              {reading && <p className="text-xs text-ink-soft">{reading}</p>}
+              <label className="flex items-center gap-2 text-sm text-ink-soft">
+                <input type="checkbox" checked={expiryUnknown} onChange={(e) => setExpiryUnknown(e.target.checked)} />
+                ვადა არ ჩანს / არ აწერია
+              </label>
             </div>
           )}
 

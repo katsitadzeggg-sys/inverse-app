@@ -5,12 +5,20 @@ import type { Stocktake } from '@/types/database';
 import NewStocktakeForm from './new-stocktake-form';
 
 /** All stocktakes with their progress; open a new one. */
-export default async function ManageHome() {
+const TABS = [
+  { kind: 'stock', label: '📦 მარაგები' },
+  { kind: 'expiry', label: '⏳ ვადიანი' },
+];
+
+export default async function ManageHome({ searchParams }: PageProps<'/manage'>) {
   await requireSession();
+  const sp = await searchParams;
+  const kind = typeof sp.kind === 'string' && ['stock', 'expiry', 'assets'].includes(sp.kind) ? sp.kind : 'stock';
   const supabase = await createClient();
   const { data } = await supabase
     .from('stocktakes')
     .select('*')
+    .eq('kind', kind)
     .order('created_at', { ascending: false })
     .limit(100)
     .returns<Stocktake[]>();
@@ -32,6 +40,17 @@ export default async function ManageHome() {
     <div className="grid gap-6 md:grid-cols-[1fr_20rem]">
       <section className="grid content-start gap-3">
         <h1 className="text-xl font-semibold">ინვენტარიზაციები</h1>
+        <nav className="flex gap-2 text-sm">
+          {TABS.map((t) => (
+            <Link
+              key={t.kind}
+              href={`/manage?kind=${t.kind}`}
+              className={`rounded-control border px-3 py-2 ${t.kind === kind ? 'border-ink bg-ink text-paper' : 'border-rule-strong'}`}
+            >
+              {t.label}
+            </Link>
+          ))}
+        </nav>
         {list.length === 0 && <p className="text-ink-soft">ჯერ არცერთი არ არის.</p>}
         <ul className="grid gap-2">
           {list.map((s) => {
@@ -54,7 +73,7 @@ export default async function ManageHome() {
           })}
         </ul>
       </section>
-      <NewStocktakeForm />
+      <NewStocktakeForm key={kind} kind={kind} />
     </div>
   );
 }
