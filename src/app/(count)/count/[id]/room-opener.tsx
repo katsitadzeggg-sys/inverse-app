@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useState } from 'react';
 import { currentPosition } from '@/lib/geo';
-import { Alert, inputClass } from '@/components/ui';
+import { Alert } from '@/components/ui';
 import LocationStatus from '@/components/location-status';
 import { openZone, type FormState } from '../actions';
 
@@ -23,7 +23,6 @@ export default function RoomOpener({ stocktakeId, suggestions }: { stocktakeId: 
 
   return (
     <form action={action} className="grid gap-3 rounded-control border border-rule/70 p-4">
-      <p className="text-base font-semibold">რომელ ოთახში იწყებ?</p>
       <input type="hidden" name="create" value="1" />
       <input type="hidden" name="name" value={room.trim()} />
       {pos && (
@@ -40,8 +39,9 @@ export default function RoomOpener({ stocktakeId, suggestions }: { stocktakeId: 
         required
         autoComplete="off"
         enterKeyHint="go"
-        placeholder="მაგ. 302, A-302, პირველი მარჯვენა"
-        className={`${inputClass} py-3 text-lg`}
+        autoFocus
+        placeholder="ოთახი: 302, A-302, პირველი მარჯვენა"
+        className="w-full rounded-control border-2 border-white bg-white px-4 py-4 text-xl text-black caret-black placeholder:text-gray-400 focus:outline-none focus:ring-4 focus:ring-match/40"
       />
       {suggestions.length > 0 && (
         <div className="flex flex-wrap gap-2">
@@ -57,11 +57,11 @@ export default function RoomOpener({ stocktakeId, suggestions }: { stocktakeId: 
           ))}
         </div>
       )}
-      <button type="submit" disabled={pending || !room.trim()} className="rounded-control bg-ink px-4 py-4 text-lg font-semibold text-paper disabled:opacity-50">
+      <button type="submit" disabled={pending || !room.trim()} className="rounded-control bg-match px-4 py-4 text-xl font-semibold text-white disabled:opacity-50">
         {pending ? '…' : '▶ აღწერის დაწყება'}
       </button>
-      <p className="text-xs text-ink-faint">ოთახი სისტემაში თუ არ არის, ავტომატურად დაემატება.</p>
-      <LocationStatus pos={pos} onRetry={async () => setPos(await currentPosition(8000))} />
+      {/* Only a problem is worth a line: location switched off. */}
+      {pos === null && <LocationStatus pos={pos} onRetry={async () => setPos(await currentPosition(8000))} />}
       {state.error && <Alert>{state.error}</Alert>}
     </form>
   );
