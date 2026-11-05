@@ -10,6 +10,7 @@ import Scanner from '../../scanner';
 import MediaUpload from './done/media-upload';
 import { assetGroups, findAsset, responsibleNames, saveAssetCheck, type AssetHit } from '../../assets-actions';
 import LabelStep from './label-step';
+import SerialField from './serial-field';
 
 type Condition = 'good' | 'damaged' | 'writeoff';
 const CONDITIONS: { value: Condition; label: string; tone: string }[] = [
@@ -242,7 +243,7 @@ export default function AssetPanel({
               <datalist id="responsible-people">
                 {people.map((p) => <option key={p} value={p} />)}
               </datalist>
-              <input value={serial} onChange={(e) => setSerial(e.target.value)} placeholder="ქარხნული სერიული № (თუ ნივთზე აწერია)" className={inputClass} />
+              <SerialField value={serial} onChange={setSerial} />
               <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="შენიშვნა (დაზიანება, დეტალები)" className={inputClass} />
               <label className="flex items-center gap-2 text-sm text-ink-soft">
                 <input type="checkbox" checked={needsLabel} onChange={(e) => setNeedsLabel(e.target.checked)} />
