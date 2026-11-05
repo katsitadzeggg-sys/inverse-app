@@ -162,8 +162,8 @@ export default function AssetPanel({
       )}
       {!card && (
         <>
-          <LocationStatus pos={pos} onRetry={async () => setPos(await currentPosition(8000))} />
-          <Scanner label="ეტიკეტის სკანირება" onCode={search} />
+          {pos === null && <LocationStatus pos={pos} onRetry={async () => setPos(await currentPosition(8000))} />}
+          <Scanner label="ეტიკეტის სკანირება" onCode={search} variant="big" />
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -171,8 +171,8 @@ export default function AssetPanel({
             }}
             className="flex gap-2"
           >
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ან ჩაწერე საინვენტარო № ან სახელი" className={`${inputClass} text-base`} />
-            <button type="submit" className="rounded-control border border-rule-strong px-4">🔍</button>
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="საინვენტარო №" className={`${inputClass} py-4 text-lg`} />
+            <button type="submit" aria-label="ძებნა" className="w-16 shrink-0 rounded-control border border-rule-strong text-2xl">🔍</button>
           </form>
           <button type="button" onClick={() => surplus('', true)} className="text-left text-sm text-ink-soft underline">
             🏷 ეტიკეტი არ აქვს — ჩავწერო ახლად

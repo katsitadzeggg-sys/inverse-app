@@ -38,12 +38,15 @@ export default function Scanner({
   label = 'კამერა',
   overlay,
   onOpenChange,
+  variant = 'default',
 }: {
   onCode: (code: string) => void;
   label?: string;
   /** Shown on the camera picture itself, at the bottom (e.g. the product just read). */
   overlay?: ReactNode;
   onOpenChange?: (open: boolean) => void;
+  /** 'big': large green button with a barcode picture (fixed-asset screen). */
+  variant?: 'default' | 'big';
 }) {
   const [on, setOn] = useState(false);
   const onOpenRef = useRef(onOpenChange);
@@ -154,9 +157,21 @@ export default function Scanner({
           setStatus(null);
           setOn((v) => !v);
         }}
-        className="rounded-control border border-rule-strong bg-paper-sunk px-4 py-3 text-base font-semibold"
+        className={
+          variant === 'big'
+            ? `flex items-center justify-center gap-3 rounded-control px-4 py-5 text-xl font-semibold ${on ? 'border border-rule-strong bg-paper-sunk' : 'bg-match text-white'}`
+            : 'rounded-control border border-rule-strong bg-paper-sunk px-4 py-3 text-base font-semibold'
+        }
       >
-        {on ? 'კამერის დახურვა' : `📷 ${label}`}
+        {variant === 'big' && !on && (
+          // A barcode picture, so the button is recognised at a glance.
+          <svg viewBox="0 0 48 32" className="h-8 w-12" aria-hidden="true" fill="currentColor">
+            {[0, 4, 7, 12, 15, 18, 23, 27, 30, 35, 38, 42, 45].map((x, i) => (
+              <rect key={x} x={x} y="0" width={i % 3 === 0 ? 3 : i % 3 === 1 ? 1.5 : 2.2} height="32" />
+            ))}
+          </svg>
+        )}
+        {on ? 'კამერის დახურვა' : variant === 'big' ? label : `📷 ${label}`}
       </button>
       {on && (
         <div className="relative overflow-hidden rounded-control bg-black">
