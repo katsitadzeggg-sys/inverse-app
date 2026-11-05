@@ -62,7 +62,7 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
   return (
     <div className="grid gap-6">
       <div className="grid gap-1">
-        <Link href={`/manage?kind=${st.kind}`} className="text-sm text-ink-faint">← ინვენტარიზაციები</Link>
+        <Link href={`/manage/stocktakes?kind=${st.kind}`} className="text-sm text-ink-faint">← ინვენტარიზაციები</Link>
         <p className="text-sm text-ink-faint">
           {st.number} · {new Date(st.count_date).toLocaleDateString('ka-GE')} · {st.kind === 'expiry' ? '⏳ ვადიანი პროდუქცია' : st.kind === 'assets' ? '🏷 ძირითადი საშუალებები' : '📦 მარაგები'}
         </p>
