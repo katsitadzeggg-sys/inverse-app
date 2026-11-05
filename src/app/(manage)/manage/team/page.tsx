@@ -48,6 +48,9 @@ export default async function TeamPage() {
                         <input type="checkbox" name="modules" value={k} defaultChecked={(m.modules ?? []).includes(k as never)} /> {v}
                       </label>
                     ))}
+                    <label className="flex items-center gap-1 font-medium">
+                      <input type="checkbox" name="can_open" value="1" defaultChecked={m.can_open} /> ➕ გახსნის უფლება
+                    </label>
                     <button type="submit" className="rounded-control border border-rule-strong px-2 py-1 text-xs">შენახვა</button>
                   </form>
                 )}

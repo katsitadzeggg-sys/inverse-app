@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
 import type { Stocktake } from '@/types/database';
+import NewStocktakeForm from '@/app/(manage)/manage/new-stocktake-form';
 
 export default async function CountHome() {
   const { profile, userId } = await requireSession();
@@ -32,6 +33,15 @@ export default async function CountHome() {
   return (
     <div className="grid gap-6">
       <h1 className="text-xl font-semibold">ინვენტარიზაციები</h1>
+
+      {profile.can_open && (
+        <details className="rounded-control border border-rule-strong">
+          <summary className="cursor-pointer px-4 py-3 text-base font-semibold">+ ახალი ინვენტარიზაცია</summary>
+          <div className="border-t border-rule/70 p-3">
+            <NewStocktakeForm kind={profile.modules?.[0]} kinds={profile.modules} />
+          </div>
+        </details>
+      )}
 
       {open.length === 0 ? (
         <p className="text-ink-soft">

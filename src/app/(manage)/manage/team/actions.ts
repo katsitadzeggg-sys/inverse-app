@@ -63,6 +63,6 @@ export async function setModules(id: string, formData: FormData): Promise<void> 
   const modules = formData.getAll('modules').map(String).filter((m) => all.includes(m));
   if (!modules.length) return;
   const supabase = await createClient();
-  await supabase.from('user_profiles').update({ modules }).eq('id', id).eq('role', 'member');
+  await supabase.from('user_profiles').update({ modules, can_open: formData.get('can_open') === '1' }).eq('id', id).eq('role', 'member');
   revalidatePath('/manage/team');
 }

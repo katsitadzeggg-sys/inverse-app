@@ -31,6 +31,8 @@ export type UserProfile = {
   disabled_at: string | null;
   /** Modules this person may count in. */
   modules: ('stock' | 'expiry' | 'assets')[];
+  /** A counter allowed to open stocktakes in their modules. */
+  can_open: boolean;
   created_at: string;
   updated_at: string;
 };

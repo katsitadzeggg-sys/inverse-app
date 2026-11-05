@@ -13,7 +13,12 @@ const isManager = (role: string) => role === 'owner' || role === 'admin';
 /** Owners/admins open a new stocktake; the database gives it its number. */
 export async function createStocktake(_prev: FormState, formData: FormData): Promise<FormState> {
   const session = await requireSession();
-  if (!isManager(session.profile.role)) return { error: 'ინვენტარიზაციას მხოლოდ მენეჯერი ხსნის.' };
+  const manager = isManager(session.profile.role);
+  const requested = String(formData.get('kind') ?? 'stock');
+  // A counter may open one only with the permission, and only in their modules.
+  if (!manager && !(session.profile.can_open && (session.profile.modules ?? []).includes(requested as never))) {
+    return { error: 'ინვენტარიზაციის გახსნის უფლება არ გაქვს. მიმართე მენეჯერს.' };
+  }
   const client = String(formData.get('client_name') ?? '').trim();
   const branch = String(formData.get('branch') ?? '').trim();
   const date = String(formData.get('count_date') ?? '').trim();
@@ -43,7 +48,7 @@ export async function createStocktake(_prev: FormState, formData: FormData): Pro
     .select('id')
     .single();
   if (error) return { error: error.message };
-  redirect(`/manage/${data.id}`);
+  redirect(manager ? `/manage/${data.id}` : `/count/${data.id}`);
 }
 
 /** T-01, t1, "T 1" and T-001 are the same shelf. */

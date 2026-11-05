@@ -8,7 +8,10 @@ import { createStocktake, type FormState } from '@/app/(count)/count/actions';
 const EMPTY: FormState = {};
 
 /** The number (INV-2026-0001…) is given by the database when it is saved. */
-export default function NewStocktakeForm({ kind = 'stock' }: { kind?: string }) {
+const KINDS: [string, string][] = [['stock', 'მარაგები'], ['expiry', 'ვადიანი პროდუქცია'], ['assets', 'ძირითადი საშუალებები']];
+
+export default function NewStocktakeForm({ kind = 'stock', kinds }: { kind?: string; kinds?: string[] }) {
+  const options = KINDS.filter(([k]) => !kinds || kinds.includes(k));
   const [state, action, pending] = useActionState(createStocktake, EMPTY);
   const [point, setPoint] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
   const [locating, setLocating] = useState<string | null>(null);
@@ -19,10 +22,10 @@ export default function NewStocktakeForm({ kind = 'stock' }: { kind?: string }) 
       <p className="text-sm font-semibold">ახალი ინვენტარიზაცია</p>
       <label className="grid gap-1 text-sm">
         მოდული
-        <select name="kind" defaultValue={kind} className={inputClass}>
-          <option value="stock">მარაგები</option>
-          <option value="expiry">ვადიანი პროდუქცია</option>
-          <option value="assets">ძირითადი საშუალებები</option>
+        <select name="kind" defaultValue={options.some(([k]) => k === kind) ? kind : options[0]?.[0]} className={inputClass}>
+          {options.map(([k, label]) => (
+            <option key={k} value={k}>{label}</option>
+          ))}
         </select>
       </label>
       <label className="grid gap-1 text-sm">

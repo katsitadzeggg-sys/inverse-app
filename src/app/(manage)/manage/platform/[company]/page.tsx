@@ -8,7 +8,7 @@ import InviteForm, { MODULE_LABEL } from './invite-form';
 
 type Member = {
   user_id: string; email: string; full_name: string | null; company_id: string | null; company_name: string | null;
-  role: string | null; modules: string[] | null; disabled_at: string | null; registered_at: string; confirmed: boolean; last_sign_in_at: string | null;
+  role: string | null; modules: string[] | null; can_open?: boolean; disabled_at: string | null; registered_at: string; confirmed: boolean; last_sign_in_at: string | null;
 };
 type Invite = { id: string; company_id: string; email: string; role: string; modules: string[]; created_at: string };
 
@@ -37,6 +37,9 @@ function Person({ m, company }: { m: Member; company: string }) {
               <input type="checkbox" name="modules" value={k} defaultChecked={(m.modules ?? []).includes(k)} /> {v}
             </label>
           ))}
+          {m.role === 'member' && (
+            <label className="flex items-center gap-1 font-medium"><input type="checkbox" name="can_open" value="1" defaultChecked={!!m.can_open} /> ➕ გახსნის უფლება</label>
+          )}
           <label className="flex items-center gap-1 text-mismatch"><input type="checkbox" name="disabled" value="1" defaultChecked={!!m.disabled_at} /> მოხსნა</label>
           <button type="submit" className="rounded-control border border-rule-strong px-3 py-1">შენახვა</button>
         </form>
@@ -53,14 +56,16 @@ export default async function PlatformCompany({ params, searchParams }: PageProp
   const supabase = await createClient();
   const { data: admin } = await supabase.rpc('is_platform_admin');
   if (!admin) redirect('/manage');
-  const [{ data: companies }, { data: members }, { data: invites }] = await Promise.all([
+  const [{ data: companies }, { data: members }, { data: invites }, { data: flags }] = await Promise.all([
     supabase.rpc('platform_companies'),
     supabase.rpc('platform_members'),
     supabase.rpc('platform_invites'),
+    supabase.rpc('platform_can_open'),
   ]);
+  const canOpen = new Set(((flags ?? []) as { user_id: string; can_open: boolean }[]).filter((f) => f.can_open).map((f) => f.user_id));
   const co = ((companies ?? []) as { id: string; name: string }[]).find((c) => c.id === company);
   if (!co) notFound();
-  const people = ((members ?? []) as Member[]).filter((m) => m.company_id === company);
+  const people = ((members ?? []) as Member[]).filter((m) => m.company_id === company).map((m) => ({ ...m, can_open: canOpen.has(m.user_id) }));
   const pending = ((invites ?? []) as Invite[]).filter((i) => i.company_id === company);
   const managers = people.filter((p) => p.role === 'owner' || p.role === 'admin');
   const counters = people.filter((p) => p.role === 'member' || p.role === 'viewer');

@@ -52,5 +52,6 @@ export async function setMember(companyId: string, userId: string, formData: For
     p_modules: modulesFrom(formData),
     p_disabled: disabled,
   });
+  await supabase.rpc('platform_set_can_open', { p_user: userId, p_can_open: formData.get('can_open') === '1' });
   revalidatePath(`/manage/platform/${companyId}`);
 }
