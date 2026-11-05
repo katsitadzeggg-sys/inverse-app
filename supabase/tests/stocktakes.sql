@@ -58,7 +58,11 @@ begin
     values (alpha, 'Q4 count', 'a1111111-1111-1111-1111-111111111111') returning id into st;
   perform pg_temp.expect(st is not null, 'the owner opens a stocktake');
 
-  -- Counter 1 is not assigned yet: cannot open a zone.
+  -- Rule (0033): only counter 3 is assigned, so counter 1 cannot open a zone.
+  -- (With nobody assigned the whole team may count.)
+  set local request.jwt.claim.sub = 'a1111111-1111-1111-1111-111111111111';
+  insert into public.stocktake_members (stocktake_id, user_id, company_id) values
+    (st, 'a3333333-3333-3333-3333-333333333333', alpha);
   set local request.jwt.claim.sub = 'a2222222-2222-2222-2222-222222222222';
   begin
     insert into public.stocktake_zones (company_id, stocktake_id, location_id, counter_id)
@@ -68,8 +72,8 @@ begin
     perform pg_temp.expect(true, 'an unassigned counter cannot count');
   end;
   set local request.jwt.claim.sub = 'a1111111-1111-1111-1111-111111111111';
-  insert into public.stocktake_counters (stocktake_id, user_id, company_id) values
-    (st, 'a2222222-2222-2222-2222-222222222222', alpha), (st, 'a3333333-3333-3333-3333-333333333333', alpha);
+  insert into public.stocktake_members (stocktake_id, user_id, company_id) values
+    (st, 'a2222222-2222-2222-2222-222222222222', alpha);
 
   -- Counter 1 claims a zone and counts; counter 2 cannot take the same zone.
   set local request.jwt.claim.sub = 'a2222222-2222-2222-2222-222222222222';
