@@ -28,19 +28,17 @@ export default async function CountHome() {
         .returns<{ id: string; name: string; address: string | null; lat: number | null; lng: number | null }[]>()
     : { data: [] };
   const open = (data ?? []).filter((s) => s.status === 'open' && allowedModules.has(s.kind) && (!assigned.has(s.id) || assigned.get(s.id)!.has(userId)));
-  const MODULES = [
-    { kind: 'stock', title: '📦 მარაგები', hint: 'სკანი → რაოდენობა', tone: 'border-l-ink' },
-    { kind: 'expiry', title: '⏳ ვადიანი პროდუქცია', hint: 'სკანი → ვადა → რაოდენობა', tone: 'border-l-review' },
-    { kind: 'assets', title: '🏷 ძირითადი საშუალებები', hint: 'ოთახი → ეტიკეტის სკანი → მდგომარეობა, ფოტო', tone: 'border-l-match' },
-  ];
+
+  const multi = new Set(open.map((s) => s.kind)).size > 1;
+  const ICON: Record<string, string> = { stock: '📦', expiry: '⏳', assets: '🏷' };
 
   return (
-    <div className="grid gap-6">
-      <h1 className="text-xl font-semibold">ინვენტარიზაციები</h1>
-
+    <div className="grid gap-5">
       {profile.can_open && (
-        <details className="rounded-control border border-rule-strong">
-          <summary className="cursor-pointer px-4 py-3 text-base font-semibold">+ ახალი ინვენტარიზაცია</summary>
+        <details className="group rounded-control border-2 border-ink bg-ink text-paper open:bg-paper open:text-ink">
+          <summary className="cursor-pointer list-none px-4 py-5 text-center text-xl font-semibold [&::-webkit-details-marker]:hidden">
+            ＋ ახალი ინვენტარიზაცია
+          </summary>
           <div className="border-t border-rule/70 p-3">
             <NewStocktakeForm kind={profile.modules?.[0]} kinds={profile.modules} companyName={company.name} sites={sites ?? []} allowNewSite={false} fixed />
           </div>
@@ -48,40 +46,29 @@ export default async function CountHome() {
       )}
 
       {open.length === 0 ? (
-        <p className="text-ink-soft">
-          ღია ინვენტარიზაცია არ არის.{manager ? ' გახსენი მართვის პანელიდან.' : ' მიმართე მენეჯერს.'}
+        <p className="text-center text-sm text-ink-soft">
+          ღია ინვენტარიზაცია არ არის.{profile.can_open ? '' : ' მიმართე მენეჯერს.'}
         </p>
       ) : (
-        <div className="grid gap-6">
-          {MODULES.filter((m) => open.some((s) => s.kind === m.kind)).map((m) => (
-            <section key={m.kind} className="grid gap-2">
-              <div>
-                <h2 className="text-lg font-semibold">{m.title}</h2>
-                <p className="text-xs text-ink-faint">{m.hint}</p>
-              </div>
-              <ul className="grid gap-2">
-                {open.filter((s) => s.kind === m.kind).map((s) => (
-                  <li key={s.id}>
-                    <Link
-                      href={`/count/${s.id}`}
-                      className={`block rounded-control border border-l-4 border-rule-strong ${m.tone} bg-paper-sunk px-4 py-4 text-lg font-semibold`}
-                    >
-                      <span className="block text-sm font-normal text-ink-faint">{s.number} · {new Date(s.count_date).toLocaleDateString('ka-GE')}</span>
-                      {s.client_name ?? s.name}
-                      {s.branch && <span className="block text-base font-normal text-ink-soft">{s.branch}</span>}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </section>
+        <ul className="grid gap-1.5">
+          {open.map((s) => (
+            <li key={s.id}>
+              <Link
+                href={`/count/${s.id}`}
+                className="flex items-center justify-between gap-3 rounded-control border border-rule/70 bg-paper-sunk px-3 py-2.5"
+              >
+                <span className="min-w-0 truncate font-semibold">
+                  {multi && <span className="mr-1">{ICON[s.kind]}</span>}
+                  {s.branch ?? s.client_name ?? s.name}
+                </span>
+                <span className="shrink-0 text-xs tabular-nums text-ink-faint">
+                  {s.number.replace(/^INV-\d{4}-/, '№')} · {new Date(s.count_date).toLocaleDateString('ka-GE')}
+                </span>
+              </Link>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
-
-      {manager && (
-        <Link href="/manage" className="rounded-control border border-rule-strong px-4 py-3 text-center text-sm">⚙ მართვის პანელი — ახალი ინვენტარიზაცია, ნაშთი, ანგარიშები</Link>
-      )}
-
     </div>
   );
 }
