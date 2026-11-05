@@ -733,3 +733,20 @@ select:focus {
   outline: none;
   box-shadow: 0 0 0 3px rgb(34 160 107 / 0.35);
 }
+
+/* Printing a sticker from the counter's phone: only the label, 38×38 mm. */
+@media print {
+  body:has(#print-label) * {
+    visibility: hidden !important;
+  }
+  body:has(#print-label) #print-label {
+    visibility: visible !important;
+    position: fixed !important;
+    left: 0;
+    top: 0;
+    width: 38mm !important;
+    height: 38mm !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+  }
+}

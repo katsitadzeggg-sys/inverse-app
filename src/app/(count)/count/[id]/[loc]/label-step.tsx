@@ -1,45 +1,46 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { drawLabel, labelsToZpl } from '@/lib/zebra';
+import { drawLabel } from '@/lib/zebra';
 
 const SIZE = { w: 38, h: 38 };
 
 /**
- * Before the photos: the new sticker for an asset without a label. Shows it as
- * it will print and hands over a one-label ZPL file for the Zebra printer, so
- * the photo of the label already shows the new sticker.
+ * Right after Save, for an asset that needs a sticker: the QR label as it will
+ * print and one button that opens the phone's print dialog with only the label
+ * on the page (38×38 mm). Then on to the photos, so the new sticker is in them.
  */
 export default function LabelStep({ code, title, company, onDone }: { code: string; title: string; company: string; onDone: () => void }) {
-  const box = useRef<HTMLDivElement>(null);
+  const [src, setSrc] = useState<string | null>(null);
   const [printed, setPrinted] = useState(false);
+  const img = useRef<HTMLImageElement>(null);
+
   useEffect(() => {
-    const c = drawLabel(SIZE, { code, title, footer: company });
-    c.style.width = '140px';
-    c.style.border = '1px solid #98A2B3';
-    c.style.borderRadius = '6px';
-    c.style.background = '#fff';
-    box.current?.replaceChildren(c);
+    const url = drawLabel(SIZE, { code, title, footer: company }).toDataURL('image/png');
+    const t = setTimeout(() => setSrc(url), 0);
+    return () => clearTimeout(t);
   }, [code, title, company]);
 
-  function download() {
-    const url = URL.createObjectURL(new Blob([labelsToZpl(SIZE, [{ code, title, footer: company }])], { type: 'text/plain' }));
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${code}.zpl`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  function print() {
     setPrinted(true);
+    window.print();
   }
 
   return (
     <section className="grid gap-3 rounded-control border-2 border-match p-3">
-      <div ref={box} className="flex justify-center" />
-      <button type="button" onClick={download} className="rounded-control border-2 border-rule-strong px-4 py-4 text-lg font-semibold">🖨 სტიკერის ბეჭდვა</button>
+      {/* Page size only while this step is on screen. */}
+      <style>{'@media print { @page { size: 38mm 38mm; margin: 0; } }'}</style>
+      {src && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img id="print-label" ref={img} src={src} alt={code} className="mx-auto w-40 rounded-md border border-rule-strong bg-white" />
+      )}
+      <button type="button" onClick={print} disabled={!src} className="rounded-control bg-match px-4 py-4 text-lg font-semibold text-white disabled:opacity-50">
+        🖨 დაბეჭდვა
+      </button>
       <button
         type="button"
         onClick={onDone}
-        className={`rounded-control px-4 py-4 text-lg font-semibold ${printed ? 'bg-match text-white' : 'border-2 border-rule text-ink-soft'}`}
+        className={`rounded-control px-4 py-4 text-lg font-semibold ${printed ? 'border-2 border-match text-ink' : 'border-2 border-rule text-ink-soft'}`}
       >
         📷 ფოტოს გადაღება
       </button>
