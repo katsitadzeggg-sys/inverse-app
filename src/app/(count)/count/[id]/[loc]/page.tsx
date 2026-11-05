@@ -49,19 +49,16 @@ export default async function ZonePage({ params }: PageProps<'/count/[id]/[loc]'
     const n = recorded ?? 0;
     return (
       <div className="grid gap-4">
-        <div className="flex items-center justify-between gap-3">
-          <Link
-            href={`/count/${id}`}
-            className="inline-flex w-fit items-center gap-2 rounded-control border border-rule-strong px-4 py-2 text-base font-medium text-ink"
-          >
-            ← დაბრუნება
-          </Link>
-          <h1 className="truncate text-2xl font-semibold">
-            ოთახი {/^\d+$/.test(location.code) ? `№${location.code}` : location.code}
-          </h1>
-        </div>
         {!canCount ? (
-          <p className="text-ink-soft">ამ ოთახში ჩაწერა შენთვის დახურულია.</p>
+          <>
+            <Link
+              href={`/count/${id}`}
+              className="inline-flex w-fit items-center gap-2 rounded-control border border-rule-strong px-4 py-2 text-base font-medium text-ink"
+            >
+              ← დაბრუნება
+            </Link>
+            <p className="text-ink-soft">ამ ოთახში ჩაწერა შენთვის დახურულია.</p>
+          </>
         ) : (
           <>
             <AssetPanel
@@ -74,6 +71,10 @@ export default async function ZonePage({ params }: PageProps<'/count/[id]/[loc]'
               company={stocktake.client_name ?? stocktake.name}
               branch={stocktake.branch}
               recorded={n}
+              backHref={`/count/${id}`}
+              title={
+                /^\d+$/.test(location.code) ? `ოთახი №${location.code}` : `ოთახი ${location.code}`
+              }
             />
           </>
         )}

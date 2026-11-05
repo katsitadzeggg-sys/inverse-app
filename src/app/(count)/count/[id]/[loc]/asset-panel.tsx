@@ -16,7 +16,9 @@ import {
   saveAssetCheck,
   type AssetHit,
 } from '../../assets-actions';
-import LabelStep from './label-step';
+import { drawLabel } from '@/lib/zebra';
+
+const LABEL = { w: 38, h: 38 };
 import SerialField from './serial-field';
 import ComboInput from '@/components/combo-input';
 
@@ -45,6 +47,8 @@ export default function AssetPanel({
   company,
   branch,
   recorded = 0,
+  backHref,
+  title,
   footer = null,
 }: {
   stocktakeId: string;
@@ -56,6 +60,8 @@ export default function AssetPanel({
   company: string;
   branch: string | null;
   recorded?: number;
+  backHref: string;
+  title: string;
   /** Room controls, shown only between items. */
   footer?: React.ReactNode;
 }) {
@@ -74,6 +80,8 @@ export default function AssetPanel({
   // At least one photo of every asset before moving on.
   const [shots, setShots] = useState(0);
   const [savedId, setSavedId] = useState<string | null>(null);
+  // Back from the photo step to the filled-in card.
+  const [editing, setEditing] = useState(false);
   const [message, setMessage] = useState<{ tone: 'error' | 'info'; text: string } | null>(null);
   const [pending, start] = useTransition();
   const [pos, setPos] = useState<{ lat: number; lng: number; accuracy: number } | null | undefined>(
@@ -153,7 +161,7 @@ export default function AssetPanel({
     });
   }
 
-  function save() {
+  function save(label = needsLabel) {
     if (!card) return;
     // An asset without a number gets one now; it goes on its new QR label.
     const invNo = card.invNo || `N-${Date.now().toString().slice(-6)}`;
@@ -166,7 +174,7 @@ export default function AssetPanel({
         condition,
         responsible,
         serial,
-        needsLabel,
+        needsLabel: label,
         note,
         group,
         lat: pos?.lat ?? null,
@@ -175,14 +183,52 @@ export default function AssetPanel({
       if (res.error) return setMessage({ tone: 'error', text: res.error });
       navigator.vibrate?.([40, 40, 40]);
       setSavedId(res.id ?? null);
+      setEditing(false);
       setMessage(null);
     });
+  }
+
+  /**
+   * "Print sticker": the phone's print dialog opens at once with only the QR
+   * label on the page (38×38 mm); meanwhile the asset is saved, and back from
+   * the dialog the counter is on the photo / video step.
+   */
+  function printAndSave() {
+    if (!card || !card.name.trim()) return;
+    const invNo = card.invNo || `N-${Date.now().toString().slice(-6)}`;
+    if (invNo !== card.invNo) setCard({ ...card, invNo });
+    document.getElementById('print-label')?.remove();
+    const img = document.createElement('img');
+    img.id = 'print-label';
+    img.src = drawLabel(LABEL, { code: invNo, title: card.name, footer: company }).toDataURL(
+      'image/png',
+    );
+    img.style.display = 'none';
+    const page = document.createElement('style');
+    page.textContent =
+      '@media print { @page { size: 38mm 38mm; margin: 0; } #print-label { display: block !important; } }';
+    document.body.append(img, page);
+    const cleanup = () => {
+      img.remove();
+      page.remove();
+    };
+    window.addEventListener('afterprint', cleanup, { once: true });
+    setTimeout(cleanup, 120_000);
+    setNeedsLabel(true);
+    setLabelDone(true);
+    img
+      .decode()
+      .catch(() => {})
+      .finally(() => window.print());
+    if (savedId && !editing) return;
+    save(true);
   }
 
   function next() {
     if (card && savedId) navigator.vibrate?.([60, 40, 60]);
     setCard(null);
     setSavedId(null);
+    setEditing(false);
     setQuery('');
     setManual(false);
     setHits(null);
@@ -193,11 +239,34 @@ export default function AssetPanel({
   const normRoom = normKey;
   const moved = card && !card.surplus && card.room && normRoom(card.room) !== normRoom(room);
 
+  // Back one step, keeping what was filled in: photos → card → scan → the stocktake.
+  function back() {
+    if (card && savedId && !editing) return setEditing(true);
+    if (card && !savedId) return next();
+    if (card && editing) return setEditing(false);
+    if (manual) {
+      setManual(false);
+      setHits(null);
+      return setQuery('');
+    }
+    router.push(backHref);
+  }
+
   // The saved item is already in `recorded` once the page refreshes.
   const itemNo = savedId && !card?.checkedId ? recorded : recorded + 1;
 
   return (
     <>
+      <div className="flex items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={back}
+          className="inline-flex w-fit items-center gap-2 rounded-control border border-rule-strong px-4 py-2 text-base font-medium text-ink"
+        >
+          ← დაბრუნება
+        </button>
+        <h1 className="truncate text-2xl font-semibold">{title}</h1>
+      </div>
       <p className="text-center text-3xl font-semibold tabular-nums">
         ინვენტარი №{Math.max(1, itemNo)}
       </p>
@@ -310,7 +379,7 @@ export default function AssetPanel({
               )}
             </div>
 
-            {!savedId && (
+            {(!savedId || editing) && (
               <>
                 {card.surplus && (
                   <div className="grid gap-2">
@@ -362,11 +431,11 @@ export default function AssetPanel({
                 />
                 <button
                   type="button"
-                  aria-pressed={needsLabel}
-                  onClick={() => setNeedsLabel((v) => !v)}
-                  className={`flex items-center justify-center gap-2 rounded-control border-2 px-4 py-4 text-lg font-semibold ${needsLabel ? 'border-review bg-review/15 text-ink' : 'border-rule-strong text-ink-soft'}`}
+                  onClick={printAndSave}
+                  disabled={pending || !card.name.trim()}
+                  className={`flex items-center justify-center gap-2 rounded-control border-2 px-4 py-4 text-lg font-semibold disabled:opacity-50 ${labelDone ? 'border-match text-ink' : 'border-rule-strong text-ink'}`}
                 >
-                  {needsLabel ? '✓' : '🏷'} სტიკერის ბეჭდვა
+                  🖨 სტიკერის ბეჭდვა{labelDone ? ' ✓' : ''}
                 </button>
                 <div className="grid grid-cols-[1fr_2fr] gap-2">
                   <button
@@ -378,7 +447,7 @@ export default function AssetPanel({
                   </button>
                   <button
                     type="button"
-                    onClick={save}
+                    onClick={() => save()}
                     disabled={pending || !card.name.trim()}
                     className="rounded-control bg-match px-4 py-4 text-lg font-semibold text-white disabled:opacity-60"
                   >
@@ -388,17 +457,8 @@ export default function AssetPanel({
               </>
             )}
 
-            {savedId && needsLabel && !labelDone && (
-              <LabelStep
-                code={card.invNo}
-                title={card.name}
-                company={company}
-                onDone={() => setLabelDone(true)}
-              />
-            )}
-
-            {savedId && (!needsLabel || labelDone) && (
-              <>
+            {savedId && (
+              <div className={editing ? 'hidden' : 'grid gap-3'}>
                 <MediaUpload
                   key={savedId}
                   stocktakeId={stocktakeId}
@@ -423,7 +483,7 @@ export default function AssetPanel({
                 >
                   {shots === 0 ? '📷 ჯერ ფოტო' : '✓ დასრულება — შემდეგი ნივთი'}
                 </button>
-              </>
+              </div>
             )}
           </div>
         )}
