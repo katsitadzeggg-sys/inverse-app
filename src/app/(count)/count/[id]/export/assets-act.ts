@@ -98,7 +98,7 @@ export async function assetsAct(supabase: SupabaseClient, st: Stocktake, shelf: 
     line('ნაპოვნი', String(count('found'))),
     line('გადაადგილებული', String(count('moved'))),
     line('დაკარგული', `${count('missing')}${missingValue ? ` (ღირებულება ${missingValue.toFixed(2)} ლარი)` : ''}`),
-    line('ზედმეტი', String(count('surplus'))),
+    line('მეტობა', String(count('surplus'))),
     line('დაზიანებული / ჩამოსაწერი', `${rows.filter((r) => r.condition === 'damaged').length} / ${rows.filter((r) => r.condition === 'writeoff').length}`),
     full(`ფოტო და ვიდეო მასალა: ${origin}/manage/${st.id}`, { fontSize: 9, color: '#475467' }),
     blank(),

@@ -25,7 +25,7 @@ export default async function RegisterPage({ params }: PageProps<'/count/[id]/re
         </p>
         <p className="mt-2 text-sm text-ink-faint">
           აღმწერი ეტიკეტს ასკანერებს და ხედავს დასახელებას და ოთახს. რაც რეესტრშია და არავინ დაასკანერა, დაკარგულში
-          გავა; რაც დაასკანერეს და რეესტრში არ არის, ზედმეტში.
+          გავა; რაც დაასკანერეს და რეესტრში არ არის, მეტობაში.
         </p>
       </div>
       <RegisterImport stocktakeId={id} />

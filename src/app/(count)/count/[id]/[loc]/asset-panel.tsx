@@ -199,16 +199,18 @@ export default function AssetPanel({
             {card.surplus && card.fromHistory ? (
               <>
                 <p className="text-lg font-semibold">{card.name}</p>
-                <p className="text-sm text-review">ამ რეესტრში არ არის — მონაცემები წინა აღწერიდან ჩაჯდა (ზედმეტად ჩაიწერება)</p>
+                <p className="text-sm text-review">აღმოჩენილი მეტობა — მონაცემები წინა აღწერიდან</p>
               </>
             ) : card.surplus ? (
-              <p className="text-lg font-semibold text-mismatch">რეესტრში არ არის (ზედმეტი) — შეავსე ხელით</p>
+              <p className="text-xl font-semibold text-mismatch">აღმოჩენილი მეტობა</p>
             ) : (
               <p className="text-lg font-semibold">{card.name}</p>
             )}
-            <p className="text-sm text-ink-faint">
-              {card.invNo || 'ნომერი მიენიჭება'}{card.room ? ` · რეესტრით: ${card.room}` : ''}
-            </p>
+            {!card.surplus && (
+              <p className="text-sm text-ink-faint">
+                {card.invNo}{card.room ? ` · რეესტრით: ${card.room}` : ''}
+              </p>
+            )}
             {moved && <p className="mt-1 text-sm font-semibold text-review">⚠ სხვა ოთახშია — ჩაიწერება როგორც გადაადგილებული</p>}
             {card.checkedId && !savedId && (
               <p className="mt-1 text-sm text-review">უკვე ჩაწერილია{card.checkedRoom ? ` (${card.checkedRoom})` : ''}. შენახვა განაახლებს.</p>
@@ -245,13 +247,17 @@ export default function AssetPanel({
               </datalist>
               <SerialField value={serial} onChange={setSerial} />
               <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="შენიშვნა (დაზიანება, დეტალები)" className={inputClass} />
-              <label className="flex items-center gap-2 text-sm text-ink-soft">
-                <input type="checkbox" checked={needsLabel} onChange={(e) => setNeedsLabel(e.target.checked)} />
-                🏷 სტიკერი დასაბეჭდია (ეტიკეტი აკლია)
-              </label>
+              <button
+                type="button"
+                aria-pressed={needsLabel}
+                onClick={() => setNeedsLabel((v) => !v)}
+                className={`flex items-center justify-center gap-2 rounded-control border-2 px-4 py-4 text-lg font-semibold ${needsLabel ? 'border-review bg-review/15 text-ink' : 'border-rule-strong text-ink-soft'}`}
+              >
+                {needsLabel ? '✓' : '🏷'} სტიკერის ბეჭდვა
+              </button>
               <div className="grid grid-cols-[1fr_2fr] gap-2">
-                <button type="button" onClick={next} className="rounded-control border border-rule-strong px-3 py-3 text-sm">გაუქმება</button>
-                <button type="button" onClick={save} disabled={pending || !card.name.trim()} className="rounded-control bg-ink px-4 py-3 text-base font-semibold text-paper disabled:opacity-60">
+                <button type="button" onClick={next} className="rounded-control bg-mismatch px-3 py-4 text-base font-semibold text-white">გაუქმება</button>
+                <button type="button" onClick={save} disabled={pending || !card.name.trim()} className="rounded-control bg-match px-4 py-4 text-lg font-semibold text-white disabled:opacity-60">
                   {pending ? '…' : '✓ შენახვა'}
                 </button>
               </div>

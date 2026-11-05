@@ -91,7 +91,7 @@ export default function AssetReport({ id, number, rows }: { id: string; number: 
 
       {by('missing').length > 0 && <section className="grid gap-2"><h2 className="font-semibold text-mismatch">დაკარგული — რეესტრშია, ვერ იპოვეს</h2><Rows rows={by('missing')} /></section>}
       {by('moved').length > 0 && <section className="grid gap-2"><h2 className="font-semibold text-review">გადაადგილებული — სხვა ოთახშია</h2><Rows rows={by('moved')} /></section>}
-      {by('surplus').length > 0 && <section className="grid gap-2"><h2 className="font-semibold text-mismatch">ზედმეტი — რეესტრში არ არის</h2><Rows rows={by('surplus')} /></section>}
+      {by('surplus').length > 0 && <section className="grid gap-2"><h2 className="font-semibold text-mismatch">მეტობა — რეესტრში არ არის</h2><Rows rows={by('surplus')} /></section>}
       {by('found').length > 0 && <section className="grid gap-2"><h2 className="font-semibold text-match">ნაპოვნი</h2><Rows rows={by('found')} /></section>}
     </div>
   );

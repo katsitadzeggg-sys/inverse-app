@@ -26,7 +26,7 @@ export const ASSET_STATUS: Record<AssetStatus, string> = {
   found: 'ნაპოვნი',
   moved: 'გადაადგილებული',
   missing: 'დაკარგული',
-  surplus: 'ზედმეტი',
+  surplus: 'მეტობა',
 };
 
 export const CONDITION: Record<string, string> = { good: 'კარგი', damaged: 'დაზიანებული', writeoff: 'ჩამოსაწერი' };

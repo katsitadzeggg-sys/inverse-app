@@ -69,7 +69,7 @@ export default async function ZonePage({ params }: PageProps<'/count/[id]/[loc]'
               <p key={a.id} className="flex justify-between gap-2 border-t border-rule/60 py-1.5">
                 <span className="min-w-0 truncate">{a.name} <span className="text-ink-faint">· {a.inv_no}</span></span>
                 <span className={a.register_id ? (a.condition === 'good' ? 'text-match' : 'text-review') : 'text-mismatch'}>
-                  {a.register_id ? COND[a.condition] : 'ზედმეტი'}{a.needs_label ? ' · 🏷' : ''}
+                  {a.register_id ? COND[a.condition] : 'მეტობა'}{a.needs_label ? ' · 🏷' : ''}
                 </span>
               </p>
             ))}
