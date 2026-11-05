@@ -71,7 +71,7 @@ export default function SerialField({ value, onChange }: { value: string; onChan
           onCode={(code) => {
             onChange(code.trim());
             setScan(false);
-            setNote(`დასკანერდა: ${code.trim()}`);
+            setNote('');
           }}
         />
       )}

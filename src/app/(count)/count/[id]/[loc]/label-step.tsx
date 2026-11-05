@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { drawLabel, labelsToZpl } from '@/lib/zebra';
 
 const SIZE = { w: 38, h: 38 };
@@ -12,6 +12,7 @@ const SIZE = { w: 38, h: 38 };
  */
 export default function LabelStep({ code, title, company, onDone }: { code: string; title: string; company: string; onDone: () => void }) {
   const box = useRef<HTMLDivElement>(null);
+  const [printed, setPrinted] = useState(false);
   useEffect(() => {
     const c = drawLabel(SIZE, { code, title, footer: company });
     c.style.width = '140px';
@@ -28,18 +29,20 @@ export default function LabelStep({ code, title, company, onDone }: { code: stri
     a.download = `${code}.zpl`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    setPrinted(true);
   }
 
   return (
-    <section className="grid gap-3 rounded-control border-2 border-review/60 p-3">
-      <p className="font-semibold">🏷 ჯერ სტიკერი — მერე ფოტო</p>
-      <div className="flex items-center gap-3">
-        <div ref={box} />
-        <p className="text-sm text-ink-soft">დაბეჭდე, დააკარი ნივთს, მერე გადაიღე ფოტოები — ეტიკეტის ფოტოზე ახალი სტიკერი უკვე ჩანს.</p>
-      </div>
-      <button type="button" onClick={download} className="rounded-control border border-rule-strong px-4 py-3 font-semibold">⬇ სტიკერი Zebra-სთვის</button>
-      <button type="button" onClick={onDone} className="rounded-control bg-ink px-4 py-3 font-semibold text-paper">✓ დავაკარი — ფოტოებზე გადასვლა</button>
-      <button type="button" onClick={onDone} className="text-sm text-ink-faint underline">მოგვიანებით დავბეჭდავ</button>
+    <section className="grid gap-3 rounded-control border-2 border-match p-3">
+      <div ref={box} className="flex justify-center" />
+      <button type="button" onClick={download} className="rounded-control border-2 border-rule-strong px-4 py-4 text-lg font-semibold">🖨 სტიკერის ბეჭდვა</button>
+      <button
+        type="button"
+        onClick={onDone}
+        className={`rounded-control px-4 py-4 text-lg font-semibold ${printed ? 'bg-match text-white' : 'border-2 border-rule text-ink-soft'}`}
+      >
+        📷 ფოტოს გადაღება
+      </button>
     </section>
   );
 }
