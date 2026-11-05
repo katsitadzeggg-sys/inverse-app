@@ -14,9 +14,9 @@ export default async function ManageLayout({ children }: LayoutProps<'/'>) {
   return (
     <div className="flex min-h-full flex-col">
       <header className="sticky top-0 z-10 border-b border-rule/70 bg-paper/90 backdrop-blur">
-        <div className="mx-auto flex max-w-4xl items-center gap-4 px-4 py-3">
-          <Link href="/manage" className="text-base font-semibold tracking-tight">
-            Inverse · მართვა
+        <div className="mx-auto flex max-w-4xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+          <Link href="/manage" className="rounded-control border border-rule-strong bg-paper-sunk px-2.5 py-1.5 text-sm font-semibold">
+            🏠 მთავარი
           </Link>
           <Link href="/manage/team" className="text-sm text-ink-soft underline">
             👥 გუნდი

@@ -14,18 +14,20 @@ export default async function CountLayout({ children }: LayoutProps<'/'>) {
     <div className="flex min-h-full flex-col">
       <header className="sticky top-0 z-10 border-b border-rule/70 bg-paper/90 backdrop-blur">
         <div className="mx-auto flex max-w-xl items-center gap-3 px-4 py-3">
-          <Link href="/count" className="text-base font-semibold tracking-tight">
-            Inverse · დათვლა
+          {manager ? (
+            <Link href="/manage" className="rounded-control border border-rule-strong bg-paper-sunk px-2.5 py-1.5 text-sm font-semibold">
+            🏠 მთავარი
           </Link>
+          ) : (
+            <Link href="/count" className="rounded-control border border-rule-strong bg-paper-sunk px-2.5 py-1.5 text-sm font-semibold">
+              🏠 მთავარი
+            </Link>
+          )}
           <div className="ml-auto text-right">
             <p className="text-sm font-medium leading-tight">{profile.full_name ?? profile.email}</p>
             <p className="text-xs leading-tight text-ink-faint">{company.name}</p>
           </div>
-          {manager && (
-            <Link href="/manage" className="text-sm text-ink-soft underline">
-              მართვა
-            </Link>
-          )}
+
           <form action="/auth/signout" method="post">
             <button type="submit" className="rounded-control border border-rule-strong px-2.5 py-1.5 text-xs" title="გასვლა">
               გასვლა
