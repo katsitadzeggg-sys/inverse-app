@@ -213,7 +213,7 @@ export async function saveAssetCheck(
     name: input.name.trim().slice(0, 300),
     condition: input.condition,
     responsible: input.responsible.trim() || null,
-    serial: input.serial.trim() || null,
+    serial: input.serial.trim().replace(/[^\p{L}\p{N}]+$/u, '') || null, // drop stray ?/ . at the end
     needs_label: input.needsLabel,
     group_name: input.group?.trim().slice(0, 100) || null,
     note: input.note.trim().slice(0, 1000) || null,
