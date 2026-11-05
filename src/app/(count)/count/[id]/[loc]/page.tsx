@@ -75,26 +75,27 @@ export default async function ZonePage({ params }: PageProps<'/count/[id]/[loc]'
               company={stocktake.client_name ?? stocktake.name}
               branch={stocktake.branch}
               recorded={n}
+              footer={
+                n > 0 ? (
+                  <details className="mt-6 rounded-control border border-rule-strong">
+                    <summary className="cursor-pointer list-none px-4 py-3 text-center text-base text-ink-soft [&::-webkit-details-marker]:hidden">
+                      🚪 ოთახი დავასრულე
+                    </summary>
+                    <div className="grid gap-3 border-t border-rule/70 p-3">
+                      <RoomOpener stocktakeId={id} suggestions={[]} close={loc} />
+                      <form action={finishZone.bind(null, id, loc)}>
+                        <button
+                          type="submit"
+                          className="w-full rounded-control border border-rule-strong px-4 py-3 text-base text-ink-soft"
+                        >
+                          🏁 ოთახები აღარ არის — დასრულება
+                        </button>
+                      </form>
+                    </div>
+                  </details>
+                ) : null
+              }
             />
-            {/* Folded until the room is done; then one step closes it and opens the next. */}
-            {n > 0 && (
-              <details className="mt-6 rounded-control border border-rule-strong">
-                <summary className="cursor-pointer list-none px-4 py-3 text-center text-base text-ink-soft [&::-webkit-details-marker]:hidden">
-                  🚪 ოთახი დავასრულე
-                </summary>
-                <div className="grid gap-3 border-t border-rule/70 p-3">
-                  <RoomOpener stocktakeId={id} suggestions={[]} close={loc} />
-                  <form action={finishZone.bind(null, id, loc)}>
-                    <button
-                      type="submit"
-                      className="w-full rounded-control border border-rule-strong px-4 py-3 text-base text-ink-soft"
-                    >
-                      🏁 ოთახები აღარ არის — დასრულება
-                    </button>
-                  </form>
-                </div>
-              </details>
-            )}
           </>
         )}
       </div>

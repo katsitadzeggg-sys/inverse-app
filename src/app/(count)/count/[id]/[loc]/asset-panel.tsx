@@ -45,6 +45,7 @@ export default function AssetPanel({
   company,
   branch,
   recorded = 0,
+  footer = null,
 }: {
   stocktakeId: string;
   locationId: string;
@@ -55,6 +56,8 @@ export default function AssetPanel({
   company: string;
   branch: string | null;
   recorded?: number;
+  /** Room controls, shown only between items. */
+  footer?: React.ReactNode;
 }) {
   const [query, setQuery] = useState('');
   const [hits, setHits] = useState<AssetHit[] | null>(null);
@@ -243,7 +246,11 @@ export default function AssetPanel({
             {hits && (
               <ul className={`grid gap-1 ${browse ? 'max-h-[60vh] overflow-y-auto' : ''}`}>
                 {(browse && filter.trim()
-                  ? hits.filter((h) => `${h.name} ${h.invNo} ${h.serial ?? ''}`.toLowerCase().includes(filter.trim().toLowerCase()))
+                  ? hits.filter((h) =>
+                      `${h.name} ${h.invNo} ${h.serial ?? ''}`
+                        .toLowerCase()
+                        .includes(filter.trim().toLowerCase()),
+                    )
                   : hits
                 ).map((h) => (
                   <li key={h.invNo}>
@@ -323,8 +330,18 @@ export default function AssetPanel({
                     </button>
                   ))}
                 </div>
-                <ComboInput value={group} onChange={setGroup} options={groups} placeholder="ჯგუფი — მაგ. ავეჯი, კომპიუტერული ტექნიკა" />
-                <ComboInput value={responsible} onChange={setResponsible} options={people} placeholder="პასუხისმგებელი პირი — აირჩიე ან ჩაწერე" />
+                <ComboInput
+                  value={group}
+                  onChange={setGroup}
+                  options={groups}
+                  placeholder="ჯგუფი — მაგ. ავეჯი, კომპიუტერული ტექნიკა"
+                />
+                <ComboInput
+                  value={responsible}
+                  onChange={setResponsible}
+                  options={people}
+                  placeholder="პასუხისმგებელი პირი — აირჩიე ან ჩაწერე"
+                />
                 <SerialField value={serial} onChange={setSerial} />
                 <textarea
                   value={note}
@@ -403,6 +420,7 @@ export default function AssetPanel({
 
         {message && <Alert tone={message.tone}>{message.text}</Alert>}
       </section>
+      {!card && footer}
     </>
   );
 }
