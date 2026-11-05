@@ -80,8 +80,6 @@ export default function AssetPanel({
   const [groups, setGroups] = useState<string[]>([]);
   const [group, setGroup] = useState('');
   // The last asset finished in this room, shown big until the next scan.
-  const [done, setDone] = useState<{ name: string; invNo: string; count: number } | null>(null);
-  const [sessionCount, setSessionCount] = useState(0);
   const [labelDone, setLabelDone] = useState(false);
   useEffect(() => {
     currentPosition().then(setPos);
@@ -100,7 +98,6 @@ export default function AssetPanel({
     setResponsible(h.responsible ?? '');
     setSerial(h.serial ?? '');
     setGroup(h.group ?? '');
-    setDone(null);
     setNote('');
     setNeedsLabel(false);
     setSavedId(h.checkedId);
@@ -179,12 +176,7 @@ export default function AssetPanel({
   }
 
   function next() {
-    if (card && savedId) {
-      const count = sessionCount + 1;
-      setSessionCount(count);
-      setDone({ name: card.name, invNo: card.invNo, count });
-      navigator.vibrate?.([60, 40, 60]);
-    }
+    if (card && savedId) navigator.vibrate?.([60, 40, 60]);
     setCard(null);
     setSavedId(null);
     setQuery('');
@@ -205,12 +197,6 @@ export default function AssetPanel({
         ინვენტარი №{Math.max(1, itemNo)}
       </p>
       <section className="grid gap-3 rounded-control border border-rule/70 p-4">
-        {!card && done && (
-          <div className="grid gap-1 rounded-control border-2 border-match bg-match/10 p-4 text-center">
-            <p className="text-3xl">✅</p>
-            <p className="text-lg font-semibold">ჩაიწერა: {done.name}</p>
-          </div>
-        )}
         {!card && (
           <>
             {pos === null && (
