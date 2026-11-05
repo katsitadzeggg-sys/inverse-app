@@ -133,7 +133,7 @@ export function ButtonLink({
 }
 
 export const inputClass =
-  'w-full rounded-control border border-rule-strong bg-paper-sunk px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink';
+  'w-full rounded-control border border-rule-strong bg-white px-3 py-2 text-sm text-black caret-black placeholder:text-gray-400 focus:border-match focus:outline-none focus:ring-2 focus:ring-match/50';
 
 export function Field({
   label,

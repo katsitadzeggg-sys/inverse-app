@@ -708,3 +708,28 @@ body.invoice-open { overflow: hidden; }
   line-height: 1.08;
   color: #f8fafc;
 }
+
+
+/*
+  Every field people type into is white with dark text and a dark, blinking
+  cursor, on every screen — easy to see on the dark theme, also outdoors.
+*/
+input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='hidden']):not([type='range']):not([type='color']),
+textarea,
+select {
+  background-color: #ffffff !important;
+  color: #0b1220 !important;
+  caret-color: #0b1220;
+  color-scheme: light;
+}
+input::placeholder,
+textarea::placeholder {
+  color: #98a2b3 !important;
+}
+input:not([type='checkbox']):not([type='radio']):focus,
+textarea:focus,
+select:focus {
+  border-color: #22a06b;
+  outline: none;
+  box-shadow: 0 0 0 3px rgb(34 160 107 / 0.35);
+}
