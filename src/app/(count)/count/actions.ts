@@ -50,6 +50,19 @@ export async function createStocktake(_prev: FormState, formData: FormData): Pro
     .select('id')
     .single();
   if (error) return { error: error.message };
+  // Counter's fixed assets: the first room is typed on the same form — straight into it.
+  const room = String(formData.get('room') ?? '').trim();
+  if (!manager && kind === 'assets' && room) {
+    const fd = new FormData();
+    fd.set('code', room);
+    fd.set('create', '1');
+    fd.set('name', room);
+    if ('lat' in point) {
+      fd.set('lat', String(point.lat));
+      fd.set('lng', String(point.lng));
+    }
+    await openZone(data.id, {}, fd); // redirects into the room
+  }
   redirect(manager ? `/manage/${data.id}` : `/count/${data.id}`);
 }
 

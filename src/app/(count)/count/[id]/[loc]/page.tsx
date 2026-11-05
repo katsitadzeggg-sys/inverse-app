@@ -42,7 +42,7 @@ export default async function ZonePage({ params }: PageProps<'/count/[id]/[loc]'
     return (
       <div className="grid gap-4">
         <div>
-          <Link href={`/count/${id}`} className="inline-flex w-fit items-center gap-2 rounded-control border border-rule-strong px-4 py-2 text-base font-medium text-ink">← დაბრუნება</Link>
+          <Link href="/count" className="inline-flex w-fit items-center gap-2 rounded-control border border-rule-strong px-4 py-2 text-base font-medium text-ink">← დაბრუნება</Link>
           <div className="mt-1 flex items-baseline justify-between gap-3">
             <h1 className="text-2xl font-semibold">ოთახი {location.code}</h1>
             {n > 0 && <span className="text-sm text-ink-faint">ჩაწერილია {n}</span>}
@@ -63,15 +63,20 @@ export default async function ZonePage({ params }: PageProps<'/count/[id]/[loc]'
               branch={stocktake.branch}
               recorded={n}
             />
-            {/* One step: closes this room and opens the next. */}
-            <div className="pt-6">
-              <RoomOpener stocktakeId={id} suggestions={[]} close={loc} />
-            </div>
-            <form action={finishZone.bind(null, id, loc)}>
-              <button type="submit" className="w-full rounded-control border border-rule-strong px-4 py-3 text-base text-ink-soft">
-                🏁 ოთახები აღარ არის — დასრულება
-              </button>
-            </form>
+            {/* Folded until the room is done; then one step closes it and opens the next. */}
+            <details className="mt-6 rounded-control border border-rule-strong">
+              <summary className="cursor-pointer list-none px-4 py-3 text-center text-base text-ink-soft [&::-webkit-details-marker]:hidden">
+                🚪 ოთახი დავასრულე
+              </summary>
+              <div className="grid gap-3 border-t border-rule/70 p-3">
+                <RoomOpener stocktakeId={id} suggestions={[]} close={loc} />
+                <form action={finishZone.bind(null, id, loc)}>
+                  <button type="submit" className="w-full rounded-control border border-rule-strong px-4 py-3 text-base text-ink-soft">
+                    🏁 ოთახები აღარ არის — დასრულება
+                  </button>
+                </form>
+              </div>
+            </details>
           </>
         )}
       </div>

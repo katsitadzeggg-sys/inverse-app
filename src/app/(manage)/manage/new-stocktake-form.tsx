@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useState } from 'react';
 import { Alert, inputClass } from '@/components/ui';
-import { addressOf, currentPosition, mapsLink } from '@/lib/geo';
+import { addressOf, currentPosition } from '@/lib/geo';
 import { createStocktake, type FormState } from '@/app/(count)/count/actions';
 
 const EMPTY: FormState = {};
@@ -34,6 +34,7 @@ export default function NewStocktakeForm({
 }) {
   const options = KINDS.filter(([k]) => !kinds || kinds.includes(k));
   const [state, action, pending] = useActionState(createStocktake, EMPTY);
+  const [chosen, setChosen] = useState(options[0]?.[0] ?? 'stock');
   const [siteId, setSiteId] = useState(sites.length ? sites[0].id : 'new');
   const [branch, setBranch] = useState(sites[0]?.name ?? '');
   const [address, setAddress] = useState(sites[0]?.address ?? '');
@@ -94,7 +95,7 @@ export default function NewStocktakeForm({
             <dt className="text-ink-faint">მოდული</dt>
             <dd className="font-semibold">
               {options.length > 1 ? (
-                <select name="kind" defaultValue={options[0]?.[0]} className="rounded-control border border-rule-strong bg-paper px-2 py-1">
+                <select name="kind" value={chosen} onChange={(e) => setChosen(e.target.value)} className="rounded-control border border-rule-strong bg-paper px-2 py-1">
                   {options.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
                 </select>
               ) : options[0]?.[1]}
@@ -152,13 +153,14 @@ export default function NewStocktakeForm({
 
       <input type="hidden" name="lat" value={point?.lat ?? ''} />
       <input type="hidden" name="lng" value={point?.lng ?? ''} />
-      {point && (
-        <p className="text-sm text-match">
-          ✓ <a href={mapsLink(point.lat, point.lng)} target="_blank" rel="noreferrer" className="underline">რუკაზე</a>
-          {point.accuracy != null && <> (±{Math.round(point.accuracy)} მ)</>}
-        </p>
-      )}
       {locating && <p className="text-sm text-ink-soft">{locating}</p>}
+
+      {fixed && chosen === 'assets' && (
+        <label className="grid gap-1 text-sm">
+          ოთახი
+          <input name="room" required autoComplete="off" placeholder="302, A-302, პირველი მარჯვენა" className={field} />
+        </label>
+      )}
 
       {state.error && <Alert>{state.error}</Alert>}
       <button

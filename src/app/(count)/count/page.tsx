@@ -33,10 +33,11 @@ export default async function CountHome() {
   const ICON: Record<string, string> = { stock: '📦', expiry: '⏳', assets: '🏷' };
 
   return (
-    <div className="grid gap-5">
+    // While the new-stocktake form is open, the list of earlier ones is hidden.
+    <div className="grid gap-5 [&:has(details[open])>.old]:hidden">
       {profile.can_open && (
-        <details className="group rounded-control border-2 border-ink bg-ink text-paper open:bg-paper open:text-ink">
-          <summary className="cursor-pointer list-none px-4 py-5 text-center text-xl font-semibold [&::-webkit-details-marker]:hidden">
+        <details className="group rounded-control border-2 border-match open:border-rule/70">
+          <summary className="cursor-pointer list-none rounded-control bg-match px-4 py-5 text-center text-xl font-semibold text-white group-open:rounded-b-none [&::-webkit-details-marker]:hidden">
             ＋ ახალი ინვენტარიზაცია
           </summary>
           <div className="border-t border-rule/70 p-3">
@@ -46,11 +47,11 @@ export default async function CountHome() {
       )}
 
       {open.length === 0 ? (
-        <p className="text-center text-sm text-ink-soft">
+        <p className="old text-center text-sm text-ink-soft">
           ღია ინვენტარიზაცია არ არის.{profile.can_open ? '' : ' მიმართე მენეჯერს.'}
         </p>
       ) : (
-        <ul className="grid gap-1.5">
+        <ul className="old grid gap-1.5">
           {open.map((s) => (
             <li key={s.id}>
               <Link
