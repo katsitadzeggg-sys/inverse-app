@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
 import type { Stocktake, StocktakeZone } from '@/types/database';
 import { mapsLink } from '@/lib/geo';
-import { setStocktakeMembers, setStocktakeStatus } from '@/app/(count)/count/actions';
+import { setStocktakeArchived, setStocktakeMembers, setStocktakeStatus } from '@/app/(count)/count/actions';
 import ExportBox from './export-box';
 
 type ZoneRow = StocktakeZone & {
@@ -166,11 +166,18 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
         )}
       </section>
 
+<div className="flex flex-wrap gap-2">
       <form action={setStocktakeStatus.bind(null, id, st.status === 'open' ? 'closed' : 'open')}>
         <button type="submit" className="rounded-control border border-rule-strong px-4 py-3 text-sm">
           {st.status === 'open' ? '🔒 ინვენტარიზაციის დახურვა' : '↺ ხელახლა გახსნა'}
         </button>
       </form>
+        <form action={setStocktakeArchived.bind(null, id, !st.archived_at)}>
+          <button type="submit" className="rounded-control border border-rule-strong px-4 py-3 text-sm text-ink-soft">
+            {st.archived_at ? '↩ არქივიდან დაბრუნება' : '🗄 არქივში გადატანა'}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }

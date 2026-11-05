@@ -15,11 +15,10 @@ export default async function ManageHome({ searchParams }: PageProps<'/manage/st
   await requireSession();
   const sp = await searchParams;
   const kind = typeof sp.kind === 'string' && ['stock', 'expiry', 'assets'].includes(sp.kind) ? sp.kind : 'stock';
+  const archived = sp.archived === '1';
   const supabase = await createClient();
-  const { data } = await supabase
-    .from('stocktakes')
-    .select('*')
-    .eq('kind', kind)
+  const base = supabase.from('stocktakes').select('*').eq('kind', kind);
+  const { data } = await (archived ? base.not('archived_at', 'is', null) : base.is('archived_at', null))
     .order('created_at', { ascending: false })
     .limit(100)
     .returns<Stocktake[]>();
@@ -52,6 +51,9 @@ export default async function ManageHome({ searchParams }: PageProps<'/manage/st
             </Link>
           ))}
         </nav>
+        <Link href={archived ? `/manage/stocktakes?kind=${kind}` : `/manage/stocktakes?kind=${kind}&archived=1`} className="text-sm text-ink-faint underline">
+          {archived ? '← მიმდინარეები' : '🗄 არქივი'}
+        </Link>
         {list.length === 0 && <p className="text-ink-soft">ჯერ არცერთი არ არის.</p>}
         <ul className="grid gap-2">
           {list.map((s) => {

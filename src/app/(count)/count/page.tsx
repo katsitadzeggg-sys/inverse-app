@@ -14,6 +14,7 @@ export default async function CountHome() {
   const { data } = await supabase
     .from('stocktakes')
     .select('*')
+    .is('archived_at', null)
     .order('created_at', { ascending: false })
     .limit(30)
     .returns<Stocktake[]>();

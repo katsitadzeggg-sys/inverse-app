@@ -20,6 +20,7 @@ export default async function ManageDashboard() {
   const { data: stocktakes } = await supabase
     .from('stocktakes')
     .select('*')
+    .is('archived_at', null)
     .order('created_at', { ascending: false })
     .limit(200)
     .returns<Stocktake[]>();

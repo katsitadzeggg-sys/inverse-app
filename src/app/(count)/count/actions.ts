@@ -556,6 +556,20 @@ export async function setStocktakeStatus(stocktakeId: string, status: 'open' | '
   revalidatePath('/manage');
 }
 
+/** Archive (hide everywhere, keep all data) or bring back from the archive. */
+export async function setStocktakeArchived(stocktakeId: string, archived: boolean): Promise<void> {
+  const session = await requireSession();
+  if (!isManager(session.profile.role)) return;
+  const supabase = await createClient();
+  await supabase
+    .from('stocktakes')
+    .update({ archived_at: archived ? new Date().toISOString() : null, ...(archived ? { status: 'closed', closed_at: new Date().toISOString() } : {}) })
+    .eq('id', stocktakeId);
+  revalidatePath(`/manage/${stocktakeId}`);
+  revalidatePath('/manage');
+  revalidatePath('/count');
+}
+
 /** The manager picks who counts in this stocktake. Nobody ticked = whole team. */
 export async function setStocktakeMembers(stocktakeId: string, formData: FormData): Promise<void> {
   const session = await requireSession();

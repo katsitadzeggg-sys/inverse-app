@@ -187,6 +187,7 @@ export type Stocktake = {
   created_at: string;
   closed_at: string | null;
   kind: 'stock' | 'expiry' | 'assets';
+  archived_at: string | null;
 };
 
 export type StocktakeZone = {
