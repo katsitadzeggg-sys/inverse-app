@@ -10,7 +10,7 @@ function Rows({ rows }: { rows: AssetRow[] }) {
       <table className="w-full text-sm">
         <thead className="text-left text-xs text-ink-faint">
           <tr>
-            <th className="py-1 pr-2">ინვ. №</th><th className="px-2">დასახელება</th><th className="px-2">რეესტრით</th>
+            <th className="py-1 pr-2">ინვ. №</th><th className="px-2">დასახელება</th><th className="px-2">ჯგუფი</th><th className="px-2">რეესტრით</th>
             <th className="px-2">ფაქტობრივად</th><th className="px-2">მდგომარეობა</th><th className="pl-2">📷</th>
           </tr>
         </thead>
@@ -19,6 +19,7 @@ function Rows({ rows }: { rows: AssetRow[] }) {
             <tr key={r.invNo} className="border-t border-rule/60 align-top">
               <td className="py-1.5 pr-2 tabular-nums">{r.invNo}</td>
               <td className="px-2">{r.name}{r.note && <span className="block text-xs text-ink-faint">💬 {r.note}</span>}</td>
+              <td className="px-2 text-ink-soft">{r.group ?? '—'}</td>
               <td className="px-2">{r.registerRoom ?? '—'}</td>
               <td className={`px-2 ${r.status === 'moved' ? 'font-semibold text-review' : ''}`}>{r.actualRoom ?? '—'}</td>
               <td className={`px-2 ${r.condition === 'writeoff' ? 'text-mismatch' : r.condition === 'damaged' ? 'text-review' : ''}`}>
@@ -62,6 +63,31 @@ export default function AssetReport({ id, number, rows }: { id: string; number: 
         დაზიანებული: <b>{damaged}</b> · ჩამოსაწერი: <b>{writeoff}</b> · ეტიკეტი დასაბეჭდი: <b>{labels}</b>
         {missingValue > 0 && <> · დაკარგულის ღირებულება: <b className="text-mismatch">{money(missingValue)}</b></>}
       </p>
+
+      {(() => {
+        const g = new Map<string, { all: number; missing: number; found: number }>();
+        for (const r of rows) {
+          const k = r.group ?? 'ჯგუფის გარეშე';
+          const v = g.get(k) ?? { all: 0, missing: 0, found: 0 };
+          v.all += 1;
+          if (r.status === 'missing') v.missing += 1;
+          if (r.status === 'found' || r.status === 'moved') v.found += 1;
+          g.set(k, v);
+        }
+        return g.size > 1 || !g.has('ჯგუფის გარეშე') ? (
+          <section className="grid gap-2">
+            <h2 className="font-semibold">ჯგუფების მიხედვით</h2>
+            <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+              {[...g.entries()].sort((a, b) => b[1].all - a[1].all).map(([k, v]) => (
+                <div key={k} className="rounded-control border border-rule/70 p-2">
+                  <p className="font-medium">{k}</p>
+                  <p className="text-xs text-ink-faint">სულ {v.all} · ნაპოვნი {v.found}{v.missing ? <span className="text-mismatch"> · დაკარგ. {v.missing}</span> : null}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null;
+      })()}
 
       {by('missing').length > 0 && <section className="grid gap-2"><h2 className="font-semibold text-mismatch">დაკარგული — რეესტრშია, ვერ იპოვეს</h2><Rows rows={by('missing')} /></section>}
       {by('moved').length > 0 && <section className="grid gap-2"><h2 className="font-semibold text-review">გადაადგილებული — სხვა ოთახშია</h2><Rows rows={by('moved')} /></section>}

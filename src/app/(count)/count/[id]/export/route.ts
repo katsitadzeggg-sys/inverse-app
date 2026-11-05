@@ -5,6 +5,7 @@ import { requireSession } from '@/lib/session';
 import type { Stocktake } from '@/types/database';
 import { mapsLink } from '@/lib/geo';
 import { assetsAct } from './assets-act';
+import { rowHeight } from '@/lib/xlsx-rows';
 import { EXPIRY_LABEL, expiryStatus, fmtDate, type ExpiryStatus } from '@/lib/expiry';
 
 type Entry = {
@@ -142,11 +143,14 @@ export async function GET(request: Request, { params }: RouteContext<'/count/[id
     // Expired lines in red, recounted lines in yellow.
     const fill = exp === 'expired' ? { backgroundColor: '#FEE4E2' } : recount ? { backgroundColor: '#FEF0C7' } : {};
     const note = c?.status === 'frozen' ? 'გადასამოწმებელი' : recount ? `გადათვლილი${c?.attempts ? ` (${c.attempts})` : ''}` : status;
+    const widths = isExpiry ? [4, 8, 20, 13, 6, 10, 14] : [4, 9, 24, 13, 6, 5, 14];
+    const noteText = exp ? [EXPIRY_LABEL[exp], note].filter(Boolean).join(', ') : note;
+    const h = rowHeight([i + 1, z?.locations?.code ?? '', e.products?.name ?? `❓ ${e.unknown_label ?? ''}`, e.products?.barcode ?? e.products?.sku ?? '', Number(e.quantity), '', noteText], widths);
     data.push([
       txt(i + 1, { align: 'center', ...border, ...fill }),
       txt(z?.locations?.code ?? '', { ...border, ...fill }),
-      txt(e.products?.name ?? `❓ ${e.unknown_label ?? ''}`, { wrap: true, ...border, ...fill }),
-      txt(e.products?.barcode ?? e.products?.sku ?? '', { ...border, ...fill }),
+      txt(e.products?.name ?? `❓ ${e.unknown_label ?? ''}`, { wrap: true, height: h, ...border, ...fill }),
+      txt(e.products?.barcode ?? e.products?.sku ?? '', { wrap: true, ...border, ...fill }),
       txt(Number(e.quantity), { align: 'right', ...border, ...fill }),
       isExpiry ? txt(fmtDate(e.expiry_date), { align: 'center', ...border, ...fill }) : txt(unit, { align: 'center', ...border, ...fill }),
       txt(exp ? [EXPIRY_LABEL[exp], note].filter(Boolean).join(', ') : note, { wrap: true, ...border, ...fill, ...(exp === 'expired' || exp === 'd15' ? { fontWeight: 'bold' } : {}) }),

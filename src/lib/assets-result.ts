@@ -18,6 +18,7 @@ export type AssetRow = {
   counter: string | null;
   photos: number;
   videos: number;
+  group: string | null;
 };
 
 export const ASSET_STATUS: Record<AssetStatus, string> = {
@@ -44,18 +45,18 @@ async function all<T>(make: (from: number, to: number) => PromiseLike<{ data: T[
 
 /** The register against what was found: found, moved, missing and surplus, with condition. */
 export async function loadAssetResult(supabase: SupabaseClient, stocktakeId: string): Promise<AssetRow[]> {
-  type Reg = { id: string; inv_no: string; name: string; room: string | null; responsible: string | null; value: number | null; serial: string | null };
+  type Reg = { id: string; inv_no: string; name: string; room: string | null; responsible: string | null; value: number | null; serial: string | null; group_name: string | null };
   type Chk = {
     id: string; register_id: string | null; inv_no: string; name: string; condition: 'good' | 'damaged' | 'writeoff';
-    responsible: string | null; serial: string | null; needs_label: boolean; note: string | null; counter_id: string | null;
+    responsible: string | null; serial: string | null; needs_label: boolean; note: string | null; counter_id: string | null; group_name: string | null;
     locations: { code: string } | null;
   };
   const [reg, checks, media, people] = await Promise.all([
-    all<Reg>((a, b) => supabase.from('asset_register').select('id, inv_no, name, room, responsible, value, serial').eq('stocktake_id', stocktakeId).order('inv_no').range(a, b)),
+    all<Reg>((a, b) => supabase.from('asset_register').select('id, inv_no, name, room, responsible, value, serial, group_name').eq('stocktake_id', stocktakeId).order('inv_no').range(a, b)),
     all<Chk>((a, b) =>
       supabase
         .from('asset_checks')
-        .select('id, register_id, inv_no, name, condition, responsible, serial, needs_label, note, counter_id, locations (code)')
+        .select('id, register_id, inv_no, name, condition, responsible, serial, needs_label, note, counter_id, group_name, locations (code)')
         .eq('stocktake_id', stocktakeId)
         .range(a, b)
         .returns<Chk[]>(),
@@ -93,6 +94,7 @@ export async function loadAssetResult(supabase: SupabaseClient, stocktakeId: str
       counter: c?.counter_id ? (who.get(c.counter_id) ?? null) : null,
       photos: c ? (shots.get(c.id)?.photos ?? 0) : 0,
       videos: c ? (shots.get(c.id)?.videos ?? 0) : 0,
+      group: c?.group_name?.trim() || r?.group_name?.trim() || null,
     };
   };
   return [...reg.map((r) => row(byReg.get(r.id), r)), ...checks.filter((c) => !c.register_id).map((c) => row(c, undefined))];

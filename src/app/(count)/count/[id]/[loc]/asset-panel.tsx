@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { Alert, inputClass } from '@/components/ui';
 import LocationStatus from '@/components/location-status';
 import { currentPosition } from '@/lib/geo';
 import Scanner from '../../scanner';
 import MediaUpload from './done/media-upload';
-import { findAsset, responsibleNames, saveAssetCheck, type AssetHit } from '../../assets-actions';
+import { assetGroups, findAsset, responsibleNames, saveAssetCheck, type AssetHit } from '../../assets-actions';
 import LabelStep from './label-step';
 
 type Condition = 'good' | 'damaged' | 'writeoff';
@@ -55,11 +56,18 @@ export default function AssetPanel({
   const [message, setMessage] = useState<{ tone: 'error' | 'info'; text: string } | null>(null);
   const [pending, start] = useTransition();
   const [pos, setPos] = useState<{ lat: number; lng: number; accuracy: number } | null | undefined>(undefined);
+  const router = useRouter();
   const [people, setPeople] = useState<string[]>([]);
+  const [groups, setGroups] = useState<string[]>([]);
+  const [group, setGroup] = useState('');
+  // The last asset finished in this room, shown big until the next scan.
+  const [done, setDone] = useState<{ name: string; invNo: string; count: number } | null>(null);
+  const [sessionCount, setSessionCount] = useState(0);
   const [labelDone, setLabelDone] = useState(false);
   useEffect(() => {
     currentPosition().then(setPos);
     responsibleNames().then(setPeople).catch(() => {});
+    assetGroups().then(setGroups).catch(() => {});
   }, []);
 
   function open(h: AssetHit, surplus = false) {
@@ -68,6 +76,8 @@ export default function AssetPanel({
     setCondition('good');
     setResponsible(h.responsible ?? '');
     setSerial(h.serial ?? '');
+    setGroup(h.group ?? '');
+    setDone(null);
     setNote('');
     setNeedsLabel(false);
     setSavedId(h.checkedId);
@@ -110,6 +120,7 @@ export default function AssetPanel({
         serial,
         needsLabel,
         note,
+        group,
         lat: pos?.lat ?? null,
         lng: pos?.lng ?? null,
       });
@@ -121,11 +132,18 @@ export default function AssetPanel({
   }
 
   function next() {
+    if (card && savedId) {
+      const count = sessionCount + 1;
+      setSessionCount(count);
+      setDone({ name: card.name, invNo: card.invNo, count });
+      navigator.vibrate?.([60, 40, 60]);
+    }
     setCard(null);
     setSavedId(null);
     setQuery('');
     setHits(null);
     setMessage(null);
+    router.refresh(); // the room list below picks up the new asset
   }
 
   const normRoom = (s: string) => s.toUpperCase().replace(/[^A-Z0-9\u10D0-\u10FF]+/g, '');
@@ -133,6 +151,14 @@ export default function AssetPanel({
 
   return (
     <section className="grid gap-3 rounded-control border border-rule/70 p-4">
+      {!card && done && (
+        <div className="grid gap-1 rounded-control border-2 border-match bg-match/10 p-4 text-center">
+          <p className="text-3xl">✅</p>
+          <p className="text-lg font-semibold">ჩაიწერა: {done.name}</p>
+          <p className="text-sm text-ink-soft">{done.invNo} · ამ სესიაში {done.count}-ე ნივთი</p>
+          <p className="mt-1 text-sm font-semibold">დაასკანერე შემდეგი ნივთი ↓</p>
+        </div>
+      )}
       {!card && (
         <>
           <LocationStatus pos={pos} onRetry={async () => setPos(await currentPosition(8000))} />
@@ -207,6 +233,10 @@ export default function AssetPanel({
                   </button>
                 ))}
               </div>
+              <input value={group} onChange={(e) => setGroup(e.target.value)} list="asset-groups" placeholder="ჯგუფი — მაგ. ავეჯი, კომპიუტერული ტექნიკა" className={inputClass} />
+              <datalist id="asset-groups">
+                {groups.map((g) => <option key={g} value={g} />)}
+              </datalist>
               <input value={responsible} onChange={(e) => setResponsible(e.target.value)} list="responsible-people" placeholder="პასუხისმგებელი პირი — აირჩიე ან ჩაწერე" className={inputClass} />
               <datalist id="responsible-people">
                 {people.map((p) => <option key={p} value={p} />)}
@@ -248,7 +278,7 @@ export default function AssetPanel({
                 extra={`${card.invNo} · ${card.name}`.slice(0, 80)}
                 compact
               />
-              <button type="button" onClick={next} className="rounded-control bg-ink px-4 py-4 text-lg font-semibold text-paper">შემდეგი →</button>
+              <button type="button" onClick={next} className="rounded-control bg-ink px-4 py-4 text-lg font-semibold text-paper">✓ დასრულება — შემდეგი ნივთი</button>
             </>
           )}
         </div>

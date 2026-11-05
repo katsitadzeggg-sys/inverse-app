@@ -2,6 +2,7 @@ import writeXlsxFile from 'write-excel-file/node';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Stocktake } from '@/types/database';
 import { mapsLink } from '@/lib/geo';
+import { rowHeight } from '@/lib/xlsx-rows';
 import { ASSET_STATUS, CONDITION, loadAssetResult, type AssetStatus } from '@/lib/assets-result';
 
 /**
@@ -19,7 +20,11 @@ export async function assetsAct(supabase: SupabaseClient, st: Stocktake, shelf: 
     rows = rows.filter((r) => (r.actualRoom ?? '').toUpperCase() === u || (r.registerRoom ?? '').toUpperCase() === u);
   }
   const order: AssetStatus[] = ['missing', 'moved', 'surplus', 'found'];
-  rows.sort((a, b) => order.indexOf(a.status) - order.indexOf(b.status) || a.invNo.localeCompare(b.invNo));
+  // Grouped (ავეჯი, ტექნიკა …), and within a group missing first.
+  const groupOf = (r: { group: string | null }) => r.group ?? 'ჯგუფის გარეშე';
+  rows.sort((a, b) => groupOf(a).localeCompare(groupOf(b)) || order.indexOf(a.status) - order.indexOf(b.status) || a.invNo.localeCompare(b.invNo));
+  const widths = [4, 10, 19, 10, 11, 11, 13];
+  const hasGroups = rows.some((r) => r.group);
   const counters = [...new Set(rows.map((r) => r.counter).filter(Boolean))] as string[];
 
   type Cell = { value?: string | number; type?: typeof String | typeof Number; [k: string]: unknown } | null;
@@ -59,15 +64,23 @@ export async function assetsAct(supabase: SupabaseClient, st: Stocktake, shelf: 
       txt(v, { fontWeight: 'bold', backgroundColor: '#E4E7EC', align: 'center', wrap: true, height: 30, ...border }),
     ),
   ];
+  let lastGroup = '';
   rows.forEach((r, i) => {
+    if (hasGroups && groupOf(r) !== lastGroup) {
+      lastGroup = groupOf(r);
+      const n = rows.filter((x) => groupOf(x) === lastGroup).length;
+      data.push([
+        txt(`${lastGroup} — ${n}`, { span: COLS, fontWeight: 'bold', backgroundColor: '#F2F4F7', ...border }),
+        ...Array(COLS - 1).fill(null),
+      ]);
+    }
     const f = FILL[r.status];
     const desc = r.name + (r.serial ? ` (S/N ${r.serial})` : '') + (r.note ? ` — ${r.note}` : '');
     const statusText = ASSET_STATUS[r.status] + (r.needsLabel ? ', ეტიკეტი' : '');
-    // Wrapped text needs a taller row (write-excel-file does not size rows).
-    const h = Math.max(1, Math.ceil(desc.length / 20), Math.ceil(statusText.length / 12), r.condition === 'damaged' ? 2 : 1) * 13;
+    const h = rowHeight([i + 1, r.invNo, desc, r.registerRoom, r.actualRoom, r.condition ? CONDITION[r.condition] : '', statusText], widths);
     data.push([
       txt(i + 1, { align: 'center', ...border, ...f }),
-      txt(r.invNo, { ...border, ...f }),
+      txt(r.invNo, { wrap: true, ...border, ...f }),
       txt(desc, { wrap: true, height: h, ...border, ...f }),
       txt(r.registerRoom ?? '', { ...border, ...f }),
       txt(r.actualRoom ?? '', { ...border, ...f }),
@@ -97,6 +110,6 @@ export async function assetsAct(supabase: SupabaseClient, st: Stocktake, shelf: 
   return (await writeXlsxFile(data as never, {
     buffer: true,
     sheet: 'აქტი',
-    columns: [{ width: 4 }, { width: 10 }, { width: 19 }, { width: 10 }, { width: 11 }, { width: 11 }, { width: 13 }],
+    columns: widths.map((width) => ({ width })),
   })) as Buffer;
 }

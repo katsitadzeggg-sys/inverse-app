@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
 import type { Stocktake } from '@/types/database';
 import { EXPIRY_LABEL, expiryStatus, fmtDate } from '@/lib/expiry';
+import { rowHeight } from '@/lib/xlsx-rows';
 
 async function all<T>(make: (from: number, to: number) => PromiseLike<{ data: T[] | null }>): Promise<T[]> {
   const out: T[] = [];
@@ -90,12 +91,14 @@ export async function GET(_request: Request, { params }: RouteContext<'/count/[i
     Array(W).fill(null),
     head.map((h) => c(h, { fontWeight: 'bold', backgroundColor: '#E4E7EC', align: 'center', wrap: true })),
   ];
+  const widthsFor = isExpiry ? [4, 26, 14, 10, 12, 6, 8, 8, 8, 9, 11, 13] : [4, 30, 14, 6, 8, 8, 8, 9, 11, 13];
   list.forEach((r, i) => {
+    const h = rowHeight([null, r.p?.name ?? '', r.p?.barcode ?? r.p?.sku ?? ''], widthsFor);
     const fill = r.diff < 0 ? { backgroundColor: '#FEE4E2' } : r.diff > 0 ? { backgroundColor: '#FEF0C7' } : {};
     const exp = isExpiry ? expiryStatus(r.expiry, st.count_date) : null;
     data.push([
       c(i + 1, { align: 'center', ...fill }),
-      c(r.p?.name ?? '', { wrap: true, ...fill }),
+      c(r.p?.name ?? '', { wrap: true, height: h, ...fill }),
       c(r.p?.barcode ?? r.p?.sku ?? '', fill),
       ...(isExpiry ? [c(fmtDate(r.expiry), { align: 'center', ...fill }), c(exp ? EXPIRY_LABEL[exp] : '', fill)] : []),
       c(!r.p?.unit || r.p.unit === 'pcs' ? 'ცალი' : r.p.unit, { align: 'center', ...fill }),

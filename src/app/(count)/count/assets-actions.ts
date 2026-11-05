@@ -12,6 +12,7 @@ export type RegisterRow = {
   responsible: string;
   value: number | null;
   serial: string;
+  group?: string;
 };
 
 export type AssetHit = {
@@ -26,6 +27,7 @@ export type AssetHit = {
   checkedRoom: string | null;
   /** Details taken from an earlier stocktake of the company. */
   fromHistory?: boolean;
+  group?: string | null;
 };
 
 const isManager = (role: string) => role === 'owner' || role === 'admin';
@@ -52,6 +54,7 @@ export async function importRegister(stocktakeId: string, rows: RegisterRow[]): 
       responsible: r.responsible.trim() || null,
       value: r.value != null && Number.isFinite(r.value) ? r.value : null,
       serial: r.serial.trim() || null,
+      group_name: r.group?.trim() || null,
     });
   }
   if (!lines.length) return { error: 'ფაილში ხაზი ვერ ვიპოვე: საჭიროა საინვენტარო ნომერი.' };
@@ -85,7 +88,7 @@ export async function findAsset(stocktakeId: string, text: string): Promise<Asse
   const safe = q.replace(/[,()%"\\]/g, ' ').trim();
   const { data: reg } = await supabase
     .from('asset_register')
-    .select('id, inv_no, name, room, responsible, serial')
+    .select('id, inv_no, name, room, responsible, serial, group_name')
     .eq('stocktake_id', stocktakeId)
     .or(`inv_no.eq."${inv.replace(/[,()"\\]/g, '')}",serial.eq."${safe}",name.ilike."%${safe}%"`)
     .limit(10);
@@ -106,6 +109,7 @@ export async function findAsset(stocktakeId: string, text: string): Promise<Asse
       room: r.room,
       responsible: r.responsible,
       serial: r.serial,
+      group: r.group_name,
       checkedId: done.get(r.inv_no)?.id ?? null,
       checkedRoom: done.get(r.inv_no)?.locations?.code ?? null,
     }));
@@ -118,12 +122,12 @@ export async function findAsset(stocktakeId: string, text: string): Promise<Asse
   // earlier registers or counts, so the counter does not type them again.
   if (!hits.length) {
     const [{ data: oldReg }, { data: oldChk }] = await Promise.all([
-      supabase.from('asset_register').select('inv_no, name, room, responsible, serial').eq('inv_no', inv).neq('stocktake_id', stocktakeId)
+      supabase.from('asset_register').select('inv_no, name, room, responsible, serial, group_name').eq('inv_no', inv).neq('stocktake_id', stocktakeId)
         .order('created_at', { ascending: false }).limit(1)
-        .returns<{ inv_no: string; name: string; room: string | null; responsible: string | null; serial: string | null }[]>(),
-      supabase.from('asset_checks').select('inv_no, name, responsible, serial, locations (code)').eq('inv_no', inv).neq('stocktake_id', stocktakeId)
+        .returns<{ inv_no: string; name: string; room: string | null; responsible: string | null; serial: string | null; group_name: string | null }[]>(),
+      supabase.from('asset_checks').select('inv_no, name, responsible, serial, group_name, locations (code)').eq('inv_no', inv).neq('stocktake_id', stocktakeId)
         .order('checked_at', { ascending: false }).limit(1)
-        .returns<{ inv_no: string; name: string; responsible: string | null; serial: string | null; locations: { code: string } | null }[]>(),
+        .returns<{ inv_no: string; name: string; responsible: string | null; serial: string | null; group_name: string | null; locations: { code: string } | null }[]>(),
     ]);
     const r = oldReg?.[0];
     const c = oldChk?.[0];
@@ -135,6 +139,7 @@ export async function findAsset(stocktakeId: string, text: string): Promise<Asse
         room: c?.locations?.code ?? r?.room ?? null,
         responsible: c?.responsible ?? r?.responsible ?? null,
         serial: c?.serial ?? r?.serial ?? null,
+        group: c?.group_name ?? r?.group_name ?? null,
         checkedId: null,
         checkedRoom: null,
         fromHistory: true,
@@ -142,6 +147,21 @@ export async function findAsset(stocktakeId: string, text: string): Promise<Asse
     }
   }
   return hits;
+}
+
+const DEFAULT_GROUPS = ['ავეჯი', 'კომპიუტერული ტექნიკა', 'საოფისე ტექნიკა', 'საყოფაცხოვრებო ტექნიკა', 'ქსელი და კავშირი', 'ინვენტარი', 'სატრანსპორტო საშუალება', 'სხვა'];
+
+/** Asset groups known to the company, plus the usual ones. */
+export async function assetGroups(): Promise<string[]> {
+  await requireSession();
+  const supabase = await createClient();
+  const [{ data: a }, { data: b }] = await Promise.all([
+    supabase.from('asset_register').select('group_name').not('group_name', 'is', null).limit(5000),
+    supabase.from('asset_checks').select('group_name').not('group_name', 'is', null).limit(5000),
+  ]);
+  const set = new Set<string>(DEFAULT_GROUPS);
+  for (const r of [...(a ?? []), ...(b ?? [])]) if (r.group_name?.trim()) set.add(r.group_name.trim());
+  return [...set];
 }
 
 /** Names of responsible people: from registers and earlier counts of the company. */
@@ -166,6 +186,7 @@ export type AssetInput = {
   serial: string;
   needsLabel: boolean;
   note: string;
+  group?: string;
   lat: number | null;
   lng: number | null;
 };
@@ -193,6 +214,7 @@ export async function saveAssetCheck(
     responsible: input.responsible.trim() || null,
     serial: input.serial.trim() || null,
     needs_label: input.needsLabel,
+    group_name: input.group?.trim().slice(0, 100) || null,
     note: input.note.trim().slice(0, 1000) || null,
     lat: input.lat,
     lng: input.lng,

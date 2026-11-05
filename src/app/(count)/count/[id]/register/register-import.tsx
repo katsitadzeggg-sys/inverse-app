@@ -5,12 +5,13 @@ import readXlsxFile from 'read-excel-file';
 import { Alert } from '@/components/ui';
 import { importRegister, type RegisterRow } from '../../assets-actions';
 
-type Field = 'invNo' | 'name' | 'room' | 'responsible' | 'value' | 'serial';
+type Field = 'invNo' | 'name' | 'group' | 'room' | 'responsible' | 'value' | 'serial';
 
 // Header words seen in fixed-asset registers from Balance, FINA, 1C, Oris and hand-made sheets.
 const GUESS: Record<Field, RegExp> = {
   invNo: /(საინვ|ინვენტ|ინვ\.?\s*№|ინვ\.|inv|инвент|tag|asset\s*(no|id))/i,
   name: /(დასახ|სახელ|name|наимен|название|აღწერ)/i,
+  group: /(ჯგუფ|კატეგ|სახეობ|group|categ|class|группа|категор)/i,
   room: /(ოთახ|ადგილ|მდებარ|ლოკაც|სართ|room|location|place|помещ|кабинет|место)/i,
   responsible: /(პასუხ|მატ\.?\s*პას|მფლობ|responsible|owner|custod|ответств|мол)/i,
   value: /(ღირებ|ფასი|ნარჩ|საბალანსო|value|cost|cтоим|стоим)/i,
@@ -20,6 +21,7 @@ const GUESS: Record<Field, RegExp> = {
 const LABELS: Record<Field, string> = {
   invNo: 'საინვენტარო № *',
   name: 'დასახელება *',
+  group: 'ჯგუფი',
   room: 'ოთახი / ადგილი',
   responsible: 'პასუხისმგებელი',
   value: 'ღირებულება',
@@ -41,7 +43,7 @@ const num = (v: string) => Number(String(v ?? '').replace(/\s/g, '').replace(','
 export default function RegisterImport({ stocktakeId }: { stocktakeId: string }) {
   const [table, setTable] = useState<string[][] | null>(null);
   const [headerRow, setHeaderRow] = useState(0);
-  const [map, setMap] = useState<Record<Field, number>>({ invNo: -1, name: -1, room: -1, responsible: -1, value: -1, serial: -1 });
+  const [map, setMap] = useState<Record<Field, number>>({ invNo: -1, name: -1, group: -1, room: -1, responsible: -1, value: -1, serial: -1 });
   const [msg, setMsg] = useState<{ tone: 'error' | 'info'; text: string } | null>(null);
   const [pending, start] = useTransition();
 
@@ -70,6 +72,7 @@ export default function RegisterImport({ stocktakeId }: { stocktakeId: string })
     responsible: cell(r, 'responsible'),
     value: cell(r, 'value') ? num(cell(r, 'value')) : null,
     serial: cell(r, 'serial'),
+    group: cell(r, 'group'),
   }));
   const valid = preview.filter((r) => r.invNo);
 
