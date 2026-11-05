@@ -19,7 +19,7 @@ export async function createStocktake(_prev: FormState, formData: FormData): Pro
   if (!manager && !(session.profile.can_open && (session.profile.modules ?? []).includes(requested as never))) {
     return { error: 'ინვენტარიზაციის გახსნის უფლება არ გაქვს. მიმართე მენეჯერს.' };
   }
-  const client = String(formData.get('client_name') ?? '').trim();
+  const client = (manager ? String(formData.get('client_name') ?? '').trim() : '') || session.company.name;
   const branch = String(formData.get('branch') ?? '').trim();
   const date = String(formData.get('count_date') ?? '').trim();
   const address = String(formData.get('address') ?? '').trim().slice(0, 300);

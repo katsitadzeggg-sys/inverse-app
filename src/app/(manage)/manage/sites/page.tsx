@@ -1,0 +1,54 @@
+import { createClient } from '@/lib/supabase/server';
+import { requireSession } from '@/lib/session';
+import { mapsLink } from '@/lib/geo';
+import { Card } from '@/components/ui';
+import SiteForms from './site-forms';
+import { deleteSite } from './actions';
+
+export const metadata = { title: 'ობიექტები' };
+
+type Site = { id: string; name: string; address: string | null; lat: number | null; lng: number | null };
+
+/**
+ * The company's warehouses and objects. Counters pick from this list when
+ * they open a stocktake; the address and map point come with the choice.
+ */
+export default async function SitesPage() {
+  const { company } = await requireSession();
+  const supabase = await createClient();
+  const { data } = await supabase.from('sites').select('id, name, address, lat, lng').order('name').returns<Site[]>();
+  const list = data ?? [];
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">🏬 საწყობები და ობიექტები</h1>
+        <p className="mt-1 text-sm text-ink-faint">{company.name} · {list.length}. ინვენტარიზაციის გახსნისას აქედან აირჩევა, მისამართი და წერტილი თავისით ჩაჯდება.</p>
+      </div>
+      <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
+        <Card title="სია">
+          {list.length === 0 ? (
+            <p className="text-sm text-ink-faint">ჯერ ცარიელია. დაამატე მარჯვნივ ან ჩატვირთე Excel-იდან.</p>
+          ) : (
+            <ul className="divide-y divide-rule/70">
+              {list.map((s) => (
+                <li key={s.id} className="flex items-center justify-between gap-3 py-2.5">
+                  <div className="min-w-0">
+                    <p className="font-medium">{s.name}</p>
+                    <p className="truncate text-xs text-ink-faint">
+                      {s.address ?? 'მისამართი არ არის'}
+                      {s.lat != null && s.lng != null && <> · <a href={mapsLink(s.lat, s.lng)} target="_blank" rel="noreferrer" className="underline">რუკა</a></>}
+                    </p>
+                  </div>
+                  <form action={deleteSite.bind(null, s.id)}>
+                    <button type="submit" className="text-xs text-ink-faint underline">წაშლა</button>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+        <SiteForms />
+      </div>
+    </div>
+  );
+}

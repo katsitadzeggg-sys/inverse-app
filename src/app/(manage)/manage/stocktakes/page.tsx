@@ -12,7 +12,7 @@ const TABS = [
 ];
 
 export default async function ManageHome({ searchParams }: PageProps<'/manage/stocktakes'>) {
-  await requireSession();
+  const { company } = await requireSession();
   const sp = await searchParams;
   const kind = typeof sp.kind === 'string' && ['stock', 'expiry', 'assets'].includes(sp.kind) ? sp.kind : 'stock';
   const archived = sp.archived === '1';
@@ -23,6 +23,8 @@ export default async function ManageHome({ searchParams }: PageProps<'/manage/st
     .limit(100)
     .returns<Stocktake[]>();
   const list = data ?? [];
+  const { data: sites } = await supabase.from('sites').select('id, name, address, lat, lng').order('name')
+    .returns<{ id: string; name: string; address: string | null; lat: number | null; lng: number | null }[]>();
 
   const { data: zones } = list.length
     ? await supabase.from('stocktake_zones').select('stocktake_id, status').in('stocktake_id', list.map((s) => s.id))
@@ -76,7 +78,7 @@ export default async function ManageHome({ searchParams }: PageProps<'/manage/st
           })}
         </ul>
       </section>
-      <NewStocktakeForm key={kind} kind={kind} />
+      <NewStocktakeForm key={kind} kind={kind} companyName={company.name} sites={sites ?? []} />
     </div>
   );
 }

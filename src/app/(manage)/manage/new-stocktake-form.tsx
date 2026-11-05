@@ -1,25 +1,81 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 import { Alert, Button, inputClass } from '@/components/ui';
-import { currentPosition, mapsLink } from '@/lib/geo';
+import { addressOf, currentPosition, mapsLink } from '@/lib/geo';
 import { createStocktake, type FormState } from '@/app/(count)/count/actions';
 
 const EMPTY: FormState = {};
-
-/** The number (INV-2026-0001…) is given by the database when it is saved. */
 const KINDS: [string, string][] = [['stock', 'მარაგები'], ['expiry', 'ვადიანი პროდუქცია'], ['assets', 'ძირითადი საშუალებები']];
 
-export default function NewStocktakeForm({ kind = 'stock', kinds }: { kind?: string; kinds?: string[] }) {
+export type SiteOption = { id: string; name: string; address: string | null; lat: number | null; lng: number | null };
+
+/**
+ * Open a stocktake. The company is the one the person belongs to; the
+ * warehouse / object comes from the manager's list, with its address and map
+ * point. Without a saved address the phone's location fills it in. The
+ * number (INV-2026-0001…) is given by the database.
+ */
+export default function NewStocktakeForm({
+  kind = 'stock',
+  kinds,
+  companyName,
+  sites,
+  allowNewSite = true,
+}: {
+  kind?: string;
+  kinds?: string[];
+  companyName: string;
+  sites: SiteOption[];
+  allowNewSite?: boolean;
+}) {
   const options = KINDS.filter(([k]) => !kinds || kinds.includes(k));
   const [state, action, pending] = useActionState(createStocktake, EMPTY);
-  const [point, setPoint] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
+  const [siteId, setSiteId] = useState(sites.length ? sites[0].id : 'new');
+  const [branch, setBranch] = useState(sites[0]?.name ?? '');
+  const [address, setAddress] = useState(sites[0]?.address ?? '');
+  const [point, setPoint] = useState<{ lat: number; lng: number; accuracy?: number } | null>(
+    sites[0]?.lat != null && sites[0]?.lng != null ? { lat: sites[0].lat!, lng: sites[0].lng! } : null,
+  );
   const [locating, setLocating] = useState<string | null>(null);
   const today = new Date().toISOString().slice(0, 10);
+
+  async function locate(fillAddress: boolean) {
+    setLocating('ვადგენ მდებარეობას…');
+    const p = await currentPosition(10000);
+    if (!p) return setLocating('მდებარეობა ვერ დადგინდა — დაუშვი ბრაუზერში ან ჩაწერე მისამართი ხელით.');
+    setPoint(p);
+    if (fillAddress) {
+      setLocating('ვეძებ მისამართს…');
+      const a = await addressOf(p.lat, p.lng);
+      if (a) setAddress(a);
+    }
+    setLocating(null);
+  }
+
+  // No saved address for the chosen site: take it from where the phone is.
+  useEffect(() => {
+    if (address) return;
+    const t = setTimeout(() => locate(true), 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [siteId]);
+
+  function pickSite(id: string) {
+    setSiteId(id);
+    const s = sites.find((x) => x.id === id);
+    setBranch(s?.name ?? '');
+    setAddress(s?.address ?? '');
+    setPoint(s && s.lat != null && s.lng != null ? { lat: s.lat, lng: s.lng } : null);
+  }
+
+  const canType = allowNewSite || sites.length === 0;
 
   return (
     <form action={action} className="grid gap-3 rounded-control border border-rule/70 p-4">
       <p className="text-sm font-semibold">ახალი ინვენტარიზაცია</p>
+      <input type="hidden" name="client_name" value={companyName} />
+      <p className="text-sm">კომპანია: <b>{companyName}</b></p>
       <label className="grid gap-1 text-sm">
         მოდული
         <select name="kind" defaultValue={options.some(([k]) => k === kind) ? kind : options[0]?.[0]} className={inputClass}>
@@ -32,42 +88,44 @@ export default function NewStocktakeForm({ kind = 'stock', kinds }: { kind?: str
         თარიღი
         <input name="count_date" type="date" defaultValue={today} className={inputClass} />
       </label>
+
       <label className="grid gap-1 text-sm">
-        კომპანია
-        <input name="client_name" required placeholder="მაგ. ექსტრა" className={inputClass} />
+        საწყობი / ობიექტი
+        {sites.length > 0 && (
+          <select value={siteId} onChange={(e) => pickSite(e.target.value)} className={inputClass}>
+            {sites.map((s) => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+            {canType && <option value="new">+ სხვა (ხელით)</option>}
+          </select>
+        )}
       </label>
-      <label className="grid gap-1 text-sm">
-        საწყობი / ფილიალი
-        <input name="branch" required placeholder="მაგ. ყაზბეგის საწყობი" className={inputClass} />
-      </label>
+      {siteId === 'new' ? (
+        <input name="branch" required value={branch} onChange={(e) => setBranch(e.target.value)} placeholder="მაგ. ყაზბეგის საწყობი" className={inputClass} />
+      ) : (
+        <input type="hidden" name="branch" value={branch} />
+      )}
+
       <label className="grid gap-1 text-sm">
         მისამართი
-        <input name="address" placeholder="მაგ. თბილისი, ყაზბეგის გამზ. 12" className={inputClass} />
+        <input name="address" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="ავტომატურად ლოკაციიდან ან ხელით" className={inputClass} />
       </label>
 
       <input type="hidden" name="lat" value={point?.lat ?? ''} />
       <input type="hidden" name="lng" value={point?.lng ?? ''} />
-      <button
-        type="button"
-        onClick={async () => {
-          setLocating('ვადგენ მდებარეობას…');
-          const p = await currentPosition(12000);
-          setPoint(p);
-          setLocating(p ? null : 'მდებარეობა ვერ დადგინდა. დაუშვი მდებარეობა ბრაუზერში ან გამოტოვე.');
-        }}
-        className="rounded-control border border-rule-strong px-4 py-3 text-sm"
-      >
-        📍 საწყობის წერტილი — ჩემი მდებარეობა
+      <button type="button" onClick={() => locate(true)} className="rounded-control border border-rule-strong px-4 py-2.5 text-sm">
+        📍 აქ ვარ — მისამართი ლოკაციიდან
       </button>
       {point && (
         <p className="text-sm text-match">
-          ✓ <a href={mapsLink(point.lat, point.lng)} target="_blank" rel="noreferrer" className="underline">რუკაზე ნახვა</a> (±{Math.round(point.accuracy)} მ)
+          ✓ <a href={mapsLink(point.lat, point.lng)} target="_blank" rel="noreferrer" className="underline">რუკაზე</a>
+          {point.accuracy != null && <> (±{Math.round(point.accuracy)} მ)</>}
         </p>
       )}
       {locating && <p className="text-sm text-ink-soft">{locating}</p>}
 
       {state.error && <Alert>{state.error}</Alert>}
-      <Button type="submit" disabled={pending}>
+      <Button type="submit" disabled={pending || !(siteId === 'new' ? branch.trim() : branch)}>
         {pending ? 'იხსნება…' : 'გახსნა'}
       </Button>
     </form>

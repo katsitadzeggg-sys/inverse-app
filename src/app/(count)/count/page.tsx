@@ -6,7 +6,7 @@ import type { Stocktake } from '@/types/database';
 import NewStocktakeForm from '@/app/(manage)/manage/new-stocktake-form';
 
 export default async function CountHome() {
-  const { profile, userId } = await requireSession();
+  const { profile, userId, company } = await requireSession();
   const manager = profile.role === 'owner' || profile.role === 'admin';
   // Managers work in the manager module; the counting screen is for counters.
   if (manager) redirect('/manage');
@@ -23,6 +23,10 @@ export default async function CountHome() {
   const { data: members } = await supabase.from('stocktake_members').select('stocktake_id, user_id').returns<{ stocktake_id: string; user_id: string }[]>();
   const assigned = new Map<string, Set<string>>();
   for (const m of members ?? []) assigned.set(m.stocktake_id, (assigned.get(m.stocktake_id) ?? new Set()).add(m.user_id));
+  const { data: sites } = profile.can_open
+    ? await supabase.from('sites').select('id, name, address, lat, lng').order('name')
+        .returns<{ id: string; name: string; address: string | null; lat: number | null; lng: number | null }[]>()
+    : { data: [] };
   const open = (data ?? []).filter((s) => s.status === 'open' && allowedModules.has(s.kind) && (!assigned.has(s.id) || assigned.get(s.id)!.has(userId)));
   const MODULES = [
     { kind: 'stock', title: '📦 მარაგები', hint: 'სკანი → რაოდენობა', tone: 'border-l-ink' },
@@ -38,7 +42,7 @@ export default async function CountHome() {
         <details className="rounded-control border border-rule-strong">
           <summary className="cursor-pointer px-4 py-3 text-base font-semibold">+ ახალი ინვენტარიზაცია</summary>
           <div className="border-t border-rule/70 p-3">
-            <NewStocktakeForm kind={profile.modules?.[0]} kinds={profile.modules} />
+            <NewStocktakeForm kind={profile.modules?.[0]} kinds={profile.modules} companyName={company.name} sites={sites ?? []} allowNewSite={false} />
           </div>
         </details>
       )}
