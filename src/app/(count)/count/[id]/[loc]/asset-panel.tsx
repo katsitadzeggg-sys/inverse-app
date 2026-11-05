@@ -157,8 +157,6 @@ export default function AssetPanel({
         <div className="grid gap-1 rounded-control border-2 border-match bg-match/10 p-4 text-center">
           <p className="text-3xl">✅</p>
           <p className="text-lg font-semibold">ჩაიწერა: {done.name}</p>
-          <p className="text-sm text-ink-soft">{done.invNo} · ამ სესიაში {done.count}-ე ნივთი</p>
-          <p className="mt-1 text-sm font-semibold">დაასკანერე შემდეგი ნივთი ↓</p>
         </div>
       )}
       {!card && (
@@ -196,12 +194,7 @@ export default function AssetPanel({
       {card && (
         <div className="grid gap-3">
           <div>
-            {card.surplus && card.fromHistory ? (
-              <>
-                <p className="text-lg font-semibold">{card.name}</p>
-                <p className="text-sm text-review">აღმოჩენილი მეტობა — მონაცემები წინა აღწერიდან</p>
-              </>
-            ) : card.surplus ? (
+            {card.surplus ? (
               <p className="text-xl font-semibold text-mismatch">აღმოჩენილი მეტობა</p>
             ) : (
               <p className="text-lg font-semibold">{card.name}</p>
@@ -270,7 +263,6 @@ export default function AssetPanel({
 
           {savedId && (!needsLabel || labelDone) && (
             <>
-              <p className="text-sm text-ink-soft">ფოტოები: საერთო ხედი, ეტიკეტი / სერიული ფირფიტა, დაზიანება. ვიდეო 10–20 წამი (მაქს. 50 MB).</p>
               <MediaUpload
                 key={savedId}
                 stocktakeId={stocktakeId}

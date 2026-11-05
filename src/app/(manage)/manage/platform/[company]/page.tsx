@@ -76,7 +76,7 @@ export default async function PlatformCompany({ params, searchParams }: PageProp
     <div className="grid gap-6 md:grid-cols-[1fr_20rem]">
       <section className="grid content-start gap-4">
         <div>
-          <Link href="/manage/platform" className="text-sm text-ink-faint">← კომპანიები</Link>
+          <Link href="/manage/platform" className="inline-flex w-fit items-center gap-2 rounded-control border border-rule-strong px-4 py-2 text-base font-medium text-ink">← დაბრუნება</Link>
           <h1 className="mt-1 text-xl font-semibold">{co.name}</h1>
           {created && <p className="mt-1 text-sm text-match">✓ კომპანია შეიქმნა. მენეჯერს გაუგზავნე ლინკი: {appUrl}/login — დარეგისტრირდეს მოწვეული მეილით.</p>}
         </div>

@@ -31,7 +31,7 @@ export default async function TeamPage() {
     <div className="grid gap-6 md:grid-cols-[1fr_20rem]">
       <section className="grid content-start gap-4">
         <div>
-          <Link href="/manage" className="text-sm text-ink-faint">← ინვენტარიზაციები</Link>
+          <Link href="/manage" className="inline-flex w-fit items-center gap-2 rounded-control border border-rule-strong px-4 py-2 text-base font-medium text-ink">← დაბრუნება</Link>
           <h1 className="mt-1 text-xl font-semibold">გუნდი</h1>
         </div>
 

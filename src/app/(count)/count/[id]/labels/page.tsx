@@ -41,7 +41,7 @@ export default async function LabelsPage({ params, searchParams }: PageProps<'/c
     <div className="grid gap-4">
       <style>{`@media print { header, nav, .no-print { display: none !important; } main { padding: 0 !important; max-width: none !important; } @page { margin: 8mm; } }`}</style>
       <div className="no-print grid gap-2">
-        <Link href={`/manage/${id}`} className="text-sm text-ink-faint">← {st.number}</Link>
+        <Link href={`/manage/${id}`} className="inline-flex w-fit items-center gap-2 rounded-control border border-rule-strong px-4 py-2 text-base font-medium text-ink">← დაბრუნება</Link>
         <h1 className="text-xl font-semibold">QR ეტიკეტები</h1>
         <div className="flex flex-wrap gap-2 text-sm">
           <Link href={`/count/${id}/labels`} className={`rounded-control border px-3 py-2 ${!all ? 'border-ink bg-ink text-paper' : 'border-rule-strong'}`}>

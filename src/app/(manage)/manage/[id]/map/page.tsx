@@ -65,7 +65,7 @@ export default async function StocktakeMap({ params, searchParams }: PageProps<'
     <div className="grid gap-5">
       <AutoRefresh />
       <div>
-        <Link href={`/manage/${id}`} className="text-sm text-ink-faint">← {st.number}</Link>
+        <Link href={`/manage/${id}`} className="inline-flex w-fit items-center gap-2 rounded-control border border-rule-strong px-4 py-2 text-base font-medium text-ink">← დაბრუნება</Link>
         <h1 className="mt-1 text-xl font-semibold">რუკა · {st.client_name ?? st.name}</h1>
         <p className="text-sm text-ink-soft">ახლდება ყოველ 30 წამში. დააჭირე თაროს — გაიხსნება მისი შედეგი.</p>
         <div className="mt-2 flex gap-2 text-sm">

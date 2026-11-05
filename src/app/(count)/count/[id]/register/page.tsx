@@ -18,7 +18,7 @@ export default async function RegisterPage({ params }: PageProps<'/count/[id]/re
   return (
     <div className="grid gap-5">
       <div>
-        <Link href={`/manage/${id}`} className="text-sm text-ink-faint">← {stocktake.number}</Link>
+        <Link href={`/manage/${id}`} className="inline-flex w-fit items-center gap-2 rounded-control border border-rule-strong px-4 py-2 text-base font-medium text-ink">← დაბრუნება</Link>
         <h1 className="mt-1 text-xl font-semibold">ძირითადი საშუალებების რეესტრი</h1>
         <p className="text-sm text-ink-soft">
           {count ? `ახლა ჩატვირთულია ${count} პოზიცია. ახალი ფაილი ძველს ჩაანაცვლებს.` : 'რეესტრი ჯერ არ არის ჩატვირთული.'}

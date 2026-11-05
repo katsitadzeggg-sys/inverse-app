@@ -24,7 +24,7 @@ export default async function StocktakePage({ params }: PageProps<'/count/[id]'>
   if (allowed === false) {
     return (
       <div className="grid gap-3">
-        <Link href="/count" className="text-sm text-ink-faint">← ინვენტარიზაციები</Link>
+        <Link href="/count" className="inline-flex w-fit items-center gap-2 rounded-control border border-rule-strong px-4 py-2 text-base font-medium text-ink">← დაბრუნება</Link>
         <p className="text-ink-soft">ამ ინვენტარიზაციაზე არ ხარ დანიშნული. მიმართე მენეჯერს.</p>
       </div>
     );
@@ -49,7 +49,7 @@ export default async function StocktakePage({ params }: PageProps<'/count/[id]'>
   return (
     <div className="grid gap-5">
       <div>
-        <Link href="/count" className="text-sm text-ink-faint">← ინვენტარიზაციები</Link>
+        <Link href="/count" className="inline-flex w-fit items-center gap-2 rounded-control border border-rule-strong px-4 py-2 text-base font-medium text-ink">← დაბრუნება</Link>
         <h1 className="mt-1 text-xl font-semibold">{stocktake.client_name ?? stocktake.name}</h1>
         {stocktake.branch && <p className="text-ink-soft">{stocktake.branch}</p>}
         <p className="text-sm text-ink-faint">{stocktake.number}</p>

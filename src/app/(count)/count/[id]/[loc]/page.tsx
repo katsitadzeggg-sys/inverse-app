@@ -32,57 +32,49 @@ export default async function ZonePage({ params }: PageProps<'/count/[id]/[loc]'
 
   // Fixed assets: a room, not a shelf. Scan labels, then close the room.
   if (stocktake.kind === 'assets') {
-    const { data: found } = await supabase
+    const { count: recorded } = await supabase
       .from('asset_checks')
-      .select('id, inv_no, name, condition, register_id, needs_label')
+      .select('id', { count: 'exact', head: true })
       .eq('stocktake_id', id)
-      .eq('location_id', loc)
-      .order('checked_at', { ascending: false })
-      .returns<{ id: string; inv_no: string; name: string; condition: string; register_id: string | null; needs_label: boolean }[]>();
-    const COND: Record<string, string> = { good: 'კარგი', damaged: 'დაზიანებული', writeoff: 'ჩამოსაწერი' };
+      .eq('location_id', loc);
+    const n = recorded ?? 0;
     return (
-      <div className="grid gap-5">
+      <div className="grid gap-4">
         <div>
-          <Link href={`/count/${id}`} className="text-sm text-ink-faint">← {stocktake.number}</Link>
-          <h1 className="mt-1 text-2xl font-semibold">
-            ოთახი {location.code} {location.name !== location.code && <span className="text-base font-normal text-ink-soft">{location.name}</span>}
-          </h1>
+          <Link href={`/count/${id}`} className="inline-flex w-fit items-center gap-2 rounded-control border border-rule-strong px-4 py-2 text-base font-medium text-ink">← დაბრუნება</Link>
+          <div className="mt-1 flex items-baseline justify-between gap-3">
+            <h1 className="text-2xl font-semibold">ოთახი {location.code}</h1>
+            {n > 0 && <span className="text-sm text-ink-faint">ჩაწერილია {n}</span>}
+          </div>
         </div>
         {!canCount ? (
           <p className="text-ink-soft">ამ ოთახში ჩაწერა შენთვის დახურულია.</p>
         ) : (
-          <AssetPanel
-            stocktakeId={id}
-            locationId={loc}
-            room={location.code}
-            companyId={company.id}
-            userId={userId}
-            author={profile.full_name ?? profile.email}
-            company={stocktake.client_name ?? stocktake.name}
-            branch={stocktake.branch}
-          />
-        )}
-        {(found ?? []).length > 0 && (
-          <section className="grid gap-1 text-sm">
-            <h2 className="font-semibold">ამ ოთახში ჩაწერილია: {(found ?? []).length}</h2>
-            {(found ?? []).map((a) => (
-              <p key={a.id} className="flex justify-between gap-2 border-t border-rule/60 py-1.5">
-                <span className="min-w-0 truncate">{a.name} <span className="text-ink-faint">· {a.inv_no}</span></span>
-                <span className={a.register_id ? (a.condition === 'good' ? 'text-match' : 'text-review') : 'text-mismatch'}>
-                  {a.register_id ? COND[a.condition] : 'მეტობა'}{a.needs_label ? ' · 🏷' : ''}
-                </span>
-              </p>
-            ))}
-          </section>
-        )}
-        {canCount && (
-          <form action={finishZone.bind(null, id, loc)}>
-            <button type="submit" className="w-full rounded-control border-2 border-rule-strong px-4 py-3 text-base font-semibold">🔒 ოთახის დახურვა</button>
-          </form>
+          <>
+            {/* Which item in this room is being recorded now. */}
+            <p className="text-center text-3xl font-semibold tabular-nums">ინვენტარი №{n + 1}</p>
+            <AssetPanel
+              stocktakeId={id}
+              locationId={loc}
+              room={location.code}
+              companyId={company.id}
+              userId={userId}
+              author={profile.full_name ?? profile.email}
+              company={stocktake.client_name ?? stocktake.name}
+              branch={stocktake.branch}
+            />
+            {/* Finishing the room frees the counter to open the next one. */}
+            <form action={finishZone.bind(null, id, loc)} className="pt-4">
+              <button type="submit" className="w-full rounded-control border border-rule-strong px-4 py-3 text-sm text-ink-soft">
+                ✓ ოთახი დასრულდა → შემდეგი ოთახი
+              </button>
+            </form>
+          </>
         )}
       </div>
     );
   }
+
 
   const { data: checks } = await supabase
     .from('stocktake_checks')
@@ -98,7 +90,7 @@ export default async function ZonePage({ params }: PageProps<'/count/[id]/[loc]'
   return (
     <div className="grid gap-5">
       <div>
-        <Link href={`/count/${id}`} className="text-sm text-ink-faint">← {stocktake.number}</Link>
+        <Link href={`/count/${id}`} className="inline-flex w-fit items-center gap-2 rounded-control border border-rule-strong px-4 py-2 text-base font-medium text-ink">← დაბრუნება</Link>
         <h1 className="mt-1 text-2xl font-semibold">
           {location.code} {location.name !== location.code && <span className="text-base font-normal text-ink-soft">{location.name}</span>}
         </h1>

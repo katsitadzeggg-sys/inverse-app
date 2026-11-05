@@ -69,7 +69,7 @@ export default async function ShelfDonePage({ params }: PageProps<'/count/[id]/[
   return (
     <div className="grid gap-5">
       <div>
-        <Link href={`/count/${id}`} className="text-sm text-ink-faint">← {st.number}</Link>
+        <Link href={`/count/${id}`} className="inline-flex w-fit items-center gap-2 rounded-control border border-rule-strong px-4 py-2 text-base font-medium text-ink">← დაბრუნება</Link>
         <h1 className="mt-1 text-2xl font-semibold">{location.code}</h1>
       </div>
 
