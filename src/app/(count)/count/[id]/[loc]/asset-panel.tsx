@@ -63,7 +63,8 @@ export default function AssetPanel({
   const [hits, setHits] = useState<AssetHit[] | null>(null);
   // 🔍 with nothing typed: the register to scroll and filter by name.
   const [browse, setBrowse] = useState(false);
-  const [filter, setFilter] = useState('');
+  // "Manual entry": number / name typed, register list to pick from.
+  const [manual, setManual] = useState(false);
   const [card, setCard] = useState<Card | null>(null);
   const [condition, setCondition] = useState<Condition>('good');
   const [responsible, setResponsible] = useState('');
@@ -106,6 +107,7 @@ export default function AssetPanel({
     setSavedId(h.checkedId);
     setLabelDone(false);
     setShots(0);
+    setManual(false);
     setMessage(null);
   }
 
@@ -131,9 +133,8 @@ export default function AssetPanel({
     if (!text) {
       start(async () => {
         const all = await browseRegister(stocktakeId, room);
-        if (!all.length) return setMessage({ tone: 'error', text: 'რეესტრი ჩატვირთული არ არის.' });
+        if (!all.length) return;
         setMessage(null);
-        setFilter('');
         setBrowse(true);
         setHits(all);
       });
@@ -183,6 +184,7 @@ export default function AssetPanel({
     setCard(null);
     setSavedId(null);
     setQuery('');
+    setManual(false);
     setHits(null);
     setMessage(null);
     router.refresh(); // the room list below picks up the new asset
@@ -206,50 +208,58 @@ export default function AssetPanel({
               <LocationStatus pos={pos} onRetry={async () => setPos(await currentPosition(8000))} />
             )}
             <Scanner label="ეტიკეტის სკანირება" onCode={search} variant="big" />
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                search(query);
-              }}
-              className="flex gap-2"
-            >
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="საინვენტარო №"
-                className={`${inputClass} py-4 text-lg`}
-              />
+            {!manual ? (
               <button
-                type="submit"
-                aria-label="ძებნა"
-                className="w-16 shrink-0 rounded-control border border-rule-strong text-2xl"
+                type="button"
+                onClick={() => {
+                  setManual(true);
+                  search('');
+                }}
+                className="rounded-control border-2 border-rule-strong px-4 py-4 text-center text-lg font-semibold text-ink"
               >
-                🔍
+                ✍ ხელით შევსება
               </button>
-            </form>
-            <button
-              type="button"
-              onClick={() => surplus('', true)}
-              className="rounded-control border-2 border-rule-strong px-4 py-4 text-center text-lg font-semibold text-ink"
-            >
-              🏷 ეტიკეტი არ აქვს — ჩავწერო ახლად
-            </button>
-            {hits && browse && (
-              <input
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                autoFocus
-                placeholder="ძებნა დასახელებით ან ნომრით"
-                className={`${inputClass} py-3 text-base`}
-              />
+            ) : (
+              <>
+                {/* Typing filters the register; Enter looks the number up. */}
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    search(query);
+                  }}
+                >
+                  <input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    autoFocus
+                    enterKeyHint="search"
+                    placeholder="ნომერი ან დასახელება"
+                    className={`${inputClass} py-4 text-lg`}
+                  />
+                </form>
+                <button
+                  type="button"
+                  onClick={() =>
+                    surplus(
+                      /^[\p{L}\d][\p{L}\d\-/.]{1,30}$/u.test(query.trim())
+                        ? upperLatin(query.trim())
+                        : '',
+                      true,
+                    )
+                  }
+                  className="rounded-control border-2 border-rule-strong px-4 py-3 text-center text-base font-semibold text-ink"
+                >
+                  ＋ რეესტრში არ არის — ახალი ნივთი
+                </button>
+              </>
             )}
             {hits && (
               <ul className={`grid gap-1 ${browse ? 'max-h-[60vh] overflow-y-auto' : ''}`}>
-                {(browse && filter.trim()
+                {(browse && query.trim()
                   ? hits.filter((h) =>
                       `${h.name} ${h.invNo} ${h.serial ?? ''}`
                         .toLowerCase()
-                        .includes(filter.trim().toLowerCase()),
+                        .includes(query.trim().toLowerCase()),
                     )
                   : hits
                 ).map((h) => (
