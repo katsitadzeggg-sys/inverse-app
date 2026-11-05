@@ -29,6 +29,8 @@ export type UserProfile = {
   role: UserRole;
   /** Set when an owner/admin removed this person: no access, name kept on past work. */
   disabled_at: string | null;
+  /** Modules this person may count in. */
+  modules: ('stock' | 'expiry' | 'assets')[];
   created_at: string;
   updated_at: string;
 };

@@ -29,9 +29,12 @@ export async function inviteMember(_prev: InviteState, formData: FormData): Prom
 
   // Replace an older open invite for the same email.
   await supabase.from('company_invites').delete().eq('email', email).is('accepted_at', null);
+  const all = ['stock', 'expiry', 'assets'];
+  const modules = role === 'admin' ? all : formData.getAll('modules').map(String).filter((m) => all.includes(m));
+  if (!modules.length) return { error: 'აღმწერს ერთი მოდული მაინც მოუნიშნე.' };
   const { error } = await supabase
     .from('company_invites')
-    .insert({ company_id: company.id, email, role, invited_by: userId });
+    .insert({ company_id: company.id, email, role, modules, invited_by: userId });
   if (error) return { error: error.message };
 
   revalidatePath('/manage/team');
@@ -49,5 +52,17 @@ export async function removeMember(id: string): Promise<void> {
   await requireSession();
   const supabase = await createClient();
   await supabase.rpc('remove_team_member', { p_user: id });
+  revalidatePath('/manage/team');
+}
+
+/** Which modules a counter may count in. */
+export async function setModules(id: string, formData: FormData): Promise<void> {
+  const { profile } = await requireSession();
+  if (profile.role !== 'owner' && profile.role !== 'admin') return;
+  const all = ['stock', 'expiry', 'assets'];
+  const modules = formData.getAll('modules').map(String).filter((m) => all.includes(m));
+  if (!modules.length) return;
+  const supabase = await createClient();
+  await supabase.from('user_profiles').update({ modules }).eq('id', id).eq('role', 'member');
   revalidatePath('/manage/team');
 }

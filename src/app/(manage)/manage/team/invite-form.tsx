@@ -14,6 +14,7 @@ const EMPTY: InviteState = {};
 export default function InviteForm({ appUrl, company, isOwner }: { appUrl: string; company: string; isOwner: boolean }) {
   const [state, action, pending] = useActionState(inviteMember, EMPTY);
   const [copied, setCopied] = useState(false);
+  const [role, setRole] = useState('member');
   const message = state.notice
     ? `გამარჯობა! ${company}-ში დათვლაზე დაგამატე. გახსენი ${appUrl}/login, დარეგისტრირდი ამ მეილით: ${state.notice} და პირდაპირ დათვლის ეკრანზე მოხვდები.`
     : '';
@@ -28,11 +29,19 @@ export default function InviteForm({ appUrl, company, isOwner }: { appUrl: strin
         </label>
         <label className="grid gap-1 text-sm">
           როლი
-          <select name="role" defaultValue="member" className={inputClass}>
+          <select name="role" value={role} onChange={(e) => setRole(e.target.value)} className={inputClass}>
             <option value="member">აღმწერი — მხოლოდ დათვლა</option>
             {isOwner && <option value="admin">მენეჯერი — მართვაც</option>}
           </select>
         </label>
+        {role === 'member' && (
+          <fieldset className="grid gap-1 text-sm">
+            <legend className="mb-1 text-ink-soft">რისი დათვლა შეუძლია</legend>
+            <label className="flex items-center gap-2"><input type="checkbox" name="modules" value="assets" defaultChecked className="h-4 w-4" /> 🏷 ძირითადი საშუალებები</label>
+            <label className="flex items-center gap-2"><input type="checkbox" name="modules" value="stock" defaultChecked className="h-4 w-4" /> 📦 მარაგები</label>
+            <label className="flex items-center gap-2"><input type="checkbox" name="modules" value="expiry" defaultChecked className="h-4 w-4" /> ⏳ ვადიანი</label>
+          </fieldset>
+        )}
         {state.error && <Alert>{state.error}</Alert>}
         <Button type="submit" disabled={pending}>{pending ? 'ვინახავ…' : 'მოწვევა'}</Button>
       </form>

@@ -22,13 +22,10 @@ export default async function ManageLayout({ children }: LayoutProps<'/'>) {
             👥 გუნდი
           </Link>
           {platformAdmin && (
-            <Link href="/manage/users" className="text-sm text-ink-soft underline">
-              👤 რეგისტრაციები
+            <Link href="/manage/platform" className="text-sm text-ink-soft underline">
+              🏢 პლატფორმა
             </Link>
           )}
-          <Link href="/count" className="text-sm text-ink-soft underline">
-            აღმწერის ეკრანი
-          </Link>
           <div className="ml-auto text-right">
             <p className="text-sm font-medium leading-tight">{profile.full_name ?? profile.email}</p>
             <p className="text-xs leading-tight text-ink-faint">{company.name}</p>

@@ -4,11 +4,12 @@ import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
 import type { CompanyInvite, UserProfile } from '@/types/database';
 import InviteForm from './invite-form';
-import { cancelInvite, removeMember } from './actions';
+import { cancelInvite, removeMember, setModules } from './actions';
 
 export const metadata = { title: 'გუნდი' };
 
 const ROLE: Record<string, string> = { owner: 'მფლობელი', admin: 'მენეჯერი', member: 'აღმწერი', viewer: 'მნახველი' };
+const MOD: [string, string][] = [['assets', '🏷 ძირ. საშუალებები'], ['stock', '📦 მარაგები'], ['expiry', '⏳ ვადიანი']];
 
 /** The team: invite counters and managers, see open invites, remove access. */
 export default async function TeamPage() {
@@ -36,10 +37,20 @@ export default async function TeamPage() {
 
         <ul className="grid gap-2">
           {active.map((m) => (
-            <li key={m.id} className="flex items-center justify-between gap-3 rounded-control border border-rule/70 px-4 py-3">
+            <li key={m.id} className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-rule/70 px-4 py-3">
               <div className="min-w-0">
                 <p className="font-medium">{m.full_name ?? m.email}{m.id === userId && <span className="text-ink-faint"> (შენ)</span>}</p>
                 <p className="truncate text-xs text-ink-faint">{m.email} · {ROLE[m.role]}</p>
+                {m.role === 'member' && (
+                  <form action={setModules.bind(null, m.id)} className="mt-2 flex flex-wrap items-center gap-3 text-sm">
+                    {MOD.map(([k, v]) => (
+                      <label key={k} className="flex items-center gap-1">
+                        <input type="checkbox" name="modules" value={k} defaultChecked={(m.modules ?? []).includes(k as never)} /> {v}
+                      </label>
+                    ))}
+                    <button type="submit" className="rounded-control border border-rule-strong px-2 py-1 text-xs">შენახვა</button>
+                  </form>
+                )}
               </div>
               {canRemove(m) && (
                 <form action={removeMember.bind(null, m.id)}>

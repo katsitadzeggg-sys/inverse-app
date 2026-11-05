@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
 import type { Stocktake } from '@/types/database';
@@ -6,6 +7,9 @@ import type { Stocktake } from '@/types/database';
 export default async function CountHome() {
   const { profile, userId } = await requireSession();
   const manager = profile.role === 'owner' || profile.role === 'admin';
+  // Managers work in the manager module; the counting screen is for counters.
+  if (manager) redirect('/manage');
+  const allowedModules = new Set<string>(profile.modules ?? ['stock', 'expiry', 'assets']);
   const supabase = await createClient();
   const { data } = await supabase
     .from('stocktakes')
@@ -17,7 +21,7 @@ export default async function CountHome() {
   const { data: members } = await supabase.from('stocktake_members').select('stocktake_id, user_id').returns<{ stocktake_id: string; user_id: string }[]>();
   const assigned = new Map<string, Set<string>>();
   for (const m of members ?? []) assigned.set(m.stocktake_id, (assigned.get(m.stocktake_id) ?? new Set()).add(m.user_id));
-  const open = (data ?? []).filter((s) => s.status === 'open' && (manager || !assigned.has(s.id) || assigned.get(s.id)!.has(userId)));
+  const open = (data ?? []).filter((s) => s.status === 'open' && allowedModules.has(s.kind) && (!assigned.has(s.id) || assigned.get(s.id)!.has(userId)));
   const MODULES = [
     { kind: 'stock', title: '📦 მარაგები', hint: 'სკანი → რაოდენობა', tone: 'border-l-ink' },
     { kind: 'expiry', title: '⏳ ვადიანი პროდუქცია', hint: 'სკანი → ვადა → რაოდენობა', tone: 'border-l-review' },
