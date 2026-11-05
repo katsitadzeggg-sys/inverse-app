@@ -1,7 +1,7 @@
 'use client';
 
 import { useActionState, useEffect, useState } from 'react';
-import { Alert, Button, inputClass } from '@/components/ui';
+import { Alert, inputClass } from '@/components/ui';
 import { addressOf, currentPosition, mapsLink } from '@/lib/geo';
 import { createStocktake, type FormState } from '@/app/(count)/count/actions';
 
@@ -77,17 +77,19 @@ export default function NewStocktakeForm({
   }
 
   const canType = allowNewSite || sites.length === 0;
+  // On the counter's phone the controls are large and easy to tap.
+  const field = fixed ? `${inputClass} py-3.5 text-lg` : inputClass;
 
   return (
     <form action={action} className="grid gap-3 rounded-control border border-rule/70 p-4">
-      <p className="text-sm font-semibold">ახალი ინვენტარიზაცია</p>
+      {!fixed && <p className="text-sm font-semibold">ახალი ინვენტარიზაცია</p>}
       <input type="hidden" name="client_name" value={companyName} />
       {fixed ? (
         <>
           {/* Counter: company, module and today's date are fixed, not editable. */}
           {options.length === 1 && <input type="hidden" name="kind" value={options[0][0]} />}
           <input type="hidden" name="count_date" value={today} />
-          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded-control bg-paper-sunk px-3 py-2 text-sm">
+          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 rounded-control bg-paper-sunk px-3 py-1.5 text-xs">
             <dt className="text-ink-faint">კომპანია</dt><dd className="font-semibold">{companyName}</dd>
             <dt className="text-ink-faint">მოდული</dt>
             <dd className="font-semibold">
@@ -121,7 +123,7 @@ export default function NewStocktakeForm({
       <label className="grid gap-1 text-sm">
         საწყობი / ობიექტი
         {sites.length > 0 && (
-          <select value={siteId} onChange={(e) => pickSite(e.target.value)} className={inputClass}>
+          <select value={siteId} onChange={(e) => pickSite(e.target.value)} className={field}>
             {sites.map((s) => (
               <option key={s.id} value={s.id}>{s.name}</option>
             ))}
@@ -130,19 +132,19 @@ export default function NewStocktakeForm({
         )}
       </label>
       {siteId === 'new' ? (
-        <input name="branch" required value={branch} onChange={(e) => setBranch(e.target.value)} placeholder="მაგ. ყაზბეგის საწყობი" className={inputClass} />
+        <input name="branch" required value={branch} onChange={(e) => setBranch(e.target.value)} placeholder="მაგ. ყაზბეგის საწყობი" className={field} />
       ) : (
         <input type="hidden" name="branch" value={branch} />
       )}
 
       <label className="grid gap-1 text-sm">
         მისამართი
-        <input name="address" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="ავტომატურად ლოკაციიდან ან ხელით" className={inputClass} />
+        <input name="address" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="ავტომატურად ლოკაციიდან ან ხელით" className={field} />
       </label>
 
       <input type="hidden" name="lat" value={point?.lat ?? ''} />
       <input type="hidden" name="lng" value={point?.lng ?? ''} />
-      <button type="button" onClick={() => locate(true)} className="rounded-control border border-rule-strong px-4 py-2.5 text-sm">
+      <button type="button" onClick={() => locate(true)} className={`rounded-control border border-rule-strong px-4 ${fixed ? 'py-4 text-base font-medium' : 'py-2.5 text-sm'}`}>
         📍 აქ ვარ — მისამართი ლოკაციიდან
       </button>
       {point && (
@@ -154,9 +156,13 @@ export default function NewStocktakeForm({
       {locating && <p className="text-sm text-ink-soft">{locating}</p>}
 
       {state.error && <Alert>{state.error}</Alert>}
-      <Button type="submit" disabled={pending || !(siteId === 'new' ? branch.trim() : branch)}>
-        {pending ? 'იხსნება…' : 'გახსნა'}
-      </Button>
+      <button
+        type="submit"
+        disabled={pending || !(siteId === 'new' ? branch.trim() : branch)}
+        className="rounded-control bg-match px-4 py-4 text-xl font-semibold text-white disabled:opacity-50"
+      >
+        {pending ? 'იწყება…' : '▶ დაწყება'}
+      </button>
     </form>
   );
 }
