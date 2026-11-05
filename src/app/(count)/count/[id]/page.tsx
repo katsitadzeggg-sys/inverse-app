@@ -73,7 +73,7 @@ export default async function StocktakePage({ params }: PageProps<'/count/[id]'>
 
       {mine.length > 0 && (
         <section className="grid gap-2">
-          <h2 className="text-sm font-semibold text-ink-faint">ჩემი თაროები: {mine.length}</h2>
+          <h2 className="text-sm font-semibold text-ink-faint">ჩემი {stocktake.kind === 'assets' ? 'ოთახები' : 'თაროები'}: {mine.length}</h2>
           <ul className="grid gap-1">
             {mine.map((z) => (
               <li key={z.id}>

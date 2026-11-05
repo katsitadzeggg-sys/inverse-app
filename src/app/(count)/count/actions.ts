@@ -130,7 +130,7 @@ export async function openZone(stocktakeId: string, _prev: FormState, formData: 
   let location = code ? await findShelf(session.company.id, code) : null;
 
   if (open && open.location_id !== location?.id) {
-    return { error: `ჯერ დახურე თარო ${open.locations?.code ?? ''}, მერე გახსენი ახალი.` };
+    return { error: `ჯერ დახურე ${open.locations?.code ?? ''}, მერე გახსენი ახალი.` };
   }
 
   if (!location) {
@@ -164,10 +164,10 @@ export async function openZone(stocktakeId: string, _prev: FormState, formData: 
         .select('full_name, email')
         .eq('id', zone.counter_id ?? '')
         .maybeSingle<{ full_name: string | null; email: string }>();
-      return { error: `თარო ${location.code} ითვლის ${who?.full_name ?? who?.email ?? 'სხვა თანამშრომელი'}.` };
+      return { error: `${location.code}-ს ითვლის ${who?.full_name ?? who?.email ?? 'სხვა თანამშრომელი'}.` };
     }
     if (zone.status === 'done') {
-      if (!isManager(session.profile.role)) return { error: `თარო ${location.code} უკვე დახურულია. ხელახლა გახსნა მხოლოდ მენეჯერს შეუძლია.` };
+      if (!isManager(session.profile.role)) return { error: `${location.code} უკვე დახურულია. ხელახლა გახსნა მხოლოდ მენეჯერს შეუძლია.` };
       await supabase.from('stocktake_zones').update({ status: 'counting', done_at: null, ...position }).eq('id', zone.id);
     } else if ('lat' in position) {
       await supabase.from('stocktake_zones').update(position).eq('id', zone.id);
@@ -181,7 +181,7 @@ export async function openZone(stocktakeId: string, _prev: FormState, formData: 
       ...position,
     });
     if (error) {
-      return { error: error.code === '23505' ? 'ჯერ დახურე შენი ღია თარო, ან ამ თაროს სხვა ითვლის.' : error.message };
+      return { error: error.code === '23505' ? 'ჯერ დახურე შენი ღია თარო / ოთახი, ან ამას სხვა ითვლის.' : error.message };
     }
   }
   redirect(`/count/${stocktakeId}/${location.id}`);

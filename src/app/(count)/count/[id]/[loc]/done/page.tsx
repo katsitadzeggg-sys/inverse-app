@@ -109,7 +109,7 @@ export default async function ShelfDonePage({ params }: PageProps<'/count/[id]/[
       )}
 
       {canEdit ? (
-        <ShelfSummaryForm stocktakeId={id} locationId={loc} note={zone.note ?? ''} />
+        <ShelfSummaryForm stocktakeId={id} locationId={loc} note={zone.note ?? ''} rooms={isAssets} />
       ) : (
         zone.note && <p className="rounded-control border border-rule/70 p-3">💬 {zone.note}</p>
       )}

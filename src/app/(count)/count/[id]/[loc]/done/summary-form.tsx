@@ -7,7 +7,7 @@ import { saveZoneNote, type FormState } from '../../../actions';
 const EMPTY: FormState = {};
 
 /** The free comment, saved with either button. */
-export default function ShelfSummaryForm({ stocktakeId, locationId, note }: { stocktakeId: string; locationId: string; note: string }) {
+export default function ShelfSummaryForm({ stocktakeId, locationId, note, rooms = false }: { stocktakeId: string; locationId: string; note: string; rooms?: boolean }) {
   const [state, action, pending] = useActionState(saveZoneNote.bind(null, stocktakeId, locationId), EMPTY);
   return (
     <form action={action} className="grid gap-3">
@@ -18,7 +18,7 @@ export default function ShelfSummaryForm({ stocktakeId, locationId, note }: { st
           დახურვა
         </button>
         <button type="submit" name="next" value="new" disabled={pending} className="rounded-control bg-ink px-4 py-4 text-base font-semibold text-paper">
-          ახალი თარო →
+          {rooms ? 'ახალი ოთახი →' : 'ახალი თარო →'}
         </button>
       </div>
     </form>
