@@ -42,7 +42,8 @@ export async function createStocktake(_prev: FormState, formData: FormData): Pro
       kind,
       address: address || null,
       ...point,
-      ...(/^\d{4}-\d{2}-\d{2}$/.test(date) ? { count_date: date } : {}),
+      // Counters always open for today; managers may set the date.
+      ...(manager && /^\d{4}-\d{2}-\d{2}$/.test(date) ? { count_date: date } : {}),
       created_by: session.userId,
     })
     .select('id')

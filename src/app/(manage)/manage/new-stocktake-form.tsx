@@ -22,12 +22,15 @@ export default function NewStocktakeForm({
   companyName,
   sites,
   allowNewSite = true,
+  fixed = false,
 }: {
   kind?: string;
   kinds?: string[];
   companyName: string;
   sites: SiteOption[];
   allowNewSite?: boolean;
+  /** Counter's form: company, module and date shown as fixed facts. */
+  fixed?: boolean;
 }) {
   const options = KINDS.filter(([k]) => !kinds || kinds.includes(k));
   const [state, action, pending] = useActionState(createStocktake, EMPTY);
@@ -79,19 +82,41 @@ export default function NewStocktakeForm({
     <form action={action} className="grid gap-3 rounded-control border border-rule/70 p-4">
       <p className="text-sm font-semibold">ახალი ინვენტარიზაცია</p>
       <input type="hidden" name="client_name" value={companyName} />
-      <p className="text-sm">კომპანია: <b>{companyName}</b></p>
-      <label className="grid gap-1 text-sm">
-        მოდული
-        <select name="kind" defaultValue={options.some(([k]) => k === kind) ? kind : options[0]?.[0]} className={inputClass}>
-          {options.map(([k, label]) => (
-            <option key={k} value={k}>{label}</option>
-          ))}
-        </select>
-      </label>
-      <label className="grid gap-1 text-sm">
-        თარიღი
-        <input name="count_date" type="date" defaultValue={today} className={inputClass} />
-      </label>
+      {fixed ? (
+        <>
+          {/* Counter: company, module and today's date are fixed, not editable. */}
+          {options.length === 1 && <input type="hidden" name="kind" value={options[0][0]} />}
+          <input type="hidden" name="count_date" value={today} />
+          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded-control bg-paper-sunk px-3 py-2 text-sm">
+            <dt className="text-ink-faint">კომპანია</dt><dd className="font-semibold">{companyName}</dd>
+            <dt className="text-ink-faint">მოდული</dt>
+            <dd className="font-semibold">
+              {options.length > 1 ? (
+                <select name="kind" defaultValue={options[0]?.[0]} className="rounded-control border border-rule-strong bg-paper px-2 py-1">
+                  {options.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+                </select>
+              ) : options[0]?.[1]}
+            </dd>
+            <dt className="text-ink-faint">თარიღი</dt><dd className="font-semibold">{new Date().toLocaleDateString('ka-GE')}</dd>
+          </dl>
+        </>
+      ) : (
+        <>
+          <p className="text-sm">კომპანია: <b>{companyName}</b></p>
+          <label className="grid gap-1 text-sm">
+            მოდული
+            <select name="kind" defaultValue={options.some(([k]) => k === kind) ? kind : options[0]?.[0]} className={inputClass}>
+              {options.map(([k, label]) => (
+                <option key={k} value={k}>{label}</option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-1 text-sm">
+            თარიღი
+            <input name="count_date" type="date" defaultValue={today} className={inputClass} />
+          </label>
+        </>
+      )}
 
       <label className="grid gap-1 text-sm">
         საწყობი / ობიექტი

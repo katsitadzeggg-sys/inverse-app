@@ -42,7 +42,7 @@ export default async function CountHome() {
         <details className="rounded-control border border-rule-strong">
           <summary className="cursor-pointer px-4 py-3 text-base font-semibold">+ ახალი ინვენტარიზაცია</summary>
           <div className="border-t border-rule/70 p-3">
-            <NewStocktakeForm kind={profile.modules?.[0]} kinds={profile.modules} companyName={company.name} sites={sites ?? []} allowNewSite={false} />
+            <NewStocktakeForm kind={profile.modules?.[0]} kinds={profile.modules} companyName={company.name} sites={sites ?? []} allowNewSite={false} fixed />
           </div>
         </details>
       )}
