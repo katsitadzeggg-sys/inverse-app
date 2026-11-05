@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { requireSession } from '@/lib/session';
+import { createClient } from '@/lib/supabase/server';
 
 export const metadata = { title: 'მართვა' };
 
@@ -8,6 +9,7 @@ export const metadata = { title: 'მართვა' };
 export default async function ManageLayout({ children }: LayoutProps<'/'>) {
   const { profile, company } = await requireSession();
   if (profile.role !== 'owner' && profile.role !== 'admin') redirect('/count');
+  const { data: platformAdmin } = await (await createClient()).rpc('is_platform_admin');
 
   return (
     <div className="flex min-h-full flex-col">
@@ -19,6 +21,11 @@ export default async function ManageLayout({ children }: LayoutProps<'/'>) {
           <Link href="/manage/team" className="text-sm text-ink-soft underline">
             👥 გუნდი
           </Link>
+          {platformAdmin && (
+            <Link href="/manage/users" className="text-sm text-ink-soft underline">
+              👤 რეგისტრაციები
+            </Link>
+          )}
           <Link href="/count" className="text-sm text-ink-soft underline">
             აღმწერის ეკრანი
           </Link>
