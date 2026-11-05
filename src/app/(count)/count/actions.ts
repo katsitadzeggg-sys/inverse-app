@@ -132,7 +132,12 @@ export async function openZone(stocktakeId: string, _prev: FormState, formData: 
 
   let location = code ? await findShelf(session.company.id, code) : null;
 
-  if (open && open.location_id !== location?.id) {
+  // "Next room" on the room page: the room being left is closed on the way.
+  const closing = String(formData.get('close') ?? '');
+  if (open && closing && open.location_id === closing && open.location_id !== location?.id) {
+    const { error } = await supabase.rpc('finish_stocktake_zone', { p_stocktake: stocktakeId, p_location: closing });
+    if (error) return { error: error.message };
+  } else if (open && open.location_id !== location?.id) {
     return { error: `ჯერ დახურე ${open.locations?.code ?? ''}, მერე გახსენი ახალი.` };
   }
 

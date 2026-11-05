@@ -62,6 +62,8 @@ export default function AssetPanel({
   const [serial, setSerial] = useState('');
   const [note, setNote] = useState('');
   const [needsLabel, setNeedsLabel] = useState(false);
+  // At least one photo of every asset before moving on.
+  const [shots, setShots] = useState(0);
   const [savedId, setSavedId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ tone: 'error' | 'info'; text: string } | null>(null);
   const [pending, start] = useTransition();
@@ -98,6 +100,7 @@ export default function AssetPanel({
     setNeedsLabel(false);
     setSavedId(h.checkedId);
     setLabelDone(false);
+    setShots(0);
     setMessage(null);
   }
 
@@ -391,13 +394,15 @@ export default function AssetPanel({
                   assetCheckId={savedId}
                   extra={`${card.invNo} · ${card.name}`.slice(0, 80)}
                   compact
+                  onUploaded={() => setShots((n) => n + 1)}
                 />
                 <button
                   type="button"
                   onClick={next}
-                  className="rounded-control bg-match px-4 py-4 text-lg font-semibold text-white"
+                  disabled={shots === 0}
+                  className="rounded-control bg-match px-4 py-4 text-lg font-semibold text-white disabled:bg-transparent disabled:text-ink-faint disabled:border-2 disabled:border-rule"
                 >
-                  ✓ დასრულება — შემდეგი ნივთი
+                  {shots === 0 ? '📷 ჯერ ფოტო' : '✓ დასრულება — შემდეგი ნივთი'}
                 </button>
               </>
             )}

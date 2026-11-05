@@ -6,6 +6,7 @@ import type { Stocktake, StocktakeZone } from '@/types/database';
 import CountPanel from './count-panel';
 import AssetPanel from './asset-panel';
 import RecountList from './recount-list';
+import RoomOpener from '../room-opener';
 import { closeZone, finishZone } from '../../actions';
 
 /**
@@ -62,10 +63,13 @@ export default async function ZonePage({ params }: PageProps<'/count/[id]/[loc]'
               branch={stocktake.branch}
               recorded={n}
             />
-            {/* Finishing the room frees the counter to open the next one. */}
-            <form action={finishZone.bind(null, id, loc)} className="pt-4">
-              <button type="submit" className="w-full rounded-control border border-rule-strong px-4 py-3 text-sm text-ink-soft">
-                ✓ ოთახი დასრულდა → შემდეგი ოთახი
+            {/* One step: closes this room and opens the next. */}
+            <div className="pt-6">
+              <RoomOpener stocktakeId={id} suggestions={[]} close={loc} />
+            </div>
+            <form action={finishZone.bind(null, id, loc)}>
+              <button type="submit" className="w-full rounded-control border border-rule-strong px-4 py-3 text-base text-ink-soft">
+                🏁 ოთახები აღარ არის — დასრულება
               </button>
             </form>
           </>

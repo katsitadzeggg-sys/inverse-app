@@ -30,6 +30,7 @@ export default function MediaUpload({
   extra = null,
   compact = false,
   showItems = true,
+  onUploaded,
 }: {
   stocktakeId: string;
   locationId: string;
@@ -47,6 +48,8 @@ export default function MediaUpload({
   compact?: boolean;
   /** false: only the buttons and a count, no thumbnails (the close page). */
   showItems?: boolean;
+  /** Called after each file is saved. */
+  onUploaded?: () => void;
 }) {
   const router = useRouter();
   // Shown right away from the phone, before the page reloads.
@@ -120,6 +123,7 @@ export default function MediaUpload({
       });
       if (rowErr) throw rowErr;
       setAdded((a) => [...a, { id: path, path, kind, url: URL.createObjectURL(preview), poster: null }]);
+      onUploaded?.();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e);
       setError(

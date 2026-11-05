@@ -13,7 +13,16 @@ const EMPTY: FormState = {};
  * მარჯვენა". No QR needed. A room the system does not know yet is added on
  * the spot. Rooms from the register are offered as one-tap choices.
  */
-export default function RoomOpener({ stocktakeId, suggestions }: { stocktakeId: string; suggestions: string[] }) {
+export default function RoomOpener({
+  stocktakeId,
+  suggestions,
+  close,
+}: {
+  stocktakeId: string;
+  suggestions: string[];
+  /** On a room page: this room is closed when the next one opens. */
+  close?: string;
+}) {
   const [state, action, pending] = useActionState(openZone.bind(null, stocktakeId), EMPTY);
   const [room, setRoom] = useState('');
   const [pos, setPos] = useState<{ lat: number; lng: number; accuracy: number } | null | undefined>(undefined);
@@ -24,6 +33,7 @@ export default function RoomOpener({ stocktakeId, suggestions }: { stocktakeId: 
   return (
     <form action={action} className="grid gap-3 rounded-control border border-rule/70 p-4">
       <input type="hidden" name="create" value="1" />
+      {close && <input type="hidden" name="close" value={close} />}
       <input type="hidden" name="name" value={room.trim()} />
       {pos && (
         <>
@@ -39,8 +49,8 @@ export default function RoomOpener({ stocktakeId, suggestions }: { stocktakeId: 
         required
         autoComplete="off"
         enterKeyHint="go"
-        autoFocus
-        placeholder="ოთახი: 302, A-302, პირველი მარჯვენა"
+        autoFocus={!close}
+        placeholder={close ? 'შემდეგი ოთახი' : 'ოთახი: 302, A-302, პირველი მარჯვენა'}
         className="w-full rounded-control border-2 border-white bg-white px-4 py-4 text-xl text-black caret-black placeholder:text-gray-400 focus:outline-none focus:ring-4 focus:ring-match/40"
       />
       {suggestions.length > 0 && (
@@ -58,7 +68,7 @@ export default function RoomOpener({ stocktakeId, suggestions }: { stocktakeId: 
         </div>
       )}
       <button type="submit" disabled={pending || !room.trim()} className="rounded-control bg-match px-4 py-4 text-xl font-semibold text-white disabled:opacity-50">
-        {pending ? '…' : '▶ აღწერის დაწყება'}
+        {pending ? '…' : close ? '▶ შემდეგი ოთახი' : '▶ აღწერის დაწყება'}
       </button>
       {/* Only a problem is worth a line: location switched off. */}
       {pos === null && <LocationStatus pos={pos} onRetry={async () => setPos(await currentPosition(8000))} />}
