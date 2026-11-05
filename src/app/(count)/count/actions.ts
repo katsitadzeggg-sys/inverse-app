@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
+import { mkhedruli, upperLatin } from '@/lib/text';
 import type { Product } from '@/types/database';
 
 export type FormState = { error?: string; notice?: string };
@@ -54,8 +55,9 @@ export async function createStocktake(_prev: FormState, formData: FormData): Pro
 
 /** T-01, t1, "T 1" and T-001 are the same shelf. */
 function normCode(code: string): string {
-  return code
-    .toUpperCase()
+  // Latin letters to upper case only: toUpperCase() would turn Georgian into
+  // Mtavruli and the regex below would then drop every Georgian letter.
+  return upperLatin(mkhedruli(code))
     .replace(/[^A-Z0-9\u10D0-\u10FF]+/g, '')
     .replace(/(^|[^0-9])0+(?=[0-9])/g, '$1');
 }

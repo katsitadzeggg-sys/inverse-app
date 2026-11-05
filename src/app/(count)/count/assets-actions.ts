@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { mkhedruli, upperLatin } from '@/lib/text';
 import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
 import type { FormState } from './actions';
@@ -33,7 +34,7 @@ export type AssetHit = {
 const isManager = (role: string) => role === 'owner' || role === 'admin';
 
 /** Same inventory number however it was typed: spaces and case do not matter. */
-const normInv = (s: string) => s.trim().replace(/\s+/g, '').toUpperCase();
+const normInv = (s: string) => upperLatin(mkhedruli(s.trim().replace(/\s+/g, '')));
 
 /** The manager loads the asset register; a new file replaces the old one. */
 export async function importRegister(stocktakeId: string, rows: RegisterRow[]): Promise<FormState> {

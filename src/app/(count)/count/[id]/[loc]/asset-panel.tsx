@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
+import { mkhedruli, normKey, upperLatin } from '@/lib/text';
 import { useRouter } from 'next/navigation';
 import { Alert, inputClass } from '@/components/ui';
 import LocationStatus from '@/components/location-status';
@@ -96,11 +97,11 @@ export default function AssetPanel({
     setQuery(text);
     start(async () => {
       const found = await findAsset(stocktakeId, text);
-      const exact = found.find((h) => h.invNo === text.replace(/\s+/g, '').toUpperCase());
+      const exact = found.find((h) => h.invNo === upperLatin(mkhedruli(text.replace(/\s+/g, ''))));
       if (exact) return open(exact, !exact.registerId);
       if (found.length) return setHits(found);
       // Not in the register: a code-looking text is the number of a surplus asset.
-      if (/^[\p{L}\d][\p{L}\d\-/.]{1,30}$/u.test(text)) surplus(text.toUpperCase(), false);
+      if (/^[\p{L}\d][\p{L}\d\-/.]{1,30}$/u.test(text)) surplus(upperLatin(text), false);
       else setMessage({ tone: 'error', text: `„${text}“ რეესტრში ვერ მოიძებნა.` });
     });
   }
@@ -146,7 +147,7 @@ export default function AssetPanel({
     router.refresh(); // the room list below picks up the new asset
   }
 
-  const normRoom = (s: string) => s.toUpperCase().replace(/[^A-Z0-9\u10D0-\u10FF]+/g, '');
+  const normRoom = normKey;
   const moved = card && !card.surplus && card.room && normRoom(card.room) !== normRoom(room);
 
   return (
@@ -217,7 +218,7 @@ export default function AssetPanel({
             <>
               {card.surplus && (
                 <div className="grid gap-2">
-                  <input value={card.invNo} onChange={(e) => setCard({ ...card, invNo: e.target.value.toUpperCase() })} placeholder="საინვენტარო № (თუ აქვს)" className={`${inputClass} text-base`} />
+                  <input value={card.invNo} onChange={(e) => setCard({ ...card, invNo: upperLatin(e.target.value) })} placeholder="საინვენტარო № (თუ აქვს)" className={`${inputClass} text-base`} />
                   <input value={card.name} onChange={(e) => setCard({ ...card, name: e.target.value })} placeholder="დასახელება, მარკა, ფერი" className={`${inputClass} text-base`} />
                 </div>
               )}

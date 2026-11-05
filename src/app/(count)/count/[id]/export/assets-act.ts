@@ -1,4 +1,5 @@
 import writeXlsxFile from 'write-excel-file/node';
+import { normKey } from '@/lib/text';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Stocktake } from '@/types/database';
 import { mapsLink } from '@/lib/geo';
@@ -16,8 +17,8 @@ export async function assetsAct(supabase: SupabaseClient, st: Stocktake, shelf: 
   if (shelf !== 'all') {
     const { data } = await supabase.from('locations').select('code').eq('id', shelf).maybeSingle<{ code: string }>();
     roomCode = data?.code ?? '';
-    const u = roomCode.toUpperCase();
-    rows = rows.filter((r) => (r.actualRoom ?? '').toUpperCase() === u || (r.registerRoom ?? '').toUpperCase() === u);
+    const u = normKey(roomCode);
+    rows = rows.filter((r) => normKey(r.actualRoom) === u || normKey(r.registerRoom) === u);
   }
   const order: AssetStatus[] = ['missing', 'moved', 'surplus', 'found'];
   // Grouped (ავეჯი, ტექნიკა …), and within a group missing first.
