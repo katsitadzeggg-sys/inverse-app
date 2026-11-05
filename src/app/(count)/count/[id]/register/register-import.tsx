@@ -80,9 +80,11 @@ export default function RegisterImport({ stocktakeId }: { stocktakeId: string })
     <div className="grid gap-4">
       <label className="grid cursor-pointer gap-2 rounded-control border-2 border-dashed border-rule-strong p-6 text-center">
         <span className="text-base font-semibold">📄 აირჩიე რეესტრის Excel ან CSV</span>
-        <span className="text-sm text-ink-faint">საჭიროა: საინვენტარო ნომერი და დასახელება. სასურველია: ოთახი, პასუხისმგებელი, ღირებულება, სერიული ნომერი.</span>
+        <span className="text-sm text-ink-faint">საჭიროა: საინვენტარო ნომერი და დასახელება. სასურველია: ჯგუფი, ოთახი, პასუხისმგებელი, ღირებულება, სერიული ნომერი.</span>
         <input type="file" accept=".xlsx,.xlsm,.csv,.txt" className="hidden" onChange={(e) => e.target.files?.[0] && load(e.target.files[0])} />
       </label>
+
+      <a href="/templates/registri-shabloni.xlsx" download className="text-sm underline">⬇ შაბლონი (Excel) — ნიმუშით და ინსტრუქციით</a>
 
       {table && (
         <>

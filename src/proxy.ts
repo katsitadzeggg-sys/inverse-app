@@ -13,6 +13,6 @@ export const config = {
       through here is answered with an auth redirect instead of the file, which
       is how /video/*.mp4 briefly started returning 307s to /login.
     */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|ico|mp4|webm|ogg|mov|woff|woff2|ttf|otf|txt|xml|json|webmanifest|wasm)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|ico|mp4|webm|ogg|mov|woff|woff2|ttf|otf|txt|xml|json|webmanifest|wasm|xlsx)$).*)',
   ],
 };
