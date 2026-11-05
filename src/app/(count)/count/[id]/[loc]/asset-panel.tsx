@@ -18,6 +18,7 @@ import {
 } from '../../assets-actions';
 import LabelStep from './label-step';
 import SerialField from './serial-field';
+import ComboInput from '@/components/combo-input';
 
 type Condition = 'good' | 'damaged' | 'writeoff';
 const CONDITIONS: { value: Condition; label: string; tone: string }[] = [
@@ -336,30 +337,8 @@ export default function AssetPanel({
                     </button>
                   ))}
                 </div>
-                <input
-                  value={group}
-                  onChange={(e) => setGroup(e.target.value)}
-                  list="asset-groups"
-                  placeholder="ჯგუფი — მაგ. ავეჯი, კომპიუტერული ტექნიკა"
-                  className={inputClass}
-                />
-                <datalist id="asset-groups">
-                  {groups.map((g) => (
-                    <option key={g} value={g} />
-                  ))}
-                </datalist>
-                <input
-                  value={responsible}
-                  onChange={(e) => setResponsible(e.target.value)}
-                  list="responsible-people"
-                  placeholder="პასუხისმგებელი პირი — აირჩიე ან ჩაწერე"
-                  className={inputClass}
-                />
-                <datalist id="responsible-people">
-                  {people.map((p) => (
-                    <option key={p} value={p} />
-                  ))}
-                </datalist>
+                <ComboInput value={group} onChange={setGroup} options={groups} placeholder="ჯგუფი — მაგ. ავეჯი, კომპიუტერული ტექნიკა" />
+                <ComboInput value={responsible} onChange={setResponsible} options={people} placeholder="პასუხისმგებელი პირი — აირჩიე ან ჩაწერე" />
                 <SerialField value={serial} onChange={setSerial} />
                 <textarea
                   value={note}
