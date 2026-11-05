@@ -60,7 +60,13 @@ export default function SiteForms() {
             const f = e.target.files?.[0];
             e.target.value = '';
             if (!f) return;
-            const rows = (await readXlsxFile(f)).map((r) => r.map((c) => (c == null ? '' : String(c))));
+            let rows: string[][];
+            try {
+              rows = (await readXlsxFile(f)).map((r) => r.map((c) => (c == null ? '' : String(c))));
+            } catch {
+              setMsg({ error: 'ფაილი ვერ წავიკითხე. გახსენი Excel-ში, შეინახე და თავიდან აირჩიე.' });
+              return;
+            }
             const body = /სახელ|name|საწყობ|ობიექტ/i.test(rows[0]?.[0] ?? '') ? rows.slice(1) : rows;
             start(async () => setMsg(await importSites(body.map((r) => ({ name: r[0] ?? '', address: r[1] ?? '' })))));
           }}

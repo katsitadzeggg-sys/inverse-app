@@ -49,9 +49,16 @@ export default function RegisterImport({ stocktakeId }: { stocktakeId: string })
 
   async function load(file: File) {
     setMsg(null);
-    const rows = /\.(xlsx|xlsm)$/i.test(file.name)
-      ? (await readXlsxFile(file)).map((r) => r.map((c) => (c == null ? '' : c instanceof Date ? c.toISOString().slice(0, 10) : String(c))))
-      : parseCsv(await file.text());
+    let rows: string[][];
+    try {
+      rows = /\.(xlsx|xlsm)$/i.test(file.name)
+        ? (await readXlsxFile(file)).map((r) => r.map((c) => (c == null ? '' : c instanceof Date ? c.toISOString().slice(0, 10) : String(c))))
+        : parseCsv(await file.text());
+    } catch {
+      setTable(null);
+      setMsg({ tone: 'error', text: 'ფაილი ვერ წავიკითხე. გახსენი Excel-ში, შეინახე (Save) და თავიდან აირჩიე — ან ატვირთე CSV-ად.' });
+      return;
+    }
     const h = Math.max(0, rows.slice(0, 10).findIndex((r) => r.some((c) => GUESS.invNo.test(c)) && r.some((c) => GUESS.name.test(c))));
     const header = rows[h] ?? [];
     const guess = Object.fromEntries(
