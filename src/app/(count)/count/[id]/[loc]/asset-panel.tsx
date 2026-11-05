@@ -11,6 +11,7 @@ import MediaUpload from './done/media-upload';
 import {
   assetGroups,
   findAsset,
+  browseRegister,
   responsibleNames,
   saveAssetCheck,
   type AssetHit,
@@ -56,6 +57,9 @@ export default function AssetPanel({
 }) {
   const [query, setQuery] = useState('');
   const [hits, setHits] = useState<AssetHit[] | null>(null);
+  // 🔍 with nothing typed: the register to scroll and filter by name.
+  const [browse, setBrowse] = useState(false);
+  const [filter, setFilter] = useState('');
   const [card, setCard] = useState<Card | null>(null);
   const [condition, setCondition] = useState<Condition>('good');
   const [responsible, setResponsible] = useState('');
@@ -123,7 +127,18 @@ export default function AssetPanel({
 
   function search(q: string) {
     const text = q.trim();
-    if (!text) return;
+    if (!text) {
+      start(async () => {
+        const all = await browseRegister(stocktakeId, room);
+        if (!all.length) return setMessage({ tone: 'error', text: 'რეესტრი ჩატვირთული არ არის.' });
+        setMessage(null);
+        setFilter('');
+        setBrowse(true);
+        setHits(all);
+      });
+      return;
+    }
+    setBrowse(false);
     setQuery(text);
     start(async () => {
       const found = await findAsset(stocktakeId, text);
@@ -229,9 +244,21 @@ export default function AssetPanel({
             >
               🏷 ეტიკეტი არ აქვს — ჩავწერო ახლად
             </button>
+            {hits && browse && (
+              <input
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                autoFocus
+                placeholder="ძებნა დასახელებით ან ნომრით"
+                className={`${inputClass} py-3 text-base`}
+              />
+            )}
             {hits && (
-              <ul className="grid gap-1">
-                {hits.map((h) => (
+              <ul className={`grid gap-1 ${browse ? 'max-h-[60vh] overflow-y-auto' : ''}`}>
+                {(browse && filter.trim()
+                  ? hits.filter((h) => `${h.name} ${h.invNo} ${h.serial ?? ''}`.toLowerCase().includes(filter.trim().toLowerCase()))
+                  : hits
+                ).map((h) => (
                   <li key={h.invNo}>
                     <button
                       type="button"

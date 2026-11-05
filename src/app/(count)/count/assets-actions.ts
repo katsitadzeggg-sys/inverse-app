@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { mkhedruli, upperLatin } from '@/lib/text';
+import { mkhedruli, normKey, upperLatin } from '@/lib/text';
 import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
 import type { FormState } from './actions';
@@ -242,4 +242,30 @@ export async function deleteAssetCheck(stocktakeId: string, locationId: string, 
   const supabase = await createClient();
   await supabase.from('asset_checks').delete().eq('id', id);
   revalidatePath(`/count/${stocktakeId}/${locationId}`);
+}
+
+/** The whole register to pick from (🔍 with nothing typed): this room's items first, not yet recorded before recorded. */
+export async function browseRegister(stocktakeId: string, room: string): Promise<AssetHit[]> {
+  await requireSession();
+  const supabase = await createClient();
+  const [{ data: reg }, { data: checks }] = await Promise.all([
+    supabase.from('asset_register').select('id, inv_no, name, room, responsible, serial, group_name').eq('stocktake_id', stocktakeId).order('inv_no').limit(2000),
+    supabase.from('asset_checks').select('id, inv_no, locations (code)').eq('stocktake_id', stocktakeId).limit(5000)
+      .returns<{ id: string; inv_no: string; locations: { code: string } | null }[]>(),
+  ]);
+  const done = new Map((checks ?? []).map((c) => [c.inv_no, c]));
+  const here = normKey(room);
+  return (reg ?? [])
+    .map((r) => ({
+      registerId: r.id,
+      invNo: r.inv_no,
+      name: r.name,
+      room: r.room,
+      responsible: r.responsible,
+      serial: r.serial,
+      group: r.group_name,
+      checkedId: done.get(r.inv_no)?.id ?? null,
+      checkedRoom: done.get(r.inv_no)?.locations?.code ?? null,
+    }))
+    .sort((a, b) => Number(!!a.checkedId) - Number(!!b.checkedId) || Number(normKey(b.room) === here) - Number(normKey(a.room) === here));
 }
