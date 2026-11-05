@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from 'react';
 import { Alert, inputClass } from '@/components/ui';
+import LocationStatus from '@/components/location-status';
 import { currentPosition } from '@/lib/geo';
 import Scanner from '../../scanner';
 import MediaUpload from './done/media-upload';
@@ -53,7 +54,7 @@ export default function AssetPanel({
   const [savedId, setSavedId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ tone: 'error' | 'info'; text: string } | null>(null);
   const [pending, start] = useTransition();
-  const [pos, setPos] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
+  const [pos, setPos] = useState<{ lat: number; lng: number; accuracy: number } | null | undefined>(undefined);
   const [people, setPeople] = useState<string[]>([]);
   const [labelDone, setLabelDone] = useState(false);
   useEffect(() => {
@@ -134,6 +135,7 @@ export default function AssetPanel({
     <section className="grid gap-3 rounded-control border border-rule/70 p-4">
       {!card && (
         <>
+          <LocationStatus pos={pos} onRetry={async () => setPos(await currentPosition(8000))} />
           <Scanner label="ეტიკეტის სკანირება" onCode={search} />
           <form
             onSubmit={(e) => {

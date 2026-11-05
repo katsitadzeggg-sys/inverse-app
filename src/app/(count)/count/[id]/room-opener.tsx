@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useState } from 'react';
 import { currentPosition } from '@/lib/geo';
 import { Alert, inputClass } from '@/components/ui';
+import LocationStatus from '@/components/location-status';
 import { openZone, type FormState } from '../actions';
 
 const EMPTY: FormState = {};
@@ -15,7 +16,7 @@ const EMPTY: FormState = {};
 export default function RoomOpener({ stocktakeId, suggestions }: { stocktakeId: string; suggestions: string[] }) {
   const [state, action, pending] = useActionState(openZone.bind(null, stocktakeId), EMPTY);
   const [room, setRoom] = useState('');
-  const [pos, setPos] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
+  const [pos, setPos] = useState<{ lat: number; lng: number; accuracy: number } | null | undefined>(undefined);
   useEffect(() => {
     currentPosition().then(setPos);
   }, []);
@@ -59,9 +60,8 @@ export default function RoomOpener({ stocktakeId, suggestions }: { stocktakeId: 
       <button type="submit" disabled={pending || !room.trim()} className="rounded-control bg-ink px-4 py-4 text-lg font-semibold text-paper disabled:opacity-50">
         {pending ? '…' : '▶ აღწერის დაწყება'}
       </button>
-      <p className="text-xs text-ink-faint">
-        ოთახი სისტემაში თუ არ არის, ავტომატურად დაემატება. {pos ? `📍 მდებარეობა ჩაიწერება (±${Math.round(pos.accuracy)} მ).` : ''}
-      </p>
+      <p className="text-xs text-ink-faint">ოთახი სისტემაში თუ არ არის, ავტომატურად დაემატება.</p>
+      <LocationStatus pos={pos} onRetry={async () => setPos(await currentPosition(8000))} />
       {state.error && <Alert>{state.error}</Alert>}
     </form>
   );
