@@ -51,8 +51,6 @@ export default async function ZonePage({ params }: PageProps<'/count/[id]/[loc]'
           <p className="text-ink-soft">ამ ოთახში ჩაწერა შენთვის დახურულია.</p>
         ) : (
           <>
-            {/* Which item in this room is being recorded now. */}
-            <p className="text-center text-3xl font-semibold tabular-nums">ინვენტარი №{n + 1}</p>
             <AssetPanel
               stocktakeId={id}
               locationId={loc}
@@ -62,6 +60,7 @@ export default async function ZonePage({ params }: PageProps<'/count/[id]/[loc]'
               author={profile.full_name ?? profile.email}
               company={stocktake.client_name ?? stocktake.name}
               branch={stocktake.branch}
+              recorded={n}
             />
             {/* Finishing the room frees the counter to open the next one. */}
             <form action={finishZone.bind(null, id, loc)} className="pt-4">

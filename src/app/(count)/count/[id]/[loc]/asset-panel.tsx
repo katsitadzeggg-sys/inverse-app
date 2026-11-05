@@ -8,7 +8,13 @@ import LocationStatus from '@/components/location-status';
 import { currentPosition } from '@/lib/geo';
 import Scanner from '../../scanner';
 import MediaUpload from './done/media-upload';
-import { assetGroups, findAsset, responsibleNames, saveAssetCheck, type AssetHit } from '../../assets-actions';
+import {
+  assetGroups,
+  findAsset,
+  responsibleNames,
+  saveAssetCheck,
+  type AssetHit,
+} from '../../assets-actions';
 import LabelStep from './label-step';
 import SerialField from './serial-field';
 
@@ -36,6 +42,7 @@ export default function AssetPanel({
   author,
   company,
   branch,
+  recorded = 0,
 }: {
   stocktakeId: string;
   locationId: string;
@@ -45,6 +52,7 @@ export default function AssetPanel({
   author: string;
   company: string;
   branch: string | null;
+  recorded?: number;
 }) {
   const [query, setQuery] = useState('');
   const [hits, setHits] = useState<AssetHit[] | null>(null);
@@ -57,7 +65,9 @@ export default function AssetPanel({
   const [savedId, setSavedId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ tone: 'error' | 'info'; text: string } | null>(null);
   const [pending, start] = useTransition();
-  const [pos, setPos] = useState<{ lat: number; lng: number; accuracy: number } | null | undefined>(undefined);
+  const [pos, setPos] = useState<{ lat: number; lng: number; accuracy: number } | null | undefined>(
+    undefined,
+  );
   const router = useRouter();
   const [people, setPeople] = useState<string[]>([]);
   const [groups, setGroups] = useState<string[]>([]);
@@ -68,8 +78,12 @@ export default function AssetPanel({
   const [labelDone, setLabelDone] = useState(false);
   useEffect(() => {
     currentPosition().then(setPos);
-    responsibleNames().then(setPeople).catch(() => {});
-    assetGroups().then(setGroups).catch(() => {});
+    responsibleNames()
+      .then(setPeople)
+      .catch(() => {});
+    assetGroups()
+      .then(setGroups)
+      .catch(() => {});
   }, []);
 
   function open(h: AssetHit, surplus = false) {
@@ -88,7 +102,19 @@ export default function AssetPanel({
   }
 
   function surplus(inv: string, label: boolean) {
-    open({ registerId: null, invNo: inv, name: '', room: null, responsible: null, serial: null, checkedId: null, checkedRoom: null }, true);
+    open(
+      {
+        registerId: null,
+        invNo: inv,
+        name: '',
+        room: null,
+        responsible: null,
+        serial: null,
+        checkedId: null,
+        checkedRoom: null,
+      },
+      true,
+    );
     setNeedsLabel(label);
   }
 
@@ -129,7 +155,7 @@ export default function AssetPanel({
       if (res.error) return setMessage({ tone: 'error', text: res.error });
       navigator.vibrate?.([40, 40, 40]);
       setSavedId(res.id ?? null);
-      setMessage({ tone: 'info', text: `✓ ${card.name} — ${res.notice}. გადაიღე ფოტოები.` });
+      setMessage(null);
     });
   }
 
@@ -151,140 +177,235 @@ export default function AssetPanel({
   const normRoom = normKey;
   const moved = card && !card.surplus && card.room && normRoom(card.room) !== normRoom(room);
 
-  return (
-    <section className="grid gap-3 rounded-control border border-rule/70 p-4">
-      {!card && done && (
-        <div className="grid gap-1 rounded-control border-2 border-match bg-match/10 p-4 text-center">
-          <p className="text-3xl">✅</p>
-          <p className="text-lg font-semibold">ჩაიწერა: {done.name}</p>
-        </div>
-      )}
-      {!card && (
-        <>
-          {pos === null && <LocationStatus pos={pos} onRetry={async () => setPos(await currentPosition(8000))} />}
-          <Scanner label="ეტიკეტის სკანირება" onCode={search} variant="big" />
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              search(query);
-            }}
-            className="flex gap-2"
-          >
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="საინვენტარო №" className={`${inputClass} py-4 text-lg`} />
-            <button type="submit" aria-label="ძებნა" className="w-16 shrink-0 rounded-control border border-rule-strong text-2xl">🔍</button>
-          </form>
-          <button type="button" onClick={() => surplus('', true)} className="text-left text-sm text-ink-soft underline">
-            🏷 ეტიკეტი არ აქვს — ჩავწერო ახლად
-          </button>
-          {hits && (
-            <ul className="grid gap-1">
-              {hits.map((h) => (
-                <li key={h.invNo}>
-                  <button type="button" onClick={() => open(h, !h.registerId)} className="w-full rounded-control border border-rule px-3 py-2 text-left">
-                    <span className="font-medium">{h.name}</span>
-                    <span className="block text-xs text-ink-faint">{h.invNo}{h.room ? ` · ${h.room}` : ''}{h.checkedId ? ' · ✓ უკვე ჩაწერილია' : ''}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </>
-      )}
+  // The saved item is already in `recorded` once the page refreshes.
+  const itemNo = savedId && !card?.checkedId ? recorded : recorded + 1;
 
-      {card && (
-        <div className="grid gap-3">
-          <div>
-            {card.surplus ? (
-              <p className="text-xl font-semibold text-mismatch">აღმოჩენილი მეტობა</p>
-            ) : (
-              <p className="text-lg font-semibold">{card.name}</p>
+  return (
+    <>
+      <p className="text-center text-3xl font-semibold tabular-nums">
+        ინვენტარი №{Math.max(1, itemNo)}
+      </p>
+      <section className="grid gap-3 rounded-control border border-rule/70 p-4">
+        {!card && done && (
+          <div className="grid gap-1 rounded-control border-2 border-match bg-match/10 p-4 text-center">
+            <p className="text-3xl">✅</p>
+            <p className="text-lg font-semibold">ჩაიწერა: {done.name}</p>
+          </div>
+        )}
+        {!card && (
+          <>
+            {pos === null && (
+              <LocationStatus pos={pos} onRetry={async () => setPos(await currentPosition(8000))} />
             )}
-            {!card.surplus && (
-              <p className="text-sm text-ink-faint">
-                {card.invNo}{card.room ? ` · რეესტრით: ${card.room}` : ''}
-              </p>
+            <Scanner label="ეტიკეტის სკანირება" onCode={search} variant="big" />
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                search(query);
+              }}
+              className="flex gap-2"
+            >
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="საინვენტარო №"
+                className={`${inputClass} py-4 text-lg`}
+              />
+              <button
+                type="submit"
+                aria-label="ძებნა"
+                className="w-16 shrink-0 rounded-control border border-rule-strong text-2xl"
+              >
+                🔍
+              </button>
+            </form>
+            <button
+              type="button"
+              onClick={() => surplus('', true)}
+              className="text-left text-sm text-ink-soft underline"
+            >
+              🏷 ეტიკეტი არ აქვს — ჩავწერო ახლად
+            </button>
+            {hits && (
+              <ul className="grid gap-1">
+                {hits.map((h) => (
+                  <li key={h.invNo}>
+                    <button
+                      type="button"
+                      onClick={() => open(h, !h.registerId)}
+                      className="w-full rounded-control border border-rule px-3 py-2 text-left"
+                    >
+                      <span className="font-medium">{h.name}</span>
+                      <span className="block text-xs text-ink-faint">
+                        {h.invNo}
+                        {h.room ? ` · ${h.room}` : ''}
+                        {h.checkedId ? ' · ✓ უკვე ჩაწერილია' : ''}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
             )}
-            {moved && <p className="mt-1 text-sm font-semibold text-review">⚠ სხვა ოთახშია — ჩაიწერება როგორც გადაადგილებული</p>}
-            {card.checkedId && !savedId && (
-              <p className="mt-1 text-sm text-review">უკვე ჩაწერილია{card.checkedRoom ? ` (${card.checkedRoom})` : ''}. შენახვა განაახლებს.</p>
+          </>
+        )}
+
+        {card && (
+          <div className="grid gap-3">
+            <div>
+              {card.surplus ? (
+                <p className="text-xl font-semibold text-mismatch">აღმოჩენილი მეტობა</p>
+              ) : (
+                <p className="text-lg font-semibold">{card.name}</p>
+              )}
+              {!card.surplus && (
+                <p className="text-sm text-ink-faint">
+                  {card.invNo}
+                  {card.room ? ` · რეესტრით: ${card.room}` : ''}
+                </p>
+              )}
+              {moved && (
+                <p className="mt-1 text-sm font-semibold text-review">
+                  ⚠ სხვა ოთახშია — ჩაიწერება როგორც გადაადგილებული
+                </p>
+              )}
+              {card.checkedId && !savedId && (
+                <p className="mt-1 text-sm text-review">
+                  უკვე ჩაწერილია{card.checkedRoom ? ` (${card.checkedRoom})` : ''}. შენახვა
+                  განაახლებს.
+                </p>
+              )}
+            </div>
+
+            {!savedId && (
+              <>
+                {card.surplus && (
+                  <div className="grid gap-2">
+                    <input
+                      value={card.invNo}
+                      onChange={(e) => setCard({ ...card, invNo: upperLatin(e.target.value) })}
+                      placeholder="საინვენტარო № (თუ აქვს)"
+                      className={`${inputClass} text-base`}
+                    />
+                    <input
+                      value={card.name}
+                      onChange={(e) => setCard({ ...card, name: e.target.value })}
+                      placeholder="დასახელება, მარკა, ფერი"
+                      className={`${inputClass} text-base`}
+                    />
+                  </div>
+                )}
+                <div className="grid grid-cols-3 gap-2">
+                  {CONDITIONS.map((c) => (
+                    <button
+                      key={c.value}
+                      type="button"
+                      onClick={() => setCondition(c.value)}
+                      className={`rounded-control border-2 px-2 py-3 text-sm font-semibold ${condition === c.value ? c.tone : 'border-rule text-ink-soft'}`}
+                    >
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  value={group}
+                  onChange={(e) => setGroup(e.target.value)}
+                  list="asset-groups"
+                  placeholder="ჯგუფი — მაგ. ავეჯი, კომპიუტერული ტექნიკა"
+                  className={inputClass}
+                />
+                <datalist id="asset-groups">
+                  {groups.map((g) => (
+                    <option key={g} value={g} />
+                  ))}
+                </datalist>
+                <input
+                  value={responsible}
+                  onChange={(e) => setResponsible(e.target.value)}
+                  list="responsible-people"
+                  placeholder="პასუხისმგებელი პირი — აირჩიე ან ჩაწერე"
+                  className={inputClass}
+                />
+                <datalist id="responsible-people">
+                  {people.map((p) => (
+                    <option key={p} value={p} />
+                  ))}
+                </datalist>
+                <SerialField value={serial} onChange={setSerial} />
+                <textarea
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  rows={2}
+                  placeholder="შენიშვნა (დაზიანება, დეტალები)"
+                  className={inputClass}
+                />
+                <button
+                  type="button"
+                  aria-pressed={needsLabel}
+                  onClick={() => setNeedsLabel((v) => !v)}
+                  className={`flex items-center justify-center gap-2 rounded-control border-2 px-4 py-4 text-lg font-semibold ${needsLabel ? 'border-review bg-review/15 text-ink' : 'border-rule-strong text-ink-soft'}`}
+                >
+                  {needsLabel ? '✓' : '🏷'} სტიკერის ბეჭდვა
+                </button>
+                <div className="grid grid-cols-[1fr_2fr] gap-2">
+                  <button
+                    type="button"
+                    onClick={next}
+                    className="rounded-control bg-mismatch px-3 py-4 text-base font-semibold text-white"
+                  >
+                    გაუქმება
+                  </button>
+                  <button
+                    type="button"
+                    onClick={save}
+                    disabled={pending || !card.name.trim()}
+                    className="rounded-control bg-match px-4 py-4 text-lg font-semibold text-white disabled:opacity-60"
+                  >
+                    {pending ? '…' : '✓ შენახვა'}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {savedId && needsLabel && !labelDone && (
+              <LabelStep
+                code={card.invNo}
+                title={card.name}
+                company={company}
+                onDone={() => setLabelDone(true)}
+              />
+            )}
+
+            {savedId && (!needsLabel || labelDone) && (
+              <>
+                <MediaUpload
+                  key={savedId}
+                  stocktakeId={stocktakeId}
+                  locationId={locationId}
+                  companyId={companyId}
+                  userId={userId}
+                  author={author}
+                  company={company}
+                  branch={branch}
+                  shelf={room}
+                  items={[]}
+                  assetCheckId={savedId}
+                  extra={`${card.invNo} · ${card.name}`.slice(0, 80)}
+                  compact
+                />
+                <button
+                  type="button"
+                  onClick={next}
+                  className="rounded-control bg-ink px-4 py-4 text-lg font-semibold text-paper"
+                >
+                  ✓ დასრულება — შემდეგი ნივთი
+                </button>
+              </>
             )}
           </div>
+        )}
 
-          {!savedId && (
-            <>
-              {card.surplus && (
-                <div className="grid gap-2">
-                  <input value={card.invNo} onChange={(e) => setCard({ ...card, invNo: upperLatin(e.target.value) })} placeholder="საინვენტარო № (თუ აქვს)" className={`${inputClass} text-base`} />
-                  <input value={card.name} onChange={(e) => setCard({ ...card, name: e.target.value })} placeholder="დასახელება, მარკა, ფერი" className={`${inputClass} text-base`} />
-                </div>
-              )}
-              <div className="grid grid-cols-3 gap-2">
-                {CONDITIONS.map((c) => (
-                  <button
-                    key={c.value}
-                    type="button"
-                    onClick={() => setCondition(c.value)}
-                    className={`rounded-control border-2 px-2 py-3 text-sm font-semibold ${condition === c.value ? c.tone : 'border-rule text-ink-soft'}`}
-                  >
-                    {c.label}
-                  </button>
-                ))}
-              </div>
-              <input value={group} onChange={(e) => setGroup(e.target.value)} list="asset-groups" placeholder="ჯგუფი — მაგ. ავეჯი, კომპიუტერული ტექნიკა" className={inputClass} />
-              <datalist id="asset-groups">
-                {groups.map((g) => <option key={g} value={g} />)}
-              </datalist>
-              <input value={responsible} onChange={(e) => setResponsible(e.target.value)} list="responsible-people" placeholder="პასუხისმგებელი პირი — აირჩიე ან ჩაწერე" className={inputClass} />
-              <datalist id="responsible-people">
-                {people.map((p) => <option key={p} value={p} />)}
-              </datalist>
-              <SerialField value={serial} onChange={setSerial} />
-              <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="შენიშვნა (დაზიანება, დეტალები)" className={inputClass} />
-              <button
-                type="button"
-                aria-pressed={needsLabel}
-                onClick={() => setNeedsLabel((v) => !v)}
-                className={`flex items-center justify-center gap-2 rounded-control border-2 px-4 py-4 text-lg font-semibold ${needsLabel ? 'border-review bg-review/15 text-ink' : 'border-rule-strong text-ink-soft'}`}
-              >
-                {needsLabel ? '✓' : '🏷'} სტიკერის ბეჭდვა
-              </button>
-              <div className="grid grid-cols-[1fr_2fr] gap-2">
-                <button type="button" onClick={next} className="rounded-control bg-mismatch px-3 py-4 text-base font-semibold text-white">გაუქმება</button>
-                <button type="button" onClick={save} disabled={pending || !card.name.trim()} className="rounded-control bg-match px-4 py-4 text-lg font-semibold text-white disabled:opacity-60">
-                  {pending ? '…' : '✓ შენახვა'}
-                </button>
-              </div>
-            </>
-          )}
-
-          {savedId && needsLabel && !labelDone && (
-            <LabelStep code={card.invNo} title={card.name} company={company} onDone={() => setLabelDone(true)} />
-          )}
-
-          {savedId && (!needsLabel || labelDone) && (
-            <>
-              <MediaUpload
-                key={savedId}
-                stocktakeId={stocktakeId}
-                locationId={locationId}
-                companyId={companyId}
-                userId={userId}
-                author={author}
-                company={company}
-                branch={branch}
-                shelf={room}
-                items={[]}
-                assetCheckId={savedId}
-                extra={`${card.invNo} · ${card.name}`.slice(0, 80)}
-                compact
-              />
-              <button type="button" onClick={next} className="rounded-control bg-ink px-4 py-4 text-lg font-semibold text-paper">✓ დასრულება — შემდეგი ნივთი</button>
-            </>
-          )}
-        </div>
-      )}
-
-      {message && <Alert tone={message.tone}>{message.text}</Alert>}
-    </section>
+        {message && <Alert tone={message.tone}>{message.text}</Alert>}
+      </section>
+    </>
   );
 }
