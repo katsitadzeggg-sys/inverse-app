@@ -225,7 +225,7 @@ export default function AssetPanel({
             <button
               type="button"
               onClick={() => surplus('', true)}
-              className="text-left text-sm text-ink-soft underline"
+              className="rounded-control border-2 border-rule-strong px-4 py-4 text-center text-lg font-semibold text-ink"
             >
               🏷 ეტიკეტი არ აქვს — ჩავწერო ახლად
             </button>

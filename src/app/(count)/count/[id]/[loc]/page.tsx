@@ -22,8 +22,17 @@ export default async function ZonePage({ params }: PageProps<'/count/[id]/[loc]'
 
   const [{ data: stocktake }, { data: location }, { data: zone }] = await Promise.all([
     supabase.from('stocktakes').select('*').eq('id', id).maybeSingle<Stocktake>(),
-    supabase.from('locations').select('id, code, name').eq('id', loc).maybeSingle<{ id: string; code: string; name: string }>(),
-    supabase.from('stocktake_zones').select('*').eq('stocktake_id', id).eq('location_id', loc).maybeSingle<StocktakeZone>(),
+    supabase
+      .from('locations')
+      .select('id, code, name')
+      .eq('id', loc)
+      .maybeSingle<{ id: string; code: string; name: string }>(),
+    supabase
+      .from('stocktake_zones')
+      .select('*')
+      .eq('stocktake_id', id)
+      .eq('location_id', loc)
+      .maybeSingle<StocktakeZone>(),
   ]);
   if (!stocktake || !location || !zone) notFound();
   if (zone.status === 'done') redirect(`/count/${id}/${loc}/done`);
@@ -41,12 +50,16 @@ export default async function ZonePage({ params }: PageProps<'/count/[id]/[loc]'
     const n = recorded ?? 0;
     return (
       <div className="grid gap-4">
-        <div>
-          <Link href="/count" className="inline-flex w-fit items-center gap-2 rounded-control border border-rule-strong px-4 py-2 text-base font-medium text-ink">← დაბრუნება</Link>
-          <div className="mt-1 flex items-baseline justify-between gap-3">
-            <h1 className="text-2xl font-semibold">ოთახი {location.code}</h1>
-            {n > 0 && <span className="text-sm text-ink-faint">ჩაწერილია {n}</span>}
-          </div>
+        <div className="flex items-center justify-between gap-3">
+          <Link
+            href="/count"
+            className="inline-flex w-fit items-center gap-2 rounded-control border border-rule-strong px-4 py-2 text-base font-medium text-ink"
+          >
+            ← დაბრუნება
+          </Link>
+          <h1 className="truncate text-2xl font-semibold">
+            ოთახი {/^\d+$/.test(location.code) ? `№${location.code}` : location.code}
+          </h1>
         </div>
         {!canCount ? (
           <p className="text-ink-soft">ამ ოთახში ჩაწერა შენთვის დახურულია.</p>
@@ -64,25 +77,29 @@ export default async function ZonePage({ params }: PageProps<'/count/[id]/[loc]'
               recorded={n}
             />
             {/* Folded until the room is done; then one step closes it and opens the next. */}
-            <details className="mt-6 rounded-control border border-rule-strong">
-              <summary className="cursor-pointer list-none px-4 py-3 text-center text-base text-ink-soft [&::-webkit-details-marker]:hidden">
-                🚪 ოთახი დავასრულე
-              </summary>
-              <div className="grid gap-3 border-t border-rule/70 p-3">
-                <RoomOpener stocktakeId={id} suggestions={[]} close={loc} />
-                <form action={finishZone.bind(null, id, loc)}>
-                  <button type="submit" className="w-full rounded-control border border-rule-strong px-4 py-3 text-base text-ink-soft">
-                    🏁 ოთახები აღარ არის — დასრულება
-                  </button>
-                </form>
-              </div>
-            </details>
+            {n > 0 && (
+              <details className="mt-6 rounded-control border border-rule-strong">
+                <summary className="cursor-pointer list-none px-4 py-3 text-center text-base text-ink-soft [&::-webkit-details-marker]:hidden">
+                  🚪 ოთახი დავასრულე
+                </summary>
+                <div className="grid gap-3 border-t border-rule/70 p-3">
+                  <RoomOpener stocktakeId={id} suggestions={[]} close={loc} />
+                  <form action={finishZone.bind(null, id, loc)}>
+                    <button
+                      type="submit"
+                      className="w-full rounded-control border border-rule-strong px-4 py-3 text-base text-ink-soft"
+                    >
+                      🏁 ოთახები აღარ არის — დასრულება
+                    </button>
+                  </form>
+                </div>
+              </details>
+            )}
           </>
         )}
       </div>
     );
   }
-
 
   const { data: checks } = await supabase
     .from('stocktake_checks')
@@ -90,17 +107,35 @@ export default async function ZonePage({ params }: PageProps<'/count/[id]/[loc]'
     .eq('stocktake_id', id)
     .eq('location_id', loc)
     .eq('status', 'recount')
-    .returns<{ product_id: string; status: 'recount'; products: { name: string; sku: string; barcode: string | null } | null }[]>();
+    .returns<
+      {
+        product_id: string;
+        status: 'recount';
+        products: { name: string; sku: string; barcode: string | null } | null;
+      }[]
+    >();
   const recount = (checks ?? [])
-    .map((c) => ({ product_id: c.product_id, name: c.products?.name ?? '', code: c.products?.barcode ?? c.products?.sku ?? '' }))
+    .map((c) => ({
+      product_id: c.product_id,
+      name: c.products?.name ?? '',
+      code: c.products?.barcode ?? c.products?.sku ?? '',
+    }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <div className="grid gap-5">
       <div>
-        <Link href={`/count/${id}`} className="inline-flex w-fit items-center gap-2 rounded-control border border-rule-strong px-4 py-2 text-base font-medium text-ink">← დაბრუნება</Link>
+        <Link
+          href={`/count/${id}`}
+          className="inline-flex w-fit items-center gap-2 rounded-control border border-rule-strong px-4 py-2 text-base font-medium text-ink"
+        >
+          ← დაბრუნება
+        </Link>
         <h1 className="mt-1 text-2xl font-semibold">
-          {location.code} {location.name !== location.code && <span className="text-base font-normal text-ink-soft">{location.name}</span>}
+          {location.code}{' '}
+          {location.name !== location.code && (
+            <span className="text-base font-normal text-ink-soft">{location.name}</span>
+          )}
         </h1>
       </div>
 
@@ -108,19 +143,45 @@ export default async function ZonePage({ params }: PageProps<'/count/[id]/[loc]'
         <p className="text-ink-soft">ამ თაროზე ჩაწერა შენთვის დახურულია.</p>
       ) : recount.length > 0 ? (
         <>
-          <RecountList stocktakeId={id} locationId={loc} shelf={location.code} items={recount} expiry={stocktake.kind === 'expiry'} />
+          <RecountList
+            stocktakeId={id}
+            locationId={loc}
+            shelf={location.code}
+            items={recount}
+            expiry={stocktake.kind === 'expiry'}
+          />
           <form action={closeZone.bind(null, id, loc)}>
-            <button type="submit" className="w-full rounded-control bg-ink px-4 py-4 text-base font-semibold text-paper">↻ გადათვლა</button>
+            <button
+              type="submit"
+              className="w-full rounded-control bg-ink px-4 py-4 text-base font-semibold text-paper"
+            >
+              ↻ გადათვლა
+            </button>
           </form>
           <form action={finishZone.bind(null, id, loc)}>
-            <button type="submit" className="w-full rounded-control border-2 border-mismatch/60 px-4 py-3 text-base font-semibold text-mismatch">🔒 თაროს დახურვა</button>
+            <button
+              type="submit"
+              className="w-full rounded-control border-2 border-mismatch/60 px-4 py-3 text-base font-semibold text-mismatch"
+            >
+              🔒 თაროს დახურვა
+            </button>
           </form>
         </>
       ) : (
         <>
-          <CountPanel stocktakeId={id} locationId={loc} expiry={stocktake.kind === 'expiry'} countDate={stocktake.count_date} />
+          <CountPanel
+            stocktakeId={id}
+            locationId={loc}
+            expiry={stocktake.kind === 'expiry'}
+            countDate={stocktake.count_date}
+          />
           <form action={closeZone.bind(null, id, loc)}>
-            <button type="submit" className="w-full rounded-control bg-ink px-4 py-4 text-base font-semibold text-paper">✓ თაროს გადამოწმება</button>
+            <button
+              type="submit"
+              className="w-full rounded-control bg-ink px-4 py-4 text-base font-semibold text-paper"
+            >
+              ✓ თაროს გადამოწმება
+            </button>
           </form>
         </>
       )}
