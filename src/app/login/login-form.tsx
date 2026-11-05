@@ -12,7 +12,7 @@ const FIELD =
 export default function LoginForm() {
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const searchParams = useSearchParams();
-  const next = searchParams.get('next') ?? '/dashboard';
+  const next = searchParams.get('next') ?? '/count';
   const linkError = searchParams.get('error');
 
   const [state, action, pending] = useActionState(

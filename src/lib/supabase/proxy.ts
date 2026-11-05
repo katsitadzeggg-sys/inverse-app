@@ -58,7 +58,7 @@ export async function updateSession(request: NextRequest) {
 
   if (user && pathname === '/login') {
     const redirect = request.nextUrl.clone();
-    redirect.pathname = '/dashboard';
+    redirect.pathname = '/count';
     redirect.search = '';
     return NextResponse.redirect(redirect);
   }

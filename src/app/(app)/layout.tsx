@@ -1,9 +1,14 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { requireSession } from '@/lib/session';
 import AppNav from '@/components/app-nav';
 
 export default async function AppLayout({ children }: LayoutProps<'/'>) {
   const { profile, company } = await requireSession();
+  // The early prototype (English dashboard, products, AI photo check) is
+  // hidden: everyone works in the counting app (/count) and manager module
+  // (/manage). Remove this line to bring the old pages back.
+  redirect(profile.role === 'owner' || profile.role === 'admin' ? '/manage' : '/count');
 
   return (
     <div className="flex min-h-full flex-col">
