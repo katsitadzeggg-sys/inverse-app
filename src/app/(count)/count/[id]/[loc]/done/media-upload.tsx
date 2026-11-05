@@ -29,6 +29,7 @@ export default function MediaUpload({
   assetCheckId = null,
   extra = null,
   compact = false,
+  showItems = true,
 }: {
   stocktakeId: string;
   locationId: string;
@@ -44,6 +45,8 @@ export default function MediaUpload({
   /** One more caption line, e.g. the inventory number and name. */
   extra?: string | null;
   compact?: boolean;
+  /** false: only the buttons and a count, no thumbnails (the close page). */
+  showItems?: boolean;
 }) {
   const router = useRouter();
   // Shown right away from the phone, before the page reloads.
@@ -168,7 +171,10 @@ export default function MediaUpload({
       {!compact && <p className="text-center text-xs text-ink-faint">მხოლოდ კამერით. ფოტოს ეწერება თარიღი, შენი სახელი და ლოკაცია.</p>}
       {busy && <p className="text-center text-sm text-ink-soft">{busy}</p>}
       {error && <p className="text-sm text-mismatch">{error}</p>}
-      {items.length + added.length > 0 && (
+      {!showItems && items.length + added.length > 0 && (
+        <p className="text-center text-sm text-match">✓ ატვირთულია: {items.length + added.filter((a) => !items.some((i) => i.path === a.path)).length}</p>
+      )}
+      {showItems && items.length + added.length > 0 && (
         <div className="grid grid-cols-3 gap-2">
           {[...items, ...added.filter((a) => !items.some((i) => i.path === a.path))].map((m) =>
             m.kind === 'video' ? (

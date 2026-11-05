@@ -93,8 +93,9 @@ export default async function ShelfDonePage({ params }: PageProps<'/count/[id]/[
         </p>
       </div>
 
-      {canEdit && (
+      {canEdit && !isAssets && (
         <MediaUpload
+          showItems={false}
           stocktakeId={id}
           locationId={loc}
           companyId={company.id}

@@ -5,7 +5,8 @@ import { Alert, inputClass } from '@/components/ui';
 import { currentPosition } from '@/lib/geo';
 import Scanner from '../../scanner';
 import MediaUpload from './done/media-upload';
-import { findAsset, saveAssetCheck, type AssetHit } from '../../assets-actions';
+import { findAsset, responsibleNames, saveAssetCheck, type AssetHit } from '../../assets-actions';
+import LabelStep from './label-step';
 
 type Condition = 'good' | 'damaged' | 'writeoff';
 const CONDITIONS: { value: Condition; label: string; tone: string }[] = [
@@ -53,8 +54,11 @@ export default function AssetPanel({
   const [message, setMessage] = useState<{ tone: 'error' | 'info'; text: string } | null>(null);
   const [pending, start] = useTransition();
   const [pos, setPos] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
+  const [people, setPeople] = useState<string[]>([]);
+  const [labelDone, setLabelDone] = useState(false);
   useEffect(() => {
     currentPosition().then(setPos);
+    responsibleNames().then(setPeople).catch(() => {});
   }, []);
 
   function open(h: AssetHit, surplus = false) {
@@ -66,6 +70,7 @@ export default function AssetPanel({
     setNote('');
     setNeedsLabel(false);
     setSavedId(h.checkedId);
+    setLabelDone(false);
     setMessage(null);
   }
 
@@ -161,8 +166,13 @@ export default function AssetPanel({
       {card && (
         <div className="grid gap-3">
           <div>
-            {card.surplus ? (
-              <p className="text-lg font-semibold text-mismatch">რეესტრში არ არის (ზედმეტი)</p>
+            {card.surplus && card.fromHistory ? (
+              <>
+                <p className="text-lg font-semibold">{card.name}</p>
+                <p className="text-sm text-review">ამ რეესტრში არ არის — მონაცემები წინა აღწერიდან ჩაჯდა (ზედმეტად ჩაიწერება)</p>
+              </>
+            ) : card.surplus ? (
+              <p className="text-lg font-semibold text-mismatch">რეესტრში არ არის (ზედმეტი) — შეავსე ხელით</p>
             ) : (
               <p className="text-lg font-semibold">{card.name}</p>
             )}
@@ -195,12 +205,15 @@ export default function AssetPanel({
                   </button>
                 ))}
               </div>
-              <input value={responsible} onChange={(e) => setResponsible(e.target.value)} placeholder="პასუხისმგებელი პირი" className={inputClass} />
-              <input value={serial} onChange={(e) => setSerial(e.target.value)} placeholder="სერიული №" className={inputClass} />
+              <input value={responsible} onChange={(e) => setResponsible(e.target.value)} list="responsible-people" placeholder="პასუხისმგებელი პირი — აირჩიე ან ჩაწერე" className={inputClass} />
+              <datalist id="responsible-people">
+                {people.map((p) => <option key={p} value={p} />)}
+              </datalist>
+              <input value={serial} onChange={(e) => setSerial(e.target.value)} placeholder="ქარხნული სერიული № (თუ ნივთზე აწერია)" className={inputClass} />
               <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="შენიშვნა (დაზიანება, დეტალები)" className={inputClass} />
               <label className="flex items-center gap-2 text-sm text-ink-soft">
                 <input type="checkbox" checked={needsLabel} onChange={(e) => setNeedsLabel(e.target.checked)} />
-                ეტიკეტი აკლია / დასაბეჭდია
+                🏷 სტიკერი დასაბეჭდია (ეტიკეტი აკლია)
               </label>
               <div className="grid grid-cols-[1fr_2fr] gap-2">
                 <button type="button" onClick={next} className="rounded-control border border-rule-strong px-3 py-3 text-sm">გაუქმება</button>
@@ -211,7 +224,11 @@ export default function AssetPanel({
             </>
           )}
 
-          {savedId && (
+          {savedId && needsLabel && !labelDone && (
+            <LabelStep code={card.invNo} title={card.name} company={company} onDone={() => setLabelDone(true)} />
+          )}
+
+          {savedId && (!needsLabel || labelDone) && (
             <>
               <p className="text-sm text-ink-soft">ფოტოები: საერთო ხედი, ეტიკეტი / სერიული ფირფიტა, დაზიანება. ვიდეო 10–20 წამი (მაქს. 50 MB).</p>
               <MediaUpload

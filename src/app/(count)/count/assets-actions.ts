@@ -24,6 +24,8 @@ export type AssetHit = {
   /** Already recorded in this stocktake (by anyone). */
   checkedId: string | null;
   checkedRoom: string | null;
+  /** Details taken from an earlier stocktake of the company. */
+  fromHistory?: boolean;
 };
 
 const isManager = (role: string) => role === 'owner' || role === 'admin';
@@ -112,7 +114,47 @@ export async function findAsset(stocktakeId: string, text: string): Promise<Asse
   if (surplus && !hits.some((h) => h.invNo === inv)) {
     hits.unshift({ registerId: null, invNo: inv, name: surplus.name, room: null, responsible: null, serial: null, checkedId: surplus.id, checkedRoom: surplus.locations?.code ?? null });
   }
+  // Not in this stocktake's register: take the details from the company's
+  // earlier registers or counts, so the counter does not type them again.
+  if (!hits.length) {
+    const [{ data: oldReg }, { data: oldChk }] = await Promise.all([
+      supabase.from('asset_register').select('inv_no, name, room, responsible, serial').eq('inv_no', inv).neq('stocktake_id', stocktakeId)
+        .order('created_at', { ascending: false }).limit(1)
+        .returns<{ inv_no: string; name: string; room: string | null; responsible: string | null; serial: string | null }[]>(),
+      supabase.from('asset_checks').select('inv_no, name, responsible, serial, locations (code)').eq('inv_no', inv).neq('stocktake_id', stocktakeId)
+        .order('checked_at', { ascending: false }).limit(1)
+        .returns<{ inv_no: string; name: string; responsible: string | null; serial: string | null; locations: { code: string } | null }[]>(),
+    ]);
+    const r = oldReg?.[0];
+    const c = oldChk?.[0];
+    if (r || c) {
+      hits.push({
+        registerId: null,
+        invNo: inv,
+        name: c?.name ?? r!.name,
+        room: c?.locations?.code ?? r?.room ?? null,
+        responsible: c?.responsible ?? r?.responsible ?? null,
+        serial: c?.serial ?? r?.serial ?? null,
+        checkedId: null,
+        checkedRoom: null,
+        fromHistory: true,
+      });
+    }
+  }
   return hits;
+}
+
+/** Names of responsible people: from registers and earlier counts of the company. */
+export async function responsibleNames(): Promise<string[]> {
+  await requireSession();
+  const supabase = await createClient();
+  const [{ data: a }, { data: b }] = await Promise.all([
+    supabase.from('asset_register').select('responsible').not('responsible', 'is', null).limit(5000),
+    supabase.from('asset_checks').select('responsible').not('responsible', 'is', null).limit(5000),
+  ]);
+  const names = new Set<string>();
+  for (const r of [...(a ?? []), ...(b ?? [])]) if (r.responsible?.trim()) names.add(r.responsible.trim());
+  return [...names].sort((x, y) => x.localeCompare(y));
 }
 
 export type AssetInput = {
