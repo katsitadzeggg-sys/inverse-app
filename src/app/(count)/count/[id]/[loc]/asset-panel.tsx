@@ -17,6 +17,9 @@ import {
   type AssetHit,
 } from '../../assets-actions';
 import LabelStep from './label-step';
+import { drawLabel, labelsToZpl } from '@/lib/zebra';
+
+const LABEL = { w: 38, h: 38 };
 import SerialField from './serial-field';
 import ComboInput from '@/components/combo-input';
 
@@ -151,6 +154,38 @@ export default function AssetPanel({
       if (/^[\p{L}\d][\p{L}\d\-/.]{1,30}$/u.test(text)) surplus(upperLatin(text), false);
       else setMessage({ tone: 'error', text: `„${text}“ რეესტრში ვერ მოიძებნა.` });
     });
+  }
+
+  /**
+   * Straight to printing: the label goes to the phone's share sheet (Print,
+   * the Zebra app …); back on this card the counter presses Save.
+   */
+  async function printLabel() {
+    if (!card) return;
+    const invNo = card.invNo || `N-${Date.now().toString().slice(-6)}`;
+    if (invNo !== card.invNo) setCard({ ...card, invNo });
+    setNeedsLabel(true);
+    setLabelDone(true);
+    const data = { code: invNo, title: card.name, footer: company };
+    const png = await new Promise<Blob | null>((ok) =>
+      drawLabel(LABEL, data).toBlob(ok, 'image/png'),
+    );
+    const file = png ? new File([png], `${invNo}.png`, { type: 'image/png' }) : null;
+    try {
+      if (file && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: invNo });
+        return;
+      }
+    } catch {
+      return; // share sheet closed
+    }
+    // No share sheet (computer): the Zebra file.
+    const url = URL.createObjectURL(new Blob([labelsToZpl(LABEL, [data])], { type: 'text/plain' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${invNo}.zpl`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
   }
 
   function save() {
@@ -363,10 +398,11 @@ export default function AssetPanel({
                 <button
                   type="button"
                   aria-pressed={needsLabel}
-                  onClick={() => setNeedsLabel((v) => !v)}
-                  className={`flex items-center justify-center gap-2 rounded-control border-2 px-4 py-4 text-lg font-semibold ${needsLabel ? 'border-review bg-review/15 text-ink' : 'border-rule-strong text-ink-soft'}`}
+                  onClick={printLabel}
+                  disabled={!card.name.trim()}
+                  className={`flex items-center justify-center gap-2 rounded-control border-2 px-4 py-4 text-lg font-semibold disabled:opacity-50 ${labelDone ? 'border-match bg-match/15 text-ink' : 'border-rule-strong text-ink'}`}
                 >
-                  {needsLabel ? '✓' : '🏷'} სტიკერის ბეჭდვა
+                  {labelDone ? '✓ დაიბეჭდა — ხელახლა' : '🖨 სტიკერის ბეჭდვა'}
                 </button>
                 <div className="grid grid-cols-[1fr_2fr] gap-2">
                   <button

@@ -6,7 +6,6 @@ import type { Stocktake, StocktakeZone } from '@/types/database';
 import CountPanel from './count-panel';
 import AssetPanel from './asset-panel';
 import RecountList from './recount-list';
-import RoomOpener from '../room-opener';
 import { closeZone, finishZone } from '../../actions';
 
 /**
@@ -52,7 +51,7 @@ export default async function ZonePage({ params }: PageProps<'/count/[id]/[loc]'
       <div className="grid gap-4">
         <div className="flex items-center justify-between gap-3">
           <Link
-            href="/count"
+            href={`/count/${id}`}
             className="inline-flex w-fit items-center gap-2 rounded-control border border-rule-strong px-4 py-2 text-base font-medium text-ink"
           >
             ← დაბრუნება
@@ -75,26 +74,6 @@ export default async function ZonePage({ params }: PageProps<'/count/[id]/[loc]'
               company={stocktake.client_name ?? stocktake.name}
               branch={stocktake.branch}
               recorded={n}
-              footer={
-                n > 0 ? (
-                  <details className="mt-6 rounded-control border border-rule-strong">
-                    <summary className="cursor-pointer list-none px-4 py-3 text-center text-base text-ink-soft [&::-webkit-details-marker]:hidden">
-                      🚪 ოთახი დავასრულე
-                    </summary>
-                    <div className="grid gap-3 border-t border-rule/70 p-3">
-                      <RoomOpener stocktakeId={id} suggestions={[]} close={loc} />
-                      <form action={finishZone.bind(null, id, loc)}>
-                        <button
-                          type="submit"
-                          className="w-full rounded-control border border-rule-strong px-4 py-3 text-base text-ink-soft"
-                        >
-                          🏁 ოთახები აღარ არის — დასრულება
-                        </button>
-                      </form>
-                    </div>
-                  </details>
-                ) : null
-              }
             />
           </>
         )}
