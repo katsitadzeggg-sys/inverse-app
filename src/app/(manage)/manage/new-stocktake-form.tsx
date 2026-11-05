@@ -139,14 +139,19 @@ export default function NewStocktakeForm({
 
       <label className="grid gap-1 text-sm">
         მისამართი
-        <input name="address" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="ავტომატურად ლოკაციიდან ან ხელით" className={field} />
+        <div className="flex gap-2">
+          <input name="address" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="ავტომატურად ლოკაციიდან ან ხელით" className={field} />
+          {/* Same "my location" target icon as in Google Maps. */}
+          <button type="button" onClick={() => locate(true)} aria-label="ჩემი ლოკაცია" className="flex w-14 shrink-0 items-center justify-center rounded-control border border-rule-strong text-[#4285F4]">
+            <svg viewBox="0 0 24 24" className="h-7 w-7" fill="currentColor" aria-hidden="true">
+              <path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm8.94 3A8.99 8.99 0 0 0 13 3.06V1h-2v2.06A8.99 8.99 0 0 0 3.06 11H1v2h2.06A8.99 8.99 0 0 0 11 20.94V23h2v-2.06A8.99 8.99 0 0 0 20.94 13H23v-2h-2.06zM12 19a7 7 0 1 1 0-14 7 7 0 0 1 0 14z" />
+            </svg>
+          </button>
+        </div>
       </label>
 
       <input type="hidden" name="lat" value={point?.lat ?? ''} />
       <input type="hidden" name="lng" value={point?.lng ?? ''} />
-      <button type="button" onClick={() => locate(true)} className={`rounded-control border border-rule-strong px-4 ${fixed ? 'py-4 text-base font-medium' : 'py-2.5 text-sm'}`}>
-        📍 აქ ვარ — მისამართი ლოკაციიდან
-      </button>
       {point && (
         <p className="text-sm text-match">
           ✓ <a href={mapsLink(point.lat, point.lng)} target="_blank" rel="noreferrer" className="underline">რუკაზე</a>
