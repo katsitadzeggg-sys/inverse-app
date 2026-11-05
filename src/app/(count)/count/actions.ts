@@ -222,6 +222,16 @@ export async function finishZone(stocktakeId: string, locationId: string): Promi
   redirect(`/count/${stocktakeId}/${locationId}/done`);
 }
 
+/** Fixed assets: close the room and stay on the stocktake page to open the next one. */
+export async function finishRoom(stocktakeId: string, locationId: string): Promise<void> {
+  await requireSession();
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('finish_stocktake_zone', { p_stocktake: stocktakeId, p_location: locationId });
+  if (error) throw new Error(error.message);
+  revalidatePath(`/count/${stocktakeId}`);
+  redirect(`/count/${stocktakeId}`);
+}
+
 /** A note for the whole shelf (damage, mixed goods, no label …). */
 export async function saveZoneNote(stocktakeId: string, locationId: string, _prev: FormState, formData: FormData): Promise<FormState> {
   await requireSession();

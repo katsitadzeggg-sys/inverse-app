@@ -5,6 +5,7 @@ import { requireSession } from '@/lib/session';
 import type { Stocktake, StocktakeZone } from '@/types/database';
 import ZoneOpener from './zone-opener';
 import RoomOpener from './room-opener';
+import { finishRoom } from '../actions';
 
 type ZoneRow = StocktakeZone & { locations: { code: string } | null };
 
@@ -57,6 +58,19 @@ export default async function StocktakePage({ params }: PageProps<'/count/[id]'>
 
       {stocktake.status !== 'open' ? (
         <p className="text-ink-soft">ინვენტარიზაცია დახურულია.</p>
+      ) : open && stocktake.kind === 'assets' ? (
+        <div className="grid gap-3">
+          <Link href={`/count/${id}/${open.location_id}`} className="rounded-control bg-match px-4 py-4 text-center text-lg font-semibold text-white">
+            ▶ გააგრძელე ოთახი {open.locations?.code}
+          </Link>
+          <form action={finishRoom.bind(null, id, open.location_id)}>
+            <button type="submit" className="w-full rounded-control border-2 border-rule-strong px-4 py-4 text-lg font-semibold text-ink">
+              🔒 ოთახი {open.locations?.code} — დახურვა
+            </button>
+          </form>
+          {/* Or straight to the next room: the open one closes on the way. */}
+          <RoomOpener stocktakeId={id} suggestions={rooms} close={open.location_id} />
+        </div>
       ) : open ? (
         <Link href={`/count/${id}/${open.location_id}`} className="rounded-control bg-ink px-4 py-4 text-center text-base font-semibold text-paper">
           გააგრძელე {stocktake.kind === 'assets' ? 'ოთახი' : 'თარო'} {open.locations?.code} →
