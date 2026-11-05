@@ -122,7 +122,8 @@ export default function AssetPanel({
     setMessage(null);
   }
 
-  const moved = card && !card.surplus && card.room && card.room.trim().toUpperCase() !== room.trim().toUpperCase();
+  const normRoom = (s: string) => s.toUpperCase().replace(/[^A-Z0-9\u10D0-\u10FF]+/g, '');
+  const moved = card && !card.surplus && card.room && normRoom(card.room) !== normRoom(room);
 
   return (
     <section className="grid gap-3 rounded-control border border-rule/70 p-4">

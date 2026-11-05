@@ -29,7 +29,9 @@ export const ASSET_STATUS: Record<AssetStatus, string> = {
 
 export const CONDITION: Record<string, string> = { good: 'კარგი', damaged: 'დაზიანებული', writeoff: 'ჩამოსაწერი' };
 
-const same = (a: string | null, b: string | null) => (a ?? '').trim().toUpperCase() === (b ?? '').trim().toUpperCase();
+// "A-302", "a 302" and "A302" are the same room.
+const norm = (s: string | null) => (s ?? '').toUpperCase().replace(/[^A-Z0-9\u10D0-\u10FF]+/g, '');
+const same = (a: string | null, b: string | null) => norm(a) === norm(b);
 
 async function all<T>(make: (from: number, to: number) => PromiseLike<{ data: T[] | null }>): Promise<T[]> {
   const out: T[] = [];
