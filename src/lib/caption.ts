@@ -80,24 +80,41 @@ export async function videoPoster(file: Blob, lines: string[]): Promise<Blob> {
   const video = document.createElement('video');
   video.muted = true;
   video.playsInline = true;
+  video.setAttribute('playsinline', '');
+  video.setAttribute('muted', '');
   video.preload = 'auto';
+  // iPhone Safari decodes frames only for a video that is in the page and has
+  // played; keep it tiny and out of sight.
+  video.style.cssText = 'position:fixed;left:-9999px;top:0;width:2px;height:2px;opacity:0;pointer-events:none';
+  document.body.appendChild(video);
   video.src = url;
+  video.load();
+  const wait = (ev: string, ms: number) =>
+    new Promise<boolean>((resolve) => {
+      const t = setTimeout(() => resolve(false), ms);
+      video.addEventListener(ev, () => {
+        clearTimeout(t);
+        resolve(true);
+      }, { once: true });
+    });
   try {
-    await new Promise<void>((resolve, reject) => {
-      video.onloadeddata = () => resolve();
-      video.onerror = () => reject(new Error('video'));
-      setTimeout(() => reject(new Error('video timeout')), 15000);
-    });
+    if (video.readyState < 1 && !(await wait('loadedmetadata', 10000))) throw new Error('video metadata');
+    // A short play makes Safari produce a picture; then stop on an early frame.
+    await video.play().catch(() => {});
+    if (video.readyState < 2) await wait('loadeddata', 5000);
+    video.pause();
     const at = Math.min(0.5, (video.duration || 1) / 2);
-    await new Promise<void>((resolve) => {
-      video.onseeked = () => resolve();
+    if (Math.abs(video.currentTime - at) > 0.05) {
       video.currentTime = at;
-      setTimeout(resolve, 3000);
-    });
+      await wait('seeked', 3000);
+    }
+    if (!video.videoWidth || !video.videoHeight) throw new Error('video size');
     return await burn(video, video.videoWidth, video.videoHeight, lines, 1600);
   } finally {
+    video.pause();
     video.removeAttribute('src');
     video.load();
+    video.remove();
     URL.revokeObjectURL(url);
   }
 }
