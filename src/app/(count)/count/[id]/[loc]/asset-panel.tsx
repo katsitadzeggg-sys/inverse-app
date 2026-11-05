@@ -395,7 +395,7 @@ export default function AssetPanel({
                 <button
                   type="button"
                   onClick={next}
-                  className="rounded-control bg-ink px-4 py-4 text-lg font-semibold text-paper"
+                  className="rounded-control bg-match px-4 py-4 text-lg font-semibold text-white"
                 >
                   ✓ დასრულება — შემდეგი ნივთი
                 </button>
