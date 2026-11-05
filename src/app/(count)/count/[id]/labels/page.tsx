@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
 import type { Stocktake } from '@/types/database';
 import PrintButton from './print-button';
+import ZebraPanel from './zebra-panel';
 
 /**
  * Printable QR labels for fixed assets. The QR holds the inventory number, so
@@ -55,6 +56,7 @@ export default async function LabelsPage({ params, searchParams }: PageProps<'/c
         </p>
         {labels.length > 0 && <PrintButton />}
       </div>
+      {labels.length > 0 && <ZebraPanel items={items.slice(0, 2000).map((i) => ({ code: i.inv, title: i.name, footer: owner }))} fileName={st.number} />}
       <div className="grid grid-cols-3 gap-[3mm] print:grid-cols-3">
         {labels.map((l) => (
           <div key={l.inv} className="flex items-center gap-2 rounded border border-black/40 bg-white p-2 text-black" style={{ breakInside: 'avoid' }}>
