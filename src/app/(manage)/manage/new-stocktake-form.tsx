@@ -41,14 +41,18 @@ export default function NewStocktakeForm({
   const today = new Date().toISOString().slice(0, 10);
 
   async function locate(fillAddress: boolean) {
-    setLocating('ვადგენ მდებარეობას…');
-    const p = await currentPosition(10000);
-    if (!p) return setLocating('მდებარეობა ვერ დადგინდა — დაუშვი ბრაუზერში ან ჩაწერე მისამართი ხელით.');
+    setLocating('ვადგენ მდებარეობას… (თუ ტელეფონი ნებართვას ითხოვს — დაუშვი)');
+    const p = await currentPosition(8000);
+    if (!p) {
+      return setLocating('მდებარეობა ვერ დადგინდა. iPhone: პარამეტრები → კონფიდენციალურობა → მდებარეობა → Safari → „გამოყენებისას“. ან ჩაწერე მისამართი ხელით — გახსნა მაინც შეიძლება.');
+    }
     setPoint(p);
     if (fillAddress) {
       setLocating('ვეძებ მისამართს…');
       const a = await addressOf(p.lat, p.lng);
       if (a) setAddress(a);
+      setLocating(a ? null : 'წერტილი ჩაიწერა. მისამართი ვერ ვიპოვე — ჩაწერე ხელით ან დატოვე ცარიელი.');
+      return;
     }
     setLocating(null);
   }

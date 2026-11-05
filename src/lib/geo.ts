@@ -40,21 +40,45 @@ export function currentPosition(timeoutMs = 8000): Promise<{ lat: number; lng: n
   });
 }
 
-/** Street address of a point (OpenStreetMap), in Georgian; null if it fails. */
-export async function addressOf(lat: number, lng: number): Promise<string | null> {
+/** fetch() that gives up after `ms` milliseconds. */
+async function fetchJson<T>(url: string, ms: number): Promise<T | null> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
   try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=ka&zoom=18&addressdetails=1`,
-      { headers: { Accept: 'application/json' } },
-    );
-    if (!res.ok) return null;
-    const j = (await res.json()) as { address?: Record<string, string>; display_name?: string };
-    const a = j.address ?? {};
+    const res = await fetch(url, { signal: ctrl.signal, headers: { Accept: 'application/json' } });
+    return res.ok ? ((await res.json()) as T) : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Street address of a point, in Georgian; null if nothing answers in time.
+ * OpenStreetMap first (street and number), BigDataCloud as a fallback (city
+ * and district). Each has 5 seconds.
+ */
+export async function addressOf(lat: number, lng: number): Promise<string | null> {
+  const osm = await fetchJson<{ address?: Record<string, string>; display_name?: string }>(
+    `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=ka&zoom=18&addressdetails=1`,
+    5000,
+  );
+  if (osm) {
+    const a = osm.address ?? {};
     const street = [a.road ?? a.pedestrian ?? a.neighbourhood, a.house_number].filter(Boolean).join(' ');
     const city = a.city ?? a.town ?? a.village ?? a.suburb ?? '';
     const text = [city, street].filter(Boolean).join(', ');
-    return text || j.display_name?.split(',').slice(0, 3).join(',') || null;
-  } catch {
-    return null;
+    if (text) return text;
+    if (osm.display_name) return osm.display_name.split(',').slice(0, 3).join(',');
   }
+  const bdc = await fetchJson<{ city?: string; locality?: string; principalSubdivision?: string }>(
+    `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=ka`,
+    5000,
+  );
+  if (bdc) {
+    const text = [bdc.city || bdc.principalSubdivision, bdc.locality && bdc.locality !== bdc.city ? bdc.locality : ''].filter(Boolean).join(', ');
+    if (text) return text;
+  }
+  return null;
 }
