@@ -24,6 +24,9 @@ begin
 
   perform set_config('request.jwt.claim.sub', 'd2222222-2222-2222-2222-222222222222', true);
   perform public.accept_company_invite();
+  perform set_config('request.jwt.claim.sub', 'd1111111-1111-1111-1111-111111111111', true);
+  insert into public.stocktake_counters (stocktake_id, user_id, company_id) values (st, 'd2222222-2222-2222-2222-222222222222', co);
+  perform set_config('request.jwt.claim.sub', 'd2222222-2222-2222-2222-222222222222', true);
   perform pg_temp.expect((select count(*) from public.asset_register) = 1, 'counter sees the register');
   begin
     insert into public.asset_register (company_id, stocktake_id, inv_no, name) values (co, st, 'X', 'x');

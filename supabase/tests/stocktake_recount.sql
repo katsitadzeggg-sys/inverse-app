@@ -37,6 +37,7 @@ begin
   insert into public.stocktakes (company_id, name) values (co, 'R') returning id into st;
   insert into public.stocktake_book (company_id, stocktake_id, product_id, location_id, book_qty) values
     (co, st, p1, loc, 10), (co, st, p2, loc, 5), (co, st, p3, loc, 2);
+  insert into public.stocktake_counters (stocktake_id, user_id, company_id) values (st, me, co);
 
   perform set_config('request.jwt.claim.sub', me::text, true);
   perform pg_temp.expect((select count(*) from public.stocktake_book) = 0, 'a counter cannot read the book');
@@ -75,6 +76,7 @@ begin
   set local request.jwt.claim.sub = 'c1111111-1111-1111-1111-111111111111';
   insert into public.stocktakes (company_id, name) values (co, 'R2') returning id into st;
   insert into public.stocktake_book (company_id, stocktake_id, product_id, location_id, book_qty) values (co, st, p1, loc, 10);
+  insert into public.stocktake_counters (stocktake_id, user_id, company_id) values (st, me, co);
   perform set_config('request.jwt.claim.sub', me::text, true);
   insert into public.stocktake_zones (company_id, stocktake_id, location_id, counter_id) values (co, st, loc, me);
   begin

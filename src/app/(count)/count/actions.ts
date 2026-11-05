@@ -93,6 +93,11 @@ export async function matchShelf(text: string): Promise<Loc | null> {
 export async function openZone(stocktakeId: string, _prev: FormState, formData: FormData): Promise<FormState> {
   const session = await requireSession();
   if (!session.canWrite) return { error: 'შენს როლს დათვლა არ შეუძლია.' };
+  {
+    const supabase = await createClient();
+    const { data: allowed } = await supabase.rpc('can_count_in', { p_stocktake: stocktakeId });
+    if (allowed === false) return { error: 'ამ ინვენტარიზაციაზე არ ხარ დანიშნული. მიმართე მენეჯერს.' };
+  }
   const code = String(formData.get('code') ?? '').trim();
   const create = formData.get('create') === '1';
   // Where the phone was when the shelf was opened (if the person allowed it).
@@ -549,4 +554,20 @@ export async function setStocktakeStatus(stocktakeId: string, status: 'open' | '
     .eq('id', stocktakeId);
   revalidatePath(`/manage/${stocktakeId}`);
   revalidatePath('/manage');
+}
+
+/** The manager picks who counts in this stocktake. Nobody ticked = whole team. */
+export async function setStocktakeMembers(stocktakeId: string, formData: FormData): Promise<void> {
+  const session = await requireSession();
+  if (!isManager(session.profile.role)) return;
+  const ids = formData.getAll('member').map(String).filter((v) => /^[0-9a-f-]{36}$/.test(v));
+  const supabase = await createClient();
+  await supabase.from('stocktake_members').delete().eq('stocktake_id', stocktakeId);
+  if (ids.length) {
+    await supabase
+      .from('stocktake_members')
+      .insert(ids.map((user_id) => ({ stocktake_id: stocktakeId, user_id, company_id: session.company.id })));
+  }
+  revalidatePath(`/manage/${stocktakeId}`);
+  revalidatePath('/count');
 }

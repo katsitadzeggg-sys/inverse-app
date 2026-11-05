@@ -19,6 +19,15 @@ export default async function StocktakePage({ params }: PageProps<'/count/[id]'>
 
   const { data: stocktake } = await supabase.from('stocktakes').select('*').eq('id', id).maybeSingle<Stocktake>();
   if (!stocktake) notFound();
+  const { data: allowed } = await supabase.rpc('can_count_in', { p_stocktake: id });
+  if (allowed === false) {
+    return (
+      <div className="grid gap-3">
+        <Link href="/count" className="text-sm text-ink-faint">← ინვენტარიზაციები</Link>
+        <p className="text-ink-soft">ამ ინვენტარიზაციაზე არ ხარ დანიშნული. მიმართე მენეჯერს.</p>
+      </div>
+    );
+  }
 
   const { data: zones } = await supabase
     .from('stocktake_zones')

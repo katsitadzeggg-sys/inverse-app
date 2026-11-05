@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
 import type { Stocktake, StocktakeZone } from '@/types/database';
 import { mapsLink } from '@/lib/geo';
-import { setStocktakeStatus } from '@/app/(count)/count/actions';
+import { setStocktakeMembers, setStocktakeStatus } from '@/app/(count)/count/actions';
 import ExportBox from './export-box';
 
 type ZoneRow = StocktakeZone & {
@@ -42,6 +42,14 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
   const diffs = count(checks);
   const shots = count(media);
   const list = zones ?? [];
+  // Who may count here: the team (without the disabled) and who is ticked.
+  const [{ data: team }, { data: assigned }] = await Promise.all([
+    supabase.from('user_profiles').select('id, full_name, email, role').is('disabled_at', null).order('created_at')
+      .returns<{ id: string; full_name: string | null; email: string; role: string }[]>(),
+    supabase.from('stocktake_members').select('user_id').eq('stocktake_id', id).returns<{ user_id: string }[]>(),
+  ]);
+  const ticked = new Set((assigned ?? []).map((a) => a.user_id));
+  const counters = (team ?? []).filter((m) => m.role !== 'owner' && m.role !== 'admin' && m.role !== 'viewer');
   const [{ count: regCount }, { count: foundCount }] =
     st.kind === 'assets'
       ? await Promise.all([
@@ -135,6 +143,26 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
               </tbody>
             </table>
           </div>
+        )}
+      </section>
+
+      <section className="grid gap-2 rounded-control border border-rule/70 p-4">
+        <h2 className="font-semibold">👷 აღმწერები ამ ინვენტარიზაციაზე</h2>
+        {counters.length === 0 ? (
+          <p className="text-sm text-ink-soft">გუნდში აღმწერი ჯერ არ არის — <Link href="/manage/team" className="underline">მოიწვიე</Link>.</p>
+        ) : (
+          <form action={setStocktakeMembers.bind(null, id)} className="grid gap-2">
+            {counters.map((m) => (
+              <label key={m.id} className="flex items-center gap-3 text-sm">
+                <input type="checkbox" name="member" value={m.id} defaultChecked={ticked.has(m.id)} className="h-5 w-5" />
+                <span>{m.full_name ?? m.email} <span className="text-ink-faint">· {m.email}</span></span>
+              </label>
+            ))}
+            <p className="text-xs text-ink-faint">
+              {ticked.size ? `დანიშნულია ${ticked.size}. სხვა აღმწერები ამ ინვენტარიზაციას ვერ დაინახავენ.` : 'არავინ არ არის მონიშნული — ხედავს ყველა აღმწერი.'}
+            </p>
+            <button type="submit" className="justify-self-start rounded-control border border-rule-strong px-4 py-2 text-sm font-semibold">შენახვა</button>
+          </form>
         )}
       </section>
 
