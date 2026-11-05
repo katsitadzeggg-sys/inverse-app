@@ -26,6 +26,11 @@ export default async function CountLayout({ children }: LayoutProps<'/'>) {
               მართვა
             </Link>
           )}
+          <form action="/auth/signout" method="post">
+            <button type="submit" className="rounded-control border border-rule-strong px-2.5 py-1.5 text-xs" title="გასვლა">
+              გასვლა
+            </button>
+          </form>
         </div>
       </header>
       <main className="mx-auto w-full max-w-xl flex-1 px-4 py-5">{children}</main>

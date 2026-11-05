@@ -26,6 +26,11 @@ export default async function ManageLayout({ children }: LayoutProps<'/'>) {
             <p className="text-sm font-medium leading-tight">{profile.full_name ?? profile.email}</p>
             <p className="text-xs leading-tight text-ink-faint">{company.name}</p>
           </div>
+          <form action="/auth/signout" method="post">
+            <button type="submit" className="rounded-control border border-rule-strong px-2.5 py-1.5 text-xs" title="გასვლა">
+              გასვლა
+            </button>
+          </form>
         </div>
       </header>
       <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6">{children}</main>
