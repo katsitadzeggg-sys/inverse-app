@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect, useState } from 'react';
+import { useActionState, useEffect, useRef, useState } from 'react';
 import { Alert, inputClass } from '@/components/ui';
 import { addressOf, currentPosition } from '@/lib/geo';
 import { createStocktake, type FormState } from '@/app/(count)/count/actions';
@@ -46,9 +46,14 @@ export default function NewStocktakeForm({
   const [locating, setLocating] = useState<string | null>(null);
   const today = new Date().toISOString().slice(0, 10);
 
+  // A lookup still running when another object is picked must not overwrite its address.
+  const lookup = useRef(0);
+
   async function locate(fillAddress: boolean) {
+    const mine = ++lookup.current;
     setLocating('ვადგენ მდებარეობას… (თუ ტელეფონი ნებართვას ითხოვს — დაუშვი)');
     const p = await currentPosition(8000);
+    if (mine !== lookup.current) return;
     if (!p) {
       return setLocating('მდებარეობა ვერ დადგინდა. iPhone: პარამეტრები → კონფიდენციალურობა → მდებარეობა → Safari → „გამოყენებისას“. ან ჩაწერე მისამართი ხელით — გახსნა მაინც შეიძლება.');
     }
@@ -56,6 +61,7 @@ export default function NewStocktakeForm({
     if (fillAddress) {
       setLocating('ვეძებ მისამართს…');
       const a = await addressOf(p.lat, p.lng);
+      if (mine !== lookup.current) return;
       if (a) setAddress(a);
       setLocating(a ? null : 'წერტილი ჩაიწერა. მისამართი ვერ ვიპოვე — ჩაწერე ხელით ან დატოვე ცარიელი.');
       return;
@@ -84,6 +90,8 @@ export default function NewStocktakeForm({
   }, []);
 
   function pickSite(id: string) {
+    lookup.current++; // drop a location lookup in flight
+    setLocating(null);
     setSiteId(id);
     try {
       if (id !== 'new') localStorage.setItem(LAST_SITE, id);
