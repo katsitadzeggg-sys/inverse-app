@@ -8,6 +8,8 @@ import { createStocktake, type FormState } from '@/app/(count)/count/actions';
 const EMPTY: FormState = {};
 const KINDS: [string, string][] = [['stock', 'მარაგები'], ['expiry', 'ვადიანი პროდუქცია'], ['assets', 'ძირითადი საშუალებები']];
 
+const LAST_SITE = 'inverse:last-site';
+
 export type SiteOption = { id: string; name: string; address: string | null; lat: number | null; lng: number | null };
 
 /**
@@ -69,8 +71,23 @@ export default function NewStocktakeForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [siteId]);
 
+  // The object picked last time comes up first (per device).
+  useEffect(() => {
+    let last: string | null = null;
+    try {
+      last = localStorage.getItem(LAST_SITE);
+    } catch {}
+    if (!last || last === siteId || !sites.some((x) => x.id === last)) return;
+    const t = setTimeout(() => pickSite(last), 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function pickSite(id: string) {
     setSiteId(id);
+    try {
+      if (id !== 'new') localStorage.setItem(LAST_SITE, id);
+    } catch {}
     const s = sites.find((x) => x.id === id);
     setBranch(s?.name ?? '');
     setAddress(s?.address ?? '');
