@@ -52,6 +52,7 @@ export async function createStocktake(_prev: FormState, formData: FormData): Pro
   if (error) return { error: error.message };
   // Fixed assets: start from this object's last register.
   if (kind === 'assets') await supabase.rpc('copy_asset_register', { p_stocktake: data.id });
+  else await supabase.rpc('copy_stock_book', { p_stocktake: data.id }); // stock / expiry: the object's last book
   // Counter's fixed assets: the first room is typed on the same form — straight into it.
   const room = String(formData.get('room') ?? '').trim();
   if (!manager && kind === 'assets' && room) {
