@@ -62,11 +62,16 @@ export default function CountPanel({
   const total = Number(qty.replace(',', '.'));
 
   function focusQty() {
-    setTimeout(() => qtyRef.current?.focus(), 50);
+    // Selected, so typing a number replaces the 1 instead of making it 15.
+    setTimeout(() => {
+      qtyRef.current?.focus();
+      qtyRef.current?.select();
+    }, 50);
   }
 
+  // A scanned product starts at 1 piece; each repeat scan adds one.
   function choose(p: ProductHit, exp: string | null = null) {
-    setQty('');
+    setQty('1');
     setExpiryDate(exp ?? '');
     setExpiryUnknown(false);
     setProduct(p);
@@ -107,6 +112,7 @@ export default function CountPanel({
       setProduct(null);
       if (!found.length && /^\d{6,14}$/.test(q.trim())) {
         setNewBarcode(q.trim());
+        setQty('1');
         setExpiryDate(gs1?.expiry ?? '');
         setExpiryUnknown(false);
         setNewName('');
