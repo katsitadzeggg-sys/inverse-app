@@ -1,8 +1,17 @@
 import type { NextRequest } from 'next/server';
 import { updateSession } from '@/lib/supabase/proxy';
 
+// The two counter apps (fixed assets at /count, stock at /stock) share the
+// screens inside a stocktake; this cookie keeps the colour and home button of
+// the app the counter came from.
+const APP_HOME: Record<string, string> = { '/count': 'assets', '/stock': 'stock' };
+
 export async function proxy(request: NextRequest) {
-  return updateSession(request);
+  const app = APP_HOME[request.nextUrl.pathname];
+  if (app && request.cookies.get('inv_app')?.value !== app) request.cookies.set('inv_app', app);
+  const response = await updateSession(request);
+  if (app) response.cookies.set('inv_app', app, { path: '/', maxAge: 31536000, sameSite: 'lax' });
+  return response;
 }
 
 export const config = {

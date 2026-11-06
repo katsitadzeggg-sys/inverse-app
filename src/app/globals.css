@@ -750,3 +750,16 @@ select:focus {
     border-radius: 0 !important;
   }
 }
+
+/* The stock counter app (/stock): same screens, warm brown ground and an
+   orange action colour, so the counter always knows which app is open. */
+[data-app='stock'] {
+  --color-paper: #1b120b;
+  --color-paper-sunk: #2a1c10;
+  --color-rule: #3b2a1b;
+  --color-rule-strong: #5c4330;
+  --color-ink-soft: #b8a48f;
+  --color-ink-faint: #9c8670;
+  --color-match: #fb923c;
+  --color-review: #facc15;
+}

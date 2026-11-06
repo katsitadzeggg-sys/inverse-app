@@ -3,9 +3,10 @@ import type { MetadataRoute } from 'next';
 /** Installs the counter's app on the phone's home screen ("Add to Home Screen"). */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Inverse — ინვენტარიზაცია',
-    short_name: 'Inverse',
+    name: 'Inverse — ძირითადი საშუალებები',
+    short_name: 'ძირ. საშუალებები',
     description: 'ინვენტარიზაცია ტელეფონით',
+    id: '/count',
     start_url: '/count',
     scope: '/',
     display: 'standalone',
