@@ -37,6 +37,8 @@ export const metadata: Metadata = {
   title: { default: 'Inverse', template: '%s · Inverse' },
   description: 'Inverse — inventory counts, discrepancies and evidence.',
   robots: { index: false, follow: false },
+  // Home-screen app on iPhone: full screen, no Safari bars.
+  appleWebApp: { capable: true, title: 'Inverse', statusBarStyle: 'black' },
 };
 
 export default function RootLayout({ children }: LayoutProps<'/'>) {

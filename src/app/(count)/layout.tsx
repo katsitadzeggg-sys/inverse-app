@@ -1,9 +1,11 @@
 import Link from 'next/link';
 import { requireSession } from '@/lib/session';
+import OutboxStatus from '@/components/outbox-status';
+import SwRegister from '@/components/sw-register';
 
 export const metadata = { title: 'დათვლა' };
 
-export const viewport = { width: 'device-width', initialScale: 1, maximumScale: 1, themeColor: '#ffffff' };
+export const viewport = { width: 'device-width', initialScale: 1, maximumScale: 1, themeColor: '#0f172a' };
 
 /** The counter's phone screen: one column, big targets, Georgian only. */
 export default async function CountLayout({ children }: LayoutProps<'/'>) {
@@ -34,6 +36,8 @@ export default async function CountLayout({ children }: LayoutProps<'/'>) {
             </button>
           </form>
         </div>
+        <OutboxStatus />
+        <SwRegister />
       </header>
       <main className="mx-auto w-full max-w-xl flex-1 px-4 py-5">{children}</main>
     </div>

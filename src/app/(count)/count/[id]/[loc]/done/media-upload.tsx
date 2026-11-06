@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { currentPosition } from '@/lib/geo';
 import { captionLines, captionPhoto, videoPoster } from '@/lib/caption';
 import { MAX_UPLOAD_MB, resumableUpload } from '@/lib/resumable-upload';
+import { isOffline, queueMedia } from '@/lib/outbox';
 
 type Item = { id: string; path: string; kind: 'photo' | 'video'; url: string; poster: string | null };
 
@@ -64,49 +65,33 @@ export default function MediaUpload({
       const pos = await currentPosition(6000);
       const when = new Date();
       const lines = captionLines({ when, author, company, branch, shelf: assetCheckId ? `ოთახი ${shelf}` : `თარო ${shelf}`, pos, extra });
-      let preview: Blob = file;
-      const supabase = createClient();
       const base = `${companyId}/${stocktakeId}/${locationId}/${crypto.randomUUID()}`;
+      let blob: Blob = file;
+      let preview: Blob = file;
       let path: string;
-      let posterPath: string | null = null;
+      let contentType: string;
+      let poster: Blob | null = null;
 
       if (kind === 'photo') {
         setBusy('ვაწერ თარიღს და ლოკაციას…');
-        const stamped = await captionPhoto(file, lines);
-        preview = stamped;
+        blob = preview = await captionPhoto(file, lines);
         path = `${base}.jpg`;
-        setBusy('იტვირთება…');
-        const { error: e } = await supabase.storage.from('stocktake-media').upload(path, stamped, { contentType: 'image/jpeg' });
-        if (e) throw e;
+        contentType = 'image/jpeg';
       } else {
         const mb = Math.round(file.size / 1048576);
-        if (file.size > MAX_UPLOAD_MB * 1048576) {
-          throw new Error(`size: ${mb} MB`);
-        }
+        if (file.size > MAX_UPLOAD_MB * 1048576) throw new Error(`size: ${mb} MB`);
         const ext = (file.name.split('.').pop() || 'mp4').toLowerCase();
         path = `${base}.${ext}`;
-        if (file.size > 6 * 1048576) {
-          // Large video: in parts, resumes after a dropped connection.
-          await resumableUpload(supabase, 'stocktake-media', path, file, (p) => setBusy(`ვიდეო იტვირთება: ${p}% (${mb} MB)`));
-        } else {
-          setBusy(`ვიდეო იტვირთება (${mb} MB)…`);
-          const { error: e } = await supabase.storage
-            .from('stocktake-media')
-            .upload(path, file, { contentType: file.type || 'video/mp4' });
-          if (e) throw e;
-        }
+        contentType = file.type || 'video/mp4';
         try {
           setBusy('ვამზადებ ვიდეოს გარეკანს…');
-          const poster = await videoPoster(file, lines);
-          posterPath = `${base}.poster.jpg`;
-          const { error: pe } = await supabase.storage.from('stocktake-media').upload(posterPath, poster, { contentType: 'image/jpeg' });
-          if (pe) posterPath = null;
+          poster = await videoPoster(file, lines);
         } catch {
-          posterPath = null; // The video itself is saved; the poster is a bonus.
+          poster = null; // The video itself is what matters; the poster is a bonus.
         }
       }
-
-      const { error: rowErr } = await supabase.from('stocktake_media').insert({
+      const posterPath = poster ? `${base}.poster.jpg` : null;
+      const row = {
         company_id: companyId,
         stocktake_id: stocktakeId,
         location_id: locationId,
@@ -118,12 +103,42 @@ export default function MediaUpload({
         lat: pos?.lat ?? null,
         lng: pos?.lng ?? null,
         accuracy_m: pos?.accuracy ?? null,
-        poster_path: posterPath,
-        asset_check_id: assetCheckId,
-      });
-      if (rowErr) throw rowErr;
-      setAdded((a) => [...a, { id: path, path, kind, url: URL.createObjectURL(preview), poster: null }]);
-      onUploaded?.();
+      };
+      const keep = async () => {
+        // No connection (or the asset itself is still waiting): keep it on the phone.
+        await queueMedia({ checkId: assetCheckId ?? '', path, posterPath, blob, poster, contentType, row });
+        setAdded((a) => [...a, { id: path, path, kind, url: URL.createObjectURL(preview), poster: null }]);
+        onUploaded?.();
+      };
+
+      if (assetCheckId?.startsWith('local:') || isOffline()) {
+        await keep();
+      } else {
+        try {
+          const supabase = createClient();
+          const mb = Math.round(blob.size / 1048576);
+          if (kind === 'video' && blob.size > 6 * 1048576) {
+            // Large video: in parts, resumes after a dropped connection.
+            await resumableUpload(supabase, 'stocktake-media', path, file, (p) => setBusy(`ვიდეო იტვირთება: ${p}% (${mb} MB)`));
+          } else {
+            setBusy(kind === 'video' ? `ვიდეო იტვირთება (${mb} MB)…` : 'იტვირთება…');
+            const { error: e } = await supabase.storage.from('stocktake-media').upload(path, blob, { contentType });
+            if (e) throw e;
+          }
+          let savedPoster = posterPath;
+          if (poster && posterPath) {
+            const { error: pe } = await supabase.storage.from('stocktake-media').upload(posterPath, poster, { contentType: 'image/jpeg' });
+            if (pe) savedPoster = null;
+          }
+          const { error: rowErr } = await supabase.from('stocktake_media').insert({ ...row, poster_path: savedPoster, asset_check_id: assetCheckId });
+          if (rowErr) throw rowErr;
+          setAdded((a) => [...a, { id: path, path, kind, url: URL.createObjectURL(preview), poster: null }]);
+          onUploaded?.();
+        } catch (e) {
+          if (!isOffline(e)) throw e;
+          await keep();
+        }
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e);
       setError(
@@ -133,7 +148,7 @@ export default function MediaUpload({
       );
     }
     setBusy(null);
-    router.refresh();
+    if (!isOffline()) router.refresh();
   }
 
   const button = 'cursor-pointer rounded-control border border-rule-strong bg-paper-sunk px-4 py-3 text-center text-base font-semibold';

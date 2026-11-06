@@ -17,6 +17,7 @@ import {
   type AssetHit,
 } from '../../assets-actions';
 import { drawLabel } from '@/lib/zebra';
+import { isOffline, keepRegister, onOutbox, pendingInRoom, queueCheck, storedRegister } from '@/lib/outbox';
 
 const LABEL = { w: 38, h: 38 };
 import SerialField from './serial-field';
@@ -93,6 +94,31 @@ export default function AssetPanel({
   const [group, setGroup] = useState('');
   // The last asset finished in this room, shown big until the next scan.
   const [labelDone, setLabelDone] = useState(false);
+  // The register, also kept on the phone for lookups with no connection.
+  const [reg, setReg] = useState<AssetHit[]>([]);
+  // Assets of this room saved offline, still waiting to be sent.
+  const [pendingHere, setPendingHere] = useState(0);
+  useEffect(() => {
+    browseRegister(stocktakeId, room)
+      .then((r) => {
+        setReg(r);
+        keepRegister(stocktakeId, r);
+      })
+      .catch(() => storedRegister(stocktakeId).then(setReg));
+    const count = () => pendingInRoom(locationId).then(setPendingHere);
+    count();
+    return onOutbox(count);
+  }, [stocktakeId, room, locationId]);
+
+  /** Lookup in the register kept on the phone (no connection). */
+  function localFind(text: string): AssetHit[] {
+    const code = upperLatin(mkhedruli(text.replace(/\s+/g, '')));
+    const exact = reg.filter((h) => h.invNo === code || (h.serial && upperLatin(h.serial) === code));
+    if (exact.length) return exact;
+    const t = text.toLowerCase();
+    return reg.filter((h) => h.name.toLowerCase().includes(t)).slice(0, 30);
+  }
+
   useEffect(() => {
     currentPosition().then(setPos);
     responsibleNames()
@@ -140,7 +166,7 @@ export default function AssetPanel({
     const text = q.trim();
     if (!text) {
       start(async () => {
-        const all = await browseRegister(stocktakeId, room);
+        const all = await browseRegister(stocktakeId, room).catch(() => reg);
         if (!all.length) return;
         setMessage(null);
         setBrowse(true);
@@ -151,7 +177,10 @@ export default function AssetPanel({
     setBrowse(false);
     setQuery(text);
     start(async () => {
-      const found = await findAsset(stocktakeId, text);
+      const found = await findAsset(stocktakeId, text).catch((e) => {
+        if (isOffline(e)) return localFind(text);
+        throw e;
+      });
       const exact = found.find((h) => h.invNo === upperLatin(mkhedruli(text.replace(/\s+/g, ''))));
       if (exact) return open(exact, !exact.registerId);
       if (found.length) return setHits(found);
@@ -166,20 +195,28 @@ export default function AssetPanel({
     // An asset without a number gets one now; it goes on its new QR label.
     const invNo = card.invNo || `N-${Date.now().toString().slice(-6)}`;
     if (invNo !== card.invNo) setCard({ ...card, invNo });
+    const input = {
+      registerId: card.registerId,
+      invNo,
+      name: card.name,
+      condition,
+      responsible,
+      serial,
+      needsLabel: label,
+      note,
+      group,
+      lat: pos?.lat ?? null,
+      lng: pos?.lng ?? null,
+    };
     start(async () => {
-      const res = await saveAssetCheck(stocktakeId, locationId, {
-        registerId: card.registerId,
-        invNo,
-        name: card.name,
-        condition,
-        responsible,
-        serial,
-        needsLabel: label,
-        note,
-        group,
-        lat: pos?.lat ?? null,
-        lng: pos?.lng ?? null,
-      });
+      let res: { error?: string | null; id?: string };
+      try {
+        res = isOffline() ? { id: await queueCheck(stocktakeId, locationId, input) } : await saveAssetCheck(stocktakeId, locationId, input);
+      } catch (e) {
+        if (!isOffline(e)) return setMessage({ tone: 'error', text: 'ვერ შეინახა. სცადე თავიდან.' });
+        // No connection: kept on the phone, sent when the signal is back.
+        res = { id: await queueCheck(stocktakeId, locationId, input) };
+      }
       if (res.error) return setMessage({ tone: 'error', text: res.error });
       navigator.vibrate?.([40, 40, 40]);
       setSavedId(res.id ?? null);
@@ -233,7 +270,7 @@ export default function AssetPanel({
     setManual(false);
     setHits(null);
     setMessage(null);
-    router.refresh(); // the room list below picks up the new asset
+    if (!isOffline()) router.refresh(); // the item count picks up the new asset
   }
 
   const normRoom = normKey;
@@ -253,7 +290,7 @@ export default function AssetPanel({
   }
 
   // The saved item is already in `recorded` once the page refreshes.
-  const itemNo = savedId && !card?.checkedId ? recorded : recorded + 1;
+  const itemNo = (savedId && !card?.checkedId ? recorded : recorded + 1) + pendingHere;
 
   return (
     <>
