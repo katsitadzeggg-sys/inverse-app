@@ -131,14 +131,16 @@ export default async function ZonePage({ params }: PageProps<'/count/[id]/[loc]'
             items={recount}
             expiry={stocktake.kind === 'expiry'}
           />
-          <form action={closeZone.bind(null, id, loc)}>
-            <button
-              type="submit"
-              className="w-full rounded-control bg-ink px-4 py-4 text-base font-semibold text-paper"
-            >
-              ↻ გადათვლა
-            </button>
-          </form>
+          {stocktake.kind === 'expiry' && (
+            <form action={closeZone.bind(null, id, loc)}>
+              <button
+                type="submit"
+                className="w-full rounded-control bg-ink px-4 py-4 text-base font-semibold text-paper"
+              >
+                ↻ გადათვლა
+              </button>
+            </form>
+          )}
           <form action={finishZone.bind(null, id, loc)}>
             <button
               type="submit"

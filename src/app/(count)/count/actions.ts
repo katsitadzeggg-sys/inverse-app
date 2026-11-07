@@ -515,6 +515,37 @@ export async function closeZone(stocktakeId: string, locationId: string): Promis
   if (!recount) redirect(`/count/${stocktakeId}/${locationId}/done`);
 }
 
+/**
+ * The recount list in one step: every quantity typed in is saved (replacing
+ * the earlier lines for that item), then the shelf is checked against the book
+ * again. Items left empty count as not found (0).
+ */
+export async function recountAll(stocktakeId: string, locationId: string, _prev: FormState, formData: FormData): Promise<FormState> {
+  const session = await requireSession();
+  const supabase = await createClient();
+  for (const [key, value] of formData.entries()) {
+    if (!key.startsWith('qty:')) continue;
+    const productId = key.slice(4);
+    const raw = String(value).trim();
+    const qty = raw === '' ? 0 : Number(raw.replace(',', '.'));
+    if (!Number.isFinite(qty) || qty < 0) return { error: 'რაოდენობა არასწორია.' };
+    const { error: delError } = await supabase.from('stocktake_entries').delete().eq('stocktake_id', stocktakeId).eq('location_id', locationId).eq('product_id', productId);
+    if (delError) return { error: delError.message.includes('frozen') ? 'ეს პოზიცია გაყინულია.' : delError.message };
+    const { error } = await supabase.from('stocktake_entries').insert({
+      company_id: session.company.id,
+      stocktake_id: stocktakeId,
+      location_id: locationId,
+      product_id: productId,
+      quantity: qty,
+      counter_id: session.userId,
+      recounted: true,
+    });
+    if (error) return { error: error.message.includes('frozen') ? 'ეს პოზიცია გაყინულია.' : error.message };
+  }
+  await closeZone(stocktakeId, locationId); // checks again; redirects when nothing is left
+  return { notice: 'ok' };
+}
+
 /** A recount replaces the counter's earlier lines for that item on this shelf. */
 export async function recountItem(
   stocktakeId: string,
