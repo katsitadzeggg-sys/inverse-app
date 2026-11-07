@@ -56,6 +56,8 @@ export default function NewStocktakeForm({
       : null,
   );
   const [locating, setLocating] = useState<string | null>(null);
+  // The phone's own position was taken (not just the object's saved point).
+  const [here, setHere] = useState(false);
   const today = new Date().toISOString().slice(0, 10);
 
   // A lookup still running when another object is picked must not overwrite its address.
@@ -72,6 +74,7 @@ export default function NewStocktakeForm({
       );
     }
     setPoint(p);
+    setHere(true);
     if (fillAddress) {
       setLocating('ვეძებ მისამართს…');
       const a = await addressOf(p.lat, p.lng);
@@ -232,7 +235,7 @@ export default function NewStocktakeForm({
             type="button"
             onClick={() => locate(true)}
             disabled={!!locating && locating.startsWith('ვ')}
-            className={`flex items-center justify-center gap-3 rounded-control border-2 px-4 py-5 text-xl font-semibold disabled:opacity-60 ${point ? 'border-[#4285F4] bg-[#4285F4]/15 text-ink' : 'border-[#4285F4] text-ink'}`}
+            className={`flex items-center justify-center gap-3 rounded-control border-2 px-4 py-5 text-xl font-semibold disabled:opacity-60 ${here ? 'border-[#4285F4] bg-[#4285F4]/15 text-ink' : 'border-[#4285F4] text-ink'}`}
           >
             <svg
               viewBox="0 0 24 24"
