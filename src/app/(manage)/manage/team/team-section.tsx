@@ -39,109 +39,113 @@ export default async function TeamSection() {
     m.id !== userId && m.role !== 'owner' && !(profile.role === 'admin' && m.role === 'admin');
 
   return (
-    <div id="team" className="grid gap-6 lg:grid-cols-[1fr_22rem]">
-      <section className="grid content-start gap-4">
-        <h2 className="text-xl font-semibold tracking-tight">👥 თანამშრომლები</h2>
-
-        <ul className="grid gap-2">
-          {active.map((m) => (
-            <li
-              key={m.id}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-rule/70 px-4 py-3"
-            >
-              <div className="min-w-0">
-                <p className="font-medium">
-                  {m.full_name ?? m.email}
-                  {m.id === userId && <span className="text-ink-faint"> (შენ)</span>}
-                </p>
-                <p className="truncate text-xs text-ink-faint">
-                  {m.email} · {ROLE[m.role]}
-                </p>
-                {m.role === 'member' && (
-                  <form
-                    action={setModules.bind(null, m.id)}
-                    className="mt-2 flex flex-wrap items-center gap-3 text-sm"
-                  >
-                    {MOD.map(([k, v]) => (
-                      <label key={k} className="flex items-center gap-1">
+    <section id="team" className="grid content-start gap-4">
+      <h2 className="text-xl font-semibold tracking-tight">👥 თანამშრომლები</h2>
+      <InviteForm appUrl={appUrl} company={company.name} isOwner={profile.role === 'owner'} />
+      {/* The list stays folded: opened only to change modules or remove someone. */}
+      <details className="rounded-control border border-rule/70 p-4">
+        <summary className="cursor-pointer text-sm font-semibold">
+          სია და ცვლილებები ({active.length})
+        </summary>
+        <div className="mt-3 grid gap-4">
+          <ul className="grid gap-2">
+            {active.map((m) => (
+              <li
+                key={m.id}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-rule/70 px-4 py-3"
+              >
+                <div className="min-w-0">
+                  <p className="font-medium">
+                    {m.full_name ?? m.email}
+                    {m.id === userId && <span className="text-ink-faint"> (შენ)</span>}
+                  </p>
+                  <p className="truncate text-xs text-ink-faint">
+                    {m.email} · {ROLE[m.role]}
+                  </p>
+                  {m.role === 'member' && (
+                    <form
+                      action={setModules.bind(null, m.id)}
+                      className="mt-2 flex flex-wrap items-center gap-3 text-sm"
+                    >
+                      {MOD.map(([k, v]) => (
+                        <label key={k} className="flex items-center gap-1">
+                          <input
+                            type="checkbox"
+                            name="modules"
+                            value={k}
+                            defaultChecked={(m.modules ?? []).includes(k as never)}
+                          />{' '}
+                          {v}
+                        </label>
+                      ))}
+                      <label className="flex items-center gap-1 font-medium">
                         <input
                           type="checkbox"
-                          name="modules"
-                          value={k}
-                          defaultChecked={(m.modules ?? []).includes(k as never)}
+                          name="can_open"
+                          value="1"
+                          defaultChecked={m.can_open}
                         />{' '}
-                        {v}
+                        ➕ გახსნის უფლება
                       </label>
-                    ))}
-                    <label className="flex items-center gap-1 font-medium">
-                      <input
-                        type="checkbox"
-                        name="can_open"
-                        value="1"
-                        defaultChecked={m.can_open}
-                      />{' '}
-                      ➕ გახსნის უფლება
-                    </label>
+                      <button
+                        type="submit"
+                        className="rounded-control border border-rule-strong px-2 py-1 text-xs"
+                      >
+                        შენახვა
+                      </button>
+                    </form>
+                  )}
+                </div>
+                {canRemove(m) && (
+                  <form action={removeMember.bind(null, m.id)}>
                     <button
                       type="submit"
-                      className="rounded-control border border-rule-strong px-2 py-1 text-xs"
+                      className="rounded-control border border-mismatch/40 px-3 py-1.5 text-xs text-mismatch"
                     >
-                      შენახვა
+                      მოხსნა
                     </button>
                   </form>
                 )}
-              </div>
-              {canRemove(m) && (
-                <form action={removeMember.bind(null, m.id)}>
-                  <button
-                    type="submit"
-                    className="rounded-control border border-mismatch/40 px-3 py-1.5 text-xs text-mismatch"
-                  >
-                    მოხსნა
-                  </button>
-                </form>
-              )}
-            </li>
-          ))}
-        </ul>
-
-        {(invites ?? []).length > 0 && (
-          <div className="grid gap-2">
-            <h2 className="text-sm font-semibold">მოლოდინში (ჯერ არ დარეგისტრირებულა)</h2>
-            <ul className="grid gap-2">
-              {(invites ?? []).map((i) => (
-                <li
-                  key={i.id}
-                  className="flex items-center justify-between gap-3 rounded-control border border-dashed border-rule-strong px-4 py-2 text-sm"
-                >
-                  <span className="min-w-0 truncate">
-                    {i.email} · {ROLE[i.role]}
-                  </span>
-                  <form action={cancelInvite.bind(null, i.id)}>
-                    <button type="submit" className="text-xs text-ink-faint underline">
-                      გაუქმება
-                    </button>
-                  </form>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {removed.length > 0 && (
-          <div className="grid gap-1 text-sm text-ink-faint">
-            <h2 className="font-semibold">მოხსნილი (სახელი რჩება ძველ აქტებზე)</h2>
-            {removed.map((m) => (
-              <p key={m.id}>
-                {m.full_name ?? m.email} · {m.email}
-              </p>
+              </li>
             ))}
-            <p className="text-xs">დასაბრუნებლად ხელახლა მოიწვიე იმავე მეილზე.</p>
-          </div>
-        )}
-      </section>
+          </ul>
 
-      <InviteForm appUrl={appUrl} company={company.name} isOwner={profile.role === 'owner'} />
-    </div>
+          {(invites ?? []).length > 0 && (
+            <div className="grid gap-2">
+              <h2 className="text-sm font-semibold">მოლოდინში (ჯერ არ დარეგისტრირებულა)</h2>
+              <ul className="grid gap-2">
+                {(invites ?? []).map((i) => (
+                  <li
+                    key={i.id}
+                    className="flex items-center justify-between gap-3 rounded-control border border-dashed border-rule-strong px-4 py-2 text-sm"
+                  >
+                    <span className="min-w-0 truncate">
+                      {i.email} · {ROLE[i.role]}
+                    </span>
+                    <form action={cancelInvite.bind(null, i.id)}>
+                      <button type="submit" className="text-xs text-ink-faint underline">
+                        გაუქმება
+                      </button>
+                    </form>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {removed.length > 0 && (
+            <div className="grid gap-1 text-sm text-ink-faint">
+              <h2 className="font-semibold">მოხსნილი (სახელი რჩება ძველ აქტებზე)</h2>
+              {removed.map((m) => (
+                <p key={m.id}>
+                  {m.full_name ?? m.email} · {m.email}
+                </p>
+              ))}
+              <p className="text-xs">დასაბრუნებლად ხელახლა მოიწვიე იმავე მეილზე.</p>
+            </div>
+          )}
+        </div>
+      </details>
+    </section>
   );
 }
