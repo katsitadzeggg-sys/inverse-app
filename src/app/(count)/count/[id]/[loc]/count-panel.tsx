@@ -79,6 +79,8 @@ export default function CountPanel({
   const [message, setMessage] = useState<{ tone: 'error' | 'info'; text: string } | null>(null);
   const [pending, start] = useTransition();
   const qtyRef = useRef<HTMLInputElement>(null);
+  // The last lookup came from the camera: whatever was read is a code, never a name.
+  const scanned = useRef(false);
   const [cameraOn, setCameraOn] = useState(false);
   const [expiryDate, setExpiryDate] = useState('');
   const [expiryUnknown, setExpiryUnknown] = useState(false);
@@ -162,7 +164,8 @@ export default function CountPanel({
 
   /** Nothing found: the new-product form, the code or the name already filled in. */
   function openNew(text: string) {
-    const looksLikeCode = /^[A-Za-z0-9\-./]{4,30}$/.test(text);
+    const looksLikeCode = scanned.current || /^[A-Za-z0-9\-./]{4,30}$/.test(text);
+    scanned.current = false;
     setNewCode(looksLikeCode ? text : '');
     setNewName(looksLikeCode ? '' : text);
     setNewVariant('');
@@ -265,6 +268,7 @@ export default function CountPanel({
         label="პროდუქტის სკანირება"
         onCode={(c) => {
           scanFeedback(); // buzz + beep: the code was read
+          scanned.current = true;
           search(c);
         }}
         overlay={overlay}
@@ -273,6 +277,7 @@ export default function CountPanel({
       <form
         onSubmit={(e) => {
           e.preventDefault();
+          scanned.current = false; // typed, not scanned
           // 🔍 with nothing typed: straight to the new-product form.
           if (query.trim()) search(query);
           else openNew('');
