@@ -17,16 +17,23 @@ export async function createStocktake(_prev: FormState, formData: FormData): Pro
   const manager = isManager(session.profile.role);
   const requested = String(formData.get('kind') ?? 'stock');
   // A counter may open one only with the permission, and only in their modules.
-  if (!manager && !(session.profile.can_open && (session.profile.modules ?? []).includes(requested as never))) {
+  if (
+    !manager &&
+    !(session.profile.can_open && (session.profile.modules ?? []).includes(requested as never))
+  ) {
     return { error: 'ინვენტარიზაციის გახსნის უფლება არ გაქვს. მიმართე მენეჯერს.' };
   }
-  const client = (manager ? String(formData.get('client_name') ?? '').trim() : '') || session.company.name;
+  const client =
+    (manager ? String(formData.get('client_name') ?? '').trim() : '') || session.company.name;
   const branch = String(formData.get('branch') ?? '').trim();
   const date = String(formData.get('count_date') ?? '').trim();
-  const address = String(formData.get('address') ?? '').trim().slice(0, 300);
+  const address = String(formData.get('address') ?? '')
+    .trim()
+    .slice(0, 300);
   const lat = Number(formData.get('lat'));
   const lng = Number(formData.get('lng'));
-  const point = formData.get('lat') && Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : {};
+  const point =
+    formData.get('lat') && Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : {};
   const kindRaw = String(formData.get('kind') ?? 'stock');
   const kind = kindRaw === 'expiry' || kindRaw === 'assets' ? kindRaw : 'stock';
   if (!client) return { error: 'ჩაწერე კომპანია.' };
@@ -91,7 +98,11 @@ async function findShelf(companyId: string, text: string): Promise<Loc | null> {
   if (exact) return exact;
   const want = normCode(text);
   if (!want) return null;
-  const { data } = await supabase.from('locations').select('id, code, name').eq('company_id', companyId).limit(5000);
+  const { data } = await supabase
+    .from('locations')
+    .select('id, code, name')
+    .eq('company_id', companyId)
+    .limit(5000);
   return ((data ?? []) as Loc[]).find((l) => normCode(l.code) === want) ?? null;
 }
 
@@ -114,13 +125,18 @@ export async function matchShelf(text: string): Promise<Loc | null> {
  * they have an open shelf in this stocktake, another is refused. A shelf that
  * is not in the system can be created on the spot (unnumbered warehouses).
  */
-export async function openZone(stocktakeId: string, _prev: FormState, formData: FormData): Promise<FormState> {
+export async function openZone(
+  stocktakeId: string,
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
   const session = await requireSession();
   if (!session.canWrite) return { error: 'შენს როლს დათვლა არ შეუძლია.' };
   {
     const supabase = await createClient();
     const { data: allowed } = await supabase.rpc('can_count_in', { p_stocktake: stocktakeId });
-    if (allowed === false) return { error: 'ამ ინვენტარიზაციაზე არ ხარ დანიშნული. მიმართე მენეჯერს.' };
+    if (allowed === false)
+      return { error: 'ამ ინვენტარიზაციაზე არ ხარ დანიშნული. მიმართე მენეჯერს.' };
   }
   const code = String(formData.get('code') ?? '').trim();
   const create = formData.get('create') === '1';
@@ -130,7 +146,12 @@ export async function openZone(stocktakeId: string, _prev: FormState, formData: 
   const gAcc = Number(formData.get('acc'));
   const position =
     formData.get('lat') && Number.isFinite(gLat) && Number.isFinite(gLng)
-      ? { lat: gLat, lng: gLng, accuracy_m: Number.isFinite(gAcc) ? gAcc : null, located_at: new Date().toISOString() }
+      ? {
+          lat: gLat,
+          lng: gLng,
+          accuracy_m: Number.isFinite(gAcc) ? gAcc : null,
+          located_at: new Date().toISOString(),
+        }
       : {};
   const description = String(formData.get('name') ?? '').trim();
   if (!code && !create) return { error: 'დაასკანერე ან ჩაწერე თაროს კოდი.' };
@@ -150,10 +171,19 @@ export async function openZone(stocktakeId: string, _prev: FormState, formData: 
 
   // "Next room" on the room page: the room being left is closed on the way.
   // Fixed assets: opening another room closes the one left open.
-  const { data: stKind } = await supabase.from('stocktakes').select('kind').eq('id', stocktakeId).maybeSingle<{ kind: string }>();
-  const closing = String(formData.get('close') ?? '') || (stKind?.kind === 'assets' && open ? open.location_id : '');
+  const { data: stKind } = await supabase
+    .from('stocktakes')
+    .select('kind')
+    .eq('id', stocktakeId)
+    .maybeSingle<{ kind: string }>();
+  const closing =
+    String(formData.get('close') ?? '') ||
+    (stKind?.kind === 'assets' && open ? open.location_id : '');
   if (open && closing && open.location_id === closing && open.location_id !== location?.id) {
-    const { error } = await supabase.rpc('finish_stocktake_zone', { p_stocktake: stocktakeId, p_location: closing });
+    const { error } = await supabase.rpc('finish_stocktake_zone', {
+      p_stocktake: stocktakeId,
+      p_location: closing,
+    });
     if (error) return { error: error.message };
   } else if (open && open.location_id !== location?.id) {
     return { error: `ჯერ დახურე ${open.locations?.code ?? ''}, მერე გახსენი ახალი.` };
@@ -163,13 +193,25 @@ export async function openZone(stocktakeId: string, _prev: FormState, formData: 
     if (!create) return { error: `თარო „${code}“ სისტემაში არ არის.`, notice: 'missing' };
     let newCode = code;
     if (!newCode) {
-      const { data: zs } = await supabase.from('locations').select('code').eq('company_id', session.company.id).like('code', 'Z-%');
-      const max = Math.max(0, ...((zs ?? []) as { code: string }[]).map((z) => Number(z.code.slice(2)) || 0));
+      const { data: zs } = await supabase
+        .from('locations')
+        .select('code')
+        .eq('company_id', session.company.id)
+        .like('code', 'Z-%');
+      const max = Math.max(
+        0,
+        ...((zs ?? []) as { code: string }[]).map((z) => Number(z.code.slice(2)) || 0),
+      );
       newCode = `Z-${String(max + 1).padStart(3, '0')}`;
     }
     const { data: made, error } = await supabase
       .from('locations')
-      .insert({ company_id: session.company.id, code: newCode, name: description || newCode, kind: 'shelf' })
+      .insert({
+        company_id: session.company.id,
+        code: newCode,
+        name: description || newCode,
+        kind: 'shelf',
+      })
       .select('id, code, name')
       .single<Loc>();
     if (error) return { error: error.message };
@@ -190,11 +232,19 @@ export async function openZone(stocktakeId: string, _prev: FormState, formData: 
         .select('full_name, email')
         .eq('id', zone.counter_id ?? '')
         .maybeSingle<{ full_name: string | null; email: string }>();
-      return { error: `${location.code}-ს ითვლის ${who?.full_name ?? who?.email ?? 'სხვა თანამშრომელი'}.` };
+      return {
+        error: `${location.code}-ს ითვლის ${who?.full_name ?? who?.email ?? 'სხვა თანამშრომელი'}.`,
+      };
     }
     if (zone.status === 'done') {
-      if (!isManager(session.profile.role)) return { error: `${location.code} უკვე დახურულია. ხელახლა გახსნა მხოლოდ მენეჯერს შეუძლია.` };
-      await supabase.from('stocktake_zones').update({ status: 'counting', done_at: null, ...position }).eq('id', zone.id);
+      if (!isManager(session.profile.role))
+        return {
+          error: `${location.code} უკვე დახურულია. ხელახლა გახსნა მხოლოდ მენეჯერს შეუძლია.`,
+        };
+      await supabase
+        .from('stocktake_zones')
+        .update({ status: 'counting', done_at: null, ...position })
+        .eq('id', zone.id);
     } else if ('lat' in position) {
       await supabase.from('stocktake_zones').update(position).eq('id', zone.id);
     }
@@ -207,7 +257,12 @@ export async function openZone(stocktakeId: string, _prev: FormState, formData: 
       ...position,
     });
     if (error) {
-      return { error: error.code === '23505' ? 'ჯერ დახურე შენი ღია თარო / ოთახი, ან ამას სხვა ითვლის.' : error.message };
+      return {
+        error:
+          error.code === '23505'
+            ? 'ჯერ დახურე შენი ღია თარო / ოთახი, ან ამას სხვა ითვლის.'
+            : error.message,
+      };
     }
   }
   redirect(`/count/${stocktakeId}/${location.id}`);
@@ -217,7 +272,10 @@ export async function openZone(stocktakeId: string, _prev: FormState, formData: 
 export async function finishZone(stocktakeId: string, locationId: string): Promise<void> {
   await requireSession();
   const supabase = await createClient();
-  const { error } = await supabase.rpc('finish_stocktake_zone', { p_stocktake: stocktakeId, p_location: locationId });
+  const { error } = await supabase.rpc('finish_stocktake_zone', {
+    p_stocktake: stocktakeId,
+    p_location: locationId,
+  });
   if (error) throw new Error(error.message);
   revalidatePath(`/count/${stocktakeId}`);
   redirect(`/count/${stocktakeId}/${locationId}/done`);
@@ -227,16 +285,26 @@ export async function finishZone(stocktakeId: string, locationId: string): Promi
 export async function finishRoom(stocktakeId: string, locationId: string): Promise<void> {
   await requireSession();
   const supabase = await createClient();
-  const { error } = await supabase.rpc('finish_stocktake_zone', { p_stocktake: stocktakeId, p_location: locationId });
+  const { error } = await supabase.rpc('finish_stocktake_zone', {
+    p_stocktake: stocktakeId,
+    p_location: locationId,
+  });
   if (error) throw new Error(error.message);
   revalidatePath(`/count/${stocktakeId}`);
   redirect(`/count/${stocktakeId}`);
 }
 
 /** A note for the whole shelf (damage, mixed goods, no label …). */
-export async function saveZoneNote(stocktakeId: string, locationId: string, _prev: FormState, formData: FormData): Promise<FormState> {
+export async function saveZoneNote(
+  stocktakeId: string,
+  locationId: string,
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
   await requireSession();
-  const note = String(formData.get('note') ?? '').trim().slice(0, 2000);
+  const note = String(formData.get('note') ?? '')
+    .trim()
+    .slice(0, 2000);
   const supabase = await createClient();
   const { error } = await supabase
     .from('stocktake_zones')
@@ -286,6 +354,10 @@ export type EntryInput = {
   /** New product's unit (ცალი, კგ, ლ, ყუთი…) and variant (ზომა, ფერი, გემო). */
   newUnit?: string | null;
   newVariant?: string | null;
+  /** New product's factory serial, group (category) and a free comment. */
+  newSerial?: string | null;
+  newGroup?: string | null;
+  newNote?: string | null;
   unknownLabel: string | null;
   quantity: number;
   boxes: number | null;
@@ -294,11 +366,42 @@ export type EntryInput = {
   expiryDate?: string | null;
 };
 
-export async function addEntry(stocktakeId: string, locationId: string, input: EntryInput): Promise<FormState> {
+export async function addEntry(
+  stocktakeId: string,
+  locationId: string,
+  input: EntryInput,
+): Promise<FormState> {
   const session = await requireSession();
   if (!session.canWrite) return { error: 'შენს როლს დათვლა არ შეუძლია.' };
-  if (!Number.isFinite(input.quantity) || input.quantity < 0) return { error: 'რაოდენობა არასწორია.' };
+  if (!Number.isFinite(input.quantity) || input.quantity < 0)
+    return { error: 'რაოდენობა არასწორია.' };
   const supabase = await createClient();
+
+  // New product's group: an existing category of the company, or a new one.
+  let categoryId: string | null = null;
+  const group = input.newGroup?.trim();
+  if (!input.productId && group) {
+    const { data: cat } = await supabase
+      .from('categories')
+      .select('id')
+      .eq('company_id', session.company.id)
+      .ilike('name', group)
+      .limit(1)
+      .maybeSingle<{ id: string }>();
+    categoryId = cat?.id ?? null;
+    if (!categoryId) {
+      const { data: made } = await supabase
+        .from('categories')
+        .insert({ company_id: session.company.id, name: group })
+        .select('id')
+        .single<{ id: string }>();
+      categoryId = made?.id ?? null;
+    }
+  }
+  const description =
+    [input.newSerial?.trim() && `სერიული №: ${input.newSerial.trim()}`, input.newNote?.trim()]
+      .filter(Boolean)
+      .join('\n') || null;
 
   // A new barcode becomes a product on the spot, so the next scan finds it.
   // No barcode but a name: the product gets a code of its own (N-…).
@@ -312,6 +415,8 @@ export async function addEntry(stocktakeId: string, locationId: string, input: E
         name: input.newName.trim(),
         variant: input.newVariant?.trim() || null,
         unit: input.newUnit?.trim() || 'ცალი',
+        category_id: categoryId,
+        description,
       })
       .select('id')
       .single<{ id: string }>();
@@ -338,6 +443,8 @@ export async function addEntry(stocktakeId: string, locationId: string, input: E
           name: input.newName?.trim() || `ახალი · ${barcode}`,
           variant: input.newVariant?.trim() || null,
           unit: input.newUnit?.trim() || 'ცალი',
+          category_id: categoryId,
+          description,
         })
         .select('id')
         .single<{ id: string }>();
@@ -345,7 +452,8 @@ export async function addEntry(stocktakeId: string, locationId: string, input: E
       input.productId = made.id;
     }
   }
-  if (!input.productId && !input.unknownLabel?.trim()) return { error: 'აირჩიე პროდუქტი ან აღწერე.' };
+  if (!input.productId && !input.unknownLabel?.trim())
+    return { error: 'აირჩიე პროდუქტი ან აღწერე.' };
 
   const { error } = await supabase.from('stocktake_entries').insert({
     company_id: session.company.id,
@@ -356,15 +464,23 @@ export async function addEntry(stocktakeId: string, locationId: string, input: E
     quantity: input.quantity,
     boxes: input.boxes,
     per_box: input.perBox,
-    expiry_date: input.expiryDate && /^\d{4}-\d{2}-\d{2}$/.test(input.expiryDate) ? input.expiryDate : null,
+    expiry_date:
+      input.expiryDate && /^\d{4}-\d{2}-\d{2}$/.test(input.expiryDate) ? input.expiryDate : null,
     counter_id: session.userId,
   });
-  if (error) return { error: error.message.includes('closed') ? 'ინვენტარიზაცია დახურულია.' : error.message };
+  if (error)
+    return {
+      error: error.message.includes('closed') ? 'ინვენტარიზაცია დახურულია.' : error.message,
+    };
   revalidatePath(`/count/${stocktakeId}/${locationId}`);
   return { notice: 'ჩაიწერა' };
 }
 
-export async function deleteEntry(stocktakeId: string, locationId: string, entryId: string): Promise<void> {
+export async function deleteEntry(
+  stocktakeId: string,
+  locationId: string,
+  entryId: string,
+): Promise<void> {
   await requireSession();
   const supabase = await createClient();
   await supabase.from('stocktake_entries').delete().eq('id', entryId);
@@ -414,7 +530,11 @@ export async function recountItem(
   if (batches) {
     try {
       lines = (JSON.parse(String(batches)) as { qty: unknown; expiry: unknown }[])
-        .map((b) => ({ qty: Number(b.qty), expiry: typeof b.expiry === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(b.expiry) ? b.expiry : null }))
+        .map((b) => ({
+          qty: Number(b.qty),
+          expiry:
+            typeof b.expiry === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(b.expiry) ? b.expiry : null,
+        }))
         .filter((b) => Number.isFinite(b.qty) && b.qty >= 0);
     } catch {
       return { error: 'მონაცემები ვერ წავიკითხე.' };
@@ -434,7 +554,10 @@ export async function recountItem(
     .eq('stocktake_id', stocktakeId)
     .eq('location_id', locationId)
     .eq('product_id', productId);
-  if (delError) return { error: delError.message.includes('frozen') ? 'ეს პოზიცია გაყინულია.' : delError.message };
+  if (delError)
+    return {
+      error: delError.message.includes('frozen') ? 'ეს პოზიცია გაყინულია.' : delError.message,
+    };
   const { error } = await supabase.from('stocktake_entries').insert(
     lines.map((l) => ({
       company_id: session.company.id,
@@ -447,7 +570,8 @@ export async function recountItem(
       recounted: true,
     })),
   );
-  if (error) return { error: error.message.includes('frozen') ? 'ეს პოზიცია გაყინულია.' : error.message };
+  if (error)
+    return { error: error.message.includes('frozen') ? 'ეს პოზიცია გაყინულია.' : error.message };
   revalidatePath(`/count/${stocktakeId}/${locationId}`);
   return { notice: 'დადასტურდა' };
 }
@@ -488,10 +612,19 @@ export async function importBook(stocktakeId: string, rows: BookRow[]): Promise<
   const clean = rows
     .map((r) => {
       const barcode = r.barcode.trim();
-      return { ...r, barcode, code: r.code.trim() || barcode, name: r.name.trim(), location: r.location.trim(), unit: normUnit(r.unit), unitGiven: r.unit.trim() !== '' };
+      return {
+        ...r,
+        barcode,
+        code: r.code.trim() || barcode,
+        name: r.name.trim(),
+        location: r.location.trim(),
+        unit: normUnit(r.unit),
+        unitGiven: r.unit.trim() !== '',
+      };
     })
     .filter((r) => r.code && Number.isFinite(r.qty));
-  if (!clean.length) return { error: 'ფაილში ხაზი ვერ ვიპოვე: საჭიროა შტრიხკოდი (ან კოდი) და ნაშთი.' };
+  if (!clean.length)
+    return { error: 'ფაილში ხაზი ვერ ვიპოვე: საჭიროა შტრიხკოდი (ან კოდი) და ნაშთი.' };
   if (clean.length > 20000) return { error: 'ერთ ჯერზე მაქსიმუმ 20 000 ხაზი.' };
 
   const supabase = await createClient();
@@ -504,12 +637,17 @@ export async function importBook(stocktakeId: string, rows: BookRow[]): Promise<
     const chunk = codes.slice(i, i + 500);
     const [{ data: bySku }, { data: byBarcode }] = await Promise.all([
       supabase.from('products').select('id, sku').eq('company_id', company).in('sku', chunk),
-      supabase.from('products').select('id, barcode').eq('company_id', company).in('barcode', chunk),
+      supabase
+        .from('products')
+        .select('id, barcode')
+        .eq('company_id', company)
+        .in('barcode', chunk),
     ]);
     for (const p of byBarcode ?? []) if (p.barcode) products.set(p.barcode, p.id);
     for (const p of bySku ?? []) products.set(p.sku, p.id);
   }
-  const known = (r: { code: string; barcode: string }) => products.get(r.code) ?? (r.barcode ? products.get(r.barcode) : undefined);
+  const known = (r: { code: string; barcode: string }) =>
+    products.get(r.code) ?? (r.barcode ? products.get(r.barcode) : undefined);
   const firstByCode = new Map<string, (typeof clean)[number]>();
   for (const r of clean) if (!known(r) && !firstByCode.has(r.code)) firstByCode.set(r.code, r);
   const missing = [...firstByCode.values()];
@@ -535,7 +673,10 @@ export async function importBook(stocktakeId: string, rows: BookRow[]): Promise<
   for (const [id, unit] of unitUpdates) byUnit.set(unit, [...(byUnit.get(unit) ?? []), id]);
   for (const [unit, ids] of byUnit) {
     for (let i = 0; i < ids.length; i += 300) {
-      await supabase.from('products').update({ unit }).in('id', ids.slice(i, i + 300));
+      await supabase
+        .from('products')
+        .update({ unit })
+        .in('id', ids.slice(i, i + 300));
     }
   }
 
@@ -544,19 +685,37 @@ export async function importBook(stocktakeId: string, rows: BookRow[]): Promise<
   const locations = new Map<string, string>();
   let newShelves = 0;
   if (locCodes.length) {
-    const { data } = await supabase.from('locations').select('id, code').eq('company_id', company).in('code', locCodes);
+    const { data } = await supabase
+      .from('locations')
+      .select('id, code')
+      .eq('company_id', company)
+      .in('code', locCodes);
     for (const l of data ?? []) locations.set(l.code, l.id);
-    const newLocs = locCodes.filter((c) => !locations.has(c)).map((code) => ({ company_id: company, code, name: code, kind: 'shelf' as const }));
+    const newLocs = locCodes
+      .filter((c) => !locations.has(c))
+      .map((code) => ({ company_id: company, code, name: code, kind: 'shelf' as const }));
     newShelves = newLocs.length;
     if (newLocs.length) {
-      const { data: made, error } = await supabase.from('locations').insert(newLocs).select('id, code');
+      const { data: made, error } = await supabase
+        .from('locations')
+        .insert(newLocs)
+        .select('id, code');
       if (error) return { error: `თაროების დამატება ვერ მოხერხდა: ${error.message}` };
       for (const l of made ?? []) locations.set(l.code, l.id);
     }
   }
 
   // Same item on the same shelf twice in the file: add the quantities up.
-  const merged = new Map<string, { product_id: string; location_id: string | null; book_qty: number; unit_cost: number | null; expiry_date: string | null }>();
+  const merged = new Map<
+    string,
+    {
+      product_id: string;
+      location_id: string | null;
+      book_qty: number;
+      unit_cost: number | null;
+      expiry_date: string | null;
+    }
+  >();
   for (const r of clean) {
     const product_id = known(r)!;
     const location_id = r.location ? locations.get(r.location)! : null;
@@ -564,12 +723,20 @@ export async function importBook(stocktakeId: string, rows: BookRow[]): Promise<
     const key = `${product_id}|${location_id ?? ''}|${expiry_date ?? ''}`;
     const prev = merged.get(key);
     if (prev) prev.book_qty += r.qty;
-    else merged.set(key, { product_id, location_id, book_qty: r.qty, unit_cost: r.cost, expiry_date });
+    else
+      merged.set(key, { product_id, location_id, book_qty: r.qty, unit_cost: r.cost, expiry_date });
   }
 
-  const { error: delError } = await supabase.from('stocktake_book').delete().eq('stocktake_id', stocktakeId);
+  const { error: delError } = await supabase
+    .from('stocktake_book')
+    .delete()
+    .eq('stocktake_id', stocktakeId);
   if (delError) return { error: delError.message };
-  const lines = [...merged.values()].map((m) => ({ ...m, company_id: company, stocktake_id: stocktakeId }));
+  const lines = [...merged.values()].map((m) => ({
+    ...m,
+    company_id: company,
+    stocktake_id: stocktakeId,
+  }));
   for (let i = 0; i < lines.length; i += 1000) {
     const { error } = await supabase.from('stocktake_book').insert(lines.slice(i, i + 1000));
     if (error) return { error: error.message };
@@ -581,7 +748,10 @@ export async function importBook(stocktakeId: string, rows: BookRow[]): Promise<
 }
 
 /** Signed links for the shelf photos/videos, for the ZIP download. */
-export async function mediaForExport(stocktakeId: string, shelf: string): Promise<{ name: string; url: string }[]> {
+export async function mediaForExport(
+  stocktakeId: string,
+  shelf: string,
+): Promise<{ name: string; url: string }[]> {
   await requireSession();
   const supabase = await createClient();
   let q = supabase
@@ -590,14 +760,28 @@ export async function mediaForExport(stocktakeId: string, shelf: string): Promis
     .eq('stocktake_id', stocktakeId)
     .order('created_at');
   if (shelf !== 'all') q = q.eq('location_id', shelf);
-  const { data } = await q.returns<{ path: string; kind: string; poster_path: string | null; created_at: string; locations: { code: string } | null; asset_checks: { inv_no: string } | null }[]>();
+  const { data } =
+    await q.returns<
+      {
+        path: string;
+        kind: string;
+        poster_path: string | null;
+        created_at: string;
+        locations: { code: string } | null;
+        asset_checks: { inv_no: string } | null;
+      }[]
+    >();
   const counters = new Map<string, number>();
   const sign = async (path: string) =>
-    (await supabase.storage.from('stocktake-media').createSignedUrl(path, 60 * 30)).data?.signedUrl ?? '';
+    (await supabase.storage.from('stocktake-media').createSignedUrl(path, 60 * 30)).data
+      ?.signedUrl ?? '';
   const files = await Promise.all(
     (data ?? []).map(async (m) => {
       // Fixed assets: one folder per inventory number; otherwise per shelf.
-      const folder = (m.asset_checks?.inv_no ?? m.locations?.code ?? 'თარო').replace(/[\\/:*?"<>|]/g, '_');
+      const folder = (m.asset_checks?.inv_no ?? m.locations?.code ?? 'თარო').replace(
+        /[\\/:*?"<>|]/g,
+        '_',
+      );
       const n = (counters.get(folder) ?? 0) + 1;
       counters.set(folder, n);
       const ext = m.path.split('.').pop() ?? (m.kind === 'video' ? 'mp4' : 'jpg');
@@ -612,7 +796,10 @@ export async function mediaForExport(stocktakeId: string, shelf: string): Promis
 }
 
 /** Owners/admins close a stocktake (no more counting) or reopen it. */
-export async function setStocktakeStatus(stocktakeId: string, status: 'open' | 'closed'): Promise<void> {
+export async function setStocktakeStatus(
+  stocktakeId: string,
+  status: 'open' | 'closed',
+): Promise<void> {
   const session = await requireSession();
   if (!isManager(session.profile.role)) return;
   const supabase = await createClient();
@@ -631,7 +818,10 @@ export async function setStocktakeArchived(stocktakeId: string, archived: boolea
   const supabase = await createClient();
   await supabase
     .from('stocktakes')
-    .update({ archived_at: archived ? new Date().toISOString() : null, ...(archived ? { status: 'closed', closed_at: new Date().toISOString() } : {}) })
+    .update({
+      archived_at: archived ? new Date().toISOString() : null,
+      ...(archived ? { status: 'closed', closed_at: new Date().toISOString() } : {}),
+    })
     .eq('id', stocktakeId);
   revalidatePath(`/manage/${stocktakeId}`);
   revalidatePath('/manage');
@@ -642,14 +832,31 @@ export async function setStocktakeArchived(stocktakeId: string, archived: boolea
 export async function setStocktakeMembers(stocktakeId: string, formData: FormData): Promise<void> {
   const session = await requireSession();
   if (!isManager(session.profile.role)) return;
-  const ids = formData.getAll('member').map(String).filter((v) => /^[0-9a-f-]{36}$/.test(v));
+  const ids = formData
+    .getAll('member')
+    .map(String)
+    .filter((v) => /^[0-9a-f-]{36}$/.test(v));
   const supabase = await createClient();
   await supabase.from('stocktake_members').delete().eq('stocktake_id', stocktakeId);
   if (ids.length) {
     await supabase
       .from('stocktake_members')
-      .insert(ids.map((user_id) => ({ stocktake_id: stocktakeId, user_id, company_id: session.company.id })));
+      .insert(
+        ids.map((user_id) => ({
+          stocktake_id: stocktakeId,
+          user_id,
+          company_id: session.company.id,
+        })),
+      );
   }
   revalidatePath(`/manage/${stocktakeId}`);
   revalidatePath('/count');
+}
+
+/** Product groups (categories) of the company, for the new-product form. */
+export async function productGroups(): Promise<string[]> {
+  await requireSession();
+  const supabase = await createClient();
+  const { data } = await supabase.from('categories').select('name').order('name').limit(500);
+  return [...new Set((data ?? []).map((c) => c.name as string))];
 }

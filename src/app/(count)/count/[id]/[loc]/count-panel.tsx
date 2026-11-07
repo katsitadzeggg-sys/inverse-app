@@ -1,9 +1,11 @@
 'use client';
 
-import { useRef, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { Alert, inputClass } from '@/components/ui';
 import Scanner from '../../scanner';
-import { addEntry, findProducts, type ProductHit } from '../../actions';
+import { addEntry, findProducts, productGroups, type ProductHit } from '../../actions';
+import ComboInput from '@/components/combo-input';
+import SerialField from './serial-field';
 import {
   EXPIRY_LABEL,
   expiryFromText,
@@ -63,6 +65,15 @@ export default function CountPanel({
   const [newCode, setNewCode] = useState('');
   const [newVariant, setNewVariant] = useState('');
   const [newUnit, setNewUnit] = useState('ცალი');
+  const [newSerial, setNewSerial] = useState('');
+  const [newGroup, setNewGroup] = useState('');
+  const [newNote, setNewNote] = useState('');
+  const [groups, setGroups] = useState<string[]>([]);
+  useEffect(() => {
+    productGroups()
+      .then(setGroups)
+      .catch(() => {});
+  }, []);
   const [qty, setQty] = useState('');
   const [message, setMessage] = useState<{ tone: 'error' | 'info'; text: string } | null>(null);
   const [pending, start] = useTransition();
@@ -156,6 +167,8 @@ export default function CountPanel({
     setNewCode(looksLikeCode ? text : '');
     setNewName(looksLikeCode ? '' : text);
     setNewVariant('');
+    setNewSerial('');
+    setNewNote('');
     setNewUnit('ცალი');
     setQty('1');
     setExpiryDate('');
@@ -204,6 +217,9 @@ export default function CountPanel({
         newName: product ? null : newName,
         newUnit: product ? null : newOpen ? newUnit : null,
         newVariant: product ? null : newOpen ? newVariant : null,
+        newSerial: product ? null : newOpen ? newSerial : null,
+        newGroup: product ? null : newOpen ? newGroup : null,
+        newNote: product ? null : newOpen ? newNote : null,
         quantity: total,
         boxes: null,
         perBox: null,
@@ -329,7 +345,7 @@ export default function CountPanel({
                 />
               </label>
               <label className="grid gap-1 text-sm text-ink-soft">
-                შტრიხკოდი / კოდი
+                შტრიხკოდი
                 <input
                   value={newCode}
                   onChange={(e) => setNewCode(e.target.value)}
@@ -337,13 +353,28 @@ export default function CountPanel({
                   className={`${inputClass} py-4 text-lg`}
                 />
               </label>
-              <label className="grid gap-1 text-sm text-ink-soft">
-                ზომა / ფერი / გემო
-                <input
-                  value={newVariant}
-                  onChange={(e) => setNewVariant(e.target.value)}
-                  placeholder="მაგ. 0.5ლ, მსხალი"
+              <div className="grid gap-1 text-sm text-ink-soft">
+                სერიული ნომერი
+                <SerialField value={newSerial} onChange={setNewSerial} />
+              </div>
+              <div className="grid gap-1 text-sm text-ink-soft">
+                ჯგუფი
+                <ComboInput
+                  value={newGroup}
+                  onChange={setNewGroup}
+                  options={groups}
+                  placeholder="მაგ. სასმელები"
                   className={`${inputClass} py-4 text-lg`}
+                />
+              </div>
+              <label className="grid gap-1 text-sm text-ink-soft">
+                კომენტარი
+                <textarea
+                  value={newNote}
+                  onChange={(e) => setNewNote(e.target.value)}
+                  rows={2}
+                  placeholder="დეტალები, ზომა, ფერი"
+                  className={`${inputClass} text-lg`}
                 />
               </label>
               <div className="grid gap-1 text-sm text-ink-soft">
