@@ -35,8 +35,8 @@ export default async function SitesPage() {
         <section className="grid content-start gap-4">
           <h2 className="text-xl font-semibold tracking-tight">🏬 საწყობები და ობიექტები</h2>
           <SiteForms />
-          <details className="rounded-control border border-rule/70 p-4">
-            <summary className="cursor-pointer text-sm font-semibold">
+          <details className="rounded-control border border-accent/50 bg-accent/5 p-4">
+            <summary className="cursor-pointer text-sm font-semibold text-accent">
               სია და ცვლილებები ({list.length})
             </summary>
             <div className="mt-3">

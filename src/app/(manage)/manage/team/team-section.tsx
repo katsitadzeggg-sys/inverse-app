@@ -43,8 +43,8 @@ export default async function TeamSection() {
       <h2 className="text-xl font-semibold tracking-tight">👥 თანამშრომლები</h2>
       <InviteForm appUrl={appUrl} company={company.name} isOwner={profile.role === 'owner'} />
       {/* The list stays folded: opened only to change modules or remove someone. */}
-      <details className="rounded-control border border-rule/70 p-4">
-        <summary className="cursor-pointer text-sm font-semibold">
+      <details className="rounded-control border border-accent/50 bg-accent/5 p-4">
+        <summary className="cursor-pointer text-sm font-semibold text-accent">
           სია და ცვლილებები ({active.length})
         </summary>
         <div className="mt-3 grid gap-4">
@@ -52,55 +52,58 @@ export default async function TeamSection() {
             {active.map((m) => (
               <li
                 key={m.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-rule/70 px-4 py-3"
+                className="flex items-center gap-3 rounded-control border border-rule/70 px-3 py-2 text-sm"
               >
-                <div className="min-w-0">
-                  <p className="font-medium">
-                    {m.full_name ?? m.email}
-                    {m.id === userId && <span className="text-ink-faint"> (შენ)</span>}
-                  </p>
-                  <p className="truncate text-xs text-ink-faint">
-                    {m.email} · {ROLE[m.role]}
-                  </p>
-                  {m.role === 'member' && (
-                    <form
-                      action={setModules.bind(null, m.id)}
-                      className="mt-2 flex flex-wrap items-center gap-3 text-sm"
-                    >
-                      {MOD.map(([k, v]) => (
-                        <label key={k} className="flex items-center gap-1">
-                          <input
-                            type="checkbox"
-                            name="modules"
-                            value={k}
-                            defaultChecked={(m.modules ?? []).includes(k as never)}
-                          />{' '}
-                          {v}
-                        </label>
-                      ))}
-                      <label className="flex items-center gap-1 font-medium">
+                {/* One line per person: name · email · role, modules, save, remove. */}
+                <span className="min-w-0 flex-1 truncate">
+                  <b>{m.full_name ?? m.email}</b>
+                  {m.id === userId && <span className="text-ink-faint"> (შენ)</span>}
+                  <span className="text-ink-faint">
+                    {' '}
+                    · {m.email} · {ROLE[m.role]}
+                  </span>
+                </span>
+                {m.role === 'member' && (
+                  <form
+                    action={setModules.bind(null, m.id)}
+                    className="flex shrink-0 items-center gap-2"
+                  >
+                    {MOD.map(([k, v]) => (
+                      <label key={k} title={v} className="flex items-center gap-0.5">
                         <input
                           type="checkbox"
-                          name="can_open"
-                          value="1"
-                          defaultChecked={m.can_open}
-                        />{' '}
-                        ➕ გახსნის უფლება
+                          name="modules"
+                          value={k}
+                          defaultChecked={(m.modules ?? []).includes(k as never)}
+                        />
+                        {v.split(' ')[0]}
                       </label>
-                      <button
-                        type="submit"
-                        className="rounded-control border border-rule-strong px-2 py-1 text-xs"
-                      >
-                        შენახვა
-                      </button>
-                    </form>
-                  )}
-                </div>
-                {canRemove(m) && (
-                  <form action={removeMember.bind(null, m.id)}>
+                    ))}
+                    <label
+                      title="ინვენტარიზაციის გახსნის უფლება"
+                      className="flex items-center gap-0.5"
+                    >
+                      <input
+                        type="checkbox"
+                        name="can_open"
+                        value="1"
+                        defaultChecked={m.can_open}
+                      />
+                      ➕
+                    </label>
                     <button
                       type="submit"
-                      className="rounded-control border border-mismatch/40 px-3 py-1.5 text-xs text-mismatch"
+                      className="rounded-control border border-rule-strong px-2 py-0.5 text-xs"
+                    >
+                      შენახვა
+                    </button>
+                  </form>
+                )}
+                {canRemove(m) && (
+                  <form action={removeMember.bind(null, m.id)} className="shrink-0">
+                    <button
+                      type="submit"
+                      className="rounded-control border border-mismatch/40 px-2 py-0.5 text-xs text-mismatch"
                     >
                       მოხსნა
                     </button>
@@ -112,18 +115,20 @@ export default async function TeamSection() {
 
           {(invites ?? []).length > 0 && (
             <div className="grid gap-2">
-              <h2 className="text-sm font-semibold">მოლოდინში (ჯერ არ დარეგისტრირებულა)</h2>
+              <h2 className="text-sm font-semibold text-review">
+                ⏳ მოლოდინში (ჯერ არ დარეგისტრირებულა)
+              </h2>
               <ul className="grid gap-2">
                 {(invites ?? []).map((i) => (
                   <li
                     key={i.id}
-                    className="flex items-center justify-between gap-3 rounded-control border border-dashed border-rule-strong px-4 py-2 text-sm"
+                    className="flex items-center justify-between gap-3 rounded-control border border-dashed border-review/70 bg-review/10 px-3 py-2 text-sm"
                   >
                     <span className="min-w-0 truncate">
                       {i.email} · {ROLE[i.role]}
                     </span>
                     <form action={cancelInvite.bind(null, i.id)}>
-                      <button type="submit" className="text-xs text-ink-faint underline">
+                      <button type="submit" className="text-xs text-review underline">
                         გაუქმება
                       </button>
                     </form>
