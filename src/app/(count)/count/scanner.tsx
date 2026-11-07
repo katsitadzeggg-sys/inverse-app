@@ -39,6 +39,9 @@ export default function Scanner({
   overlay,
   onOpenChange,
   variant = 'default',
+  fullscreen = false,
+  closeOnCode = false,
+  closeKey = 0,
 }: {
   onCode: (code: string) => void;
   label?: string;
@@ -47,6 +50,12 @@ export default function Scanner({
   onOpenChange?: (open: boolean) => void;
   /** 'big': large green button with a barcode picture (fixed-asset screen). */
   variant?: 'default' | 'big';
+  /** Stock app: the camera fills the screen, corner marks, a torch and ✕ (like the iPhone code scanner). */
+  fullscreen?: boolean;
+  /** Close the camera as soon as a code is read (shelf QR). */
+  closeOnCode?: boolean;
+  /** Changing this number closes the camera (e.g. the product was not found and its form must show). */
+  closeKey?: number;
 }) {
   const [on, setOn] = useState(false);
   const onOpenRef = useRef(onOpenChange);
@@ -57,9 +66,22 @@ export default function Scanner({
     onOpenRef.current?.(on);
   }, [on]);
   const [status, setStatus] = useState<string | null>(null);
+  // Torch, where the phone lets a web page switch it (not on every iPhone).
+  const trackRef = useRef<MediaStreamTrack | null>(null);
+  const [torchable, setTorchable] = useState(false);
+  const [torch, setTorch] = useState(false);
+  useEffect(() => {
+    if (!closeKey) return;
+    const t = setTimeout(() => setOn(false), 0);
+    return () => clearTimeout(t);
+  }, [closeKey]);
   const [error, setError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const last = useRef<{ code: string; at: number }>({ code: '', at: 0 });
+  const closeOnRef = useRef(closeOnCode);
+  useEffect(() => {
+    closeOnRef.current = closeOnCode;
+  }, [closeOnCode]);
   const onCodeRef = useRef(onCode);
   useEffect(() => {
     onCodeRef.current = onCode;
@@ -94,6 +116,9 @@ export default function Scanner({
       video.srcObject = stream;
       await video.play().catch(() => {});
       const track = stream.getVideoTracks()[0];
+      trackRef.current = track ?? null;
+      const caps = (track?.getCapabilities?.() ?? {}) as { torch?: boolean };
+      setTorchable(!!caps.torch);
       // Continuous focus where the phone supports it; ignored elsewhere.
       track
         ?.applyConstraints({ advanced: [{ focusMode: 'continuous' } as MediaTrackConstraintSet] })
@@ -131,6 +156,7 @@ export default function Scanner({
               // The result is shown on the picture (overlay), not as a text line.
               setStatus(null);
               onCodeRef.current(code);
+              if (closeOnRef.current) setOn(false);
             }
           }
         } catch {
@@ -145,8 +171,18 @@ export default function Scanner({
       stopped = true;
       window.clearTimeout(timer);
       stream?.getTracks().forEach((t) => t.stop());
+      trackRef.current = null;
+      setTorch(false);
     };
   }, [on]);
+
+  function toggleTorch() {
+    const next = !torch;
+    trackRef.current
+      ?.applyConstraints({ advanced: [{ torch: next } as MediaTrackConstraintSet] })
+      .then(() => setTorch(next))
+      .catch(() => setTorchable(false));
+  }
 
   return (
     <div className="grid gap-2">
@@ -173,7 +209,41 @@ export default function Scanner({
         )}
         {on ? 'კამერის დახურვა' : variant === 'big' ? label : `📷 ${label}`}
       </button>
-      {on && (
+      {on && fullscreen && (
+        <div className="fixed inset-0 z-50 bg-black">
+          <video ref={videoRef} muted playsInline autoPlay className="absolute inset-0 h-full w-full object-cover" />
+          {/* Four corner marks, as on the iPhone code scanner. */}
+          <svg viewBox="0 0 100 100" className="pointer-events-none absolute left-1/2 top-[42%] w-[72vw] max-w-sm -translate-x-1/2 -translate-y-1/2" fill="none" stroke="white" strokeWidth="3.2" strokeLinecap="round" aria-hidden="true">
+            <path d="M4 22 V12 A8 8 0 0 1 12 4 H22" />
+            <path d="M78 4 H88 A8 8 0 0 1 96 12 V22" />
+            <path d="M96 78 V88 A8 8 0 0 1 88 96 H78" />
+            <path d="M22 96 H12 A8 8 0 0 1 4 88 V78" />
+          </svg>
+          <button
+            type="button"
+            onClick={() => setOn(false)}
+            aria-label="დახურვა"
+            className="absolute right-4 top-[max(1rem,env(safe-area-inset-top))] flex h-12 w-12 items-center justify-center rounded-full bg-black/55 text-2xl text-white"
+          >
+            ✕
+          </button>
+          {status && <p className="pointer-events-none absolute inset-x-0 top-[max(1.2rem,env(safe-area-inset-top))] px-16 text-center text-sm text-white/85">{status}</p>}
+          <div className="absolute inset-x-0 bottom-0 grid gap-3 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+            {overlay && <div className="rounded-2xl bg-black/70 p-4 text-white backdrop-blur">{overlay}</div>}
+            {torchable && (
+              <button
+                type="button"
+                onClick={toggleTorch}
+                aria-label="ფანარი"
+                className={`mx-auto flex h-14 w-14 items-center justify-center rounded-full text-2xl ${torch ? 'bg-white text-black' : 'bg-black/60 text-white'}`}
+              >
+                🔦
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+      {on && !fullscreen && (
         <div className="relative overflow-hidden rounded-control bg-black">
           <video ref={videoRef} muted playsInline autoPlay className="aspect-[4/3] w-full object-cover" />
           {/* Guide: the band the reader looks at. */}

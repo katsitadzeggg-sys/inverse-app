@@ -81,6 +81,8 @@ export default function CountPanel({
   const qtyRef = useRef<HTMLInputElement>(null);
   // The last lookup came from the camera: whatever was read is a code, never a name.
   const scanned = useRef(false);
+  // Bumped to close the full-screen camera.
+  const [closeCamera, setCloseCamera] = useState(0);
   const [cameraOn, setCameraOn] = useState(false);
   const [expiryDate, setExpiryDate] = useState('');
   const [expiryUnknown, setExpiryUnknown] = useState(false);
@@ -149,16 +151,9 @@ export default function CountPanel({
       if (exact) return choose(exact, gs1?.expiry ?? null);
       setHits(found);
       setProduct(null);
-      if (!found.length && /^\d{6,14}$/.test(q.trim())) {
-        setNewBarcode(q.trim());
-        setQty('1');
-        setExpiryDate(gs1?.expiry ?? '');
-        setExpiryUnknown(false);
-        setNewName('');
-        setUnknown(null);
-        setMessage(null);
-        focusQty();
-      } else if (!found.length) openNew(q.trim());
+      // Not found, or several to pick from: the camera steps aside for the form / the list.
+      if (!found.length) openNew(q.trim());
+      setCloseCamera((k) => k + 1);
     });
   }
 
@@ -244,22 +239,43 @@ export default function CountPanel({
 
   const chosen = product || newBarcode || newOpen || unknown !== null;
 
-  // What was just read, written on the camera picture itself.
+  // What was just read, on the camera picture itself; in the stock app with
+  // the quantity and Next, so a whole shelf is counted without leaving the camera.
+  const lastSaved = message?.tone === 'info' ? message.text : null;
   const overlay = product ? (
-    <>
-      <p className="truncate text-sm font-semibold leading-tight">{product.name}</p>
-      <p className="text-xs leading-tight text-white/75">
-        {product.barcode ?? product.sku} · {unitLabel(product.unit)}
-      </p>
-      {expiry && expiryDate && (
-        <p className="text-xs leading-tight text-white/90">ვადა {fmtDate(expiryDate)}</p>
+    <div className="grid gap-3">
+      <div>
+        <p className="text-lg font-semibold leading-tight">{product.name}</p>
+        <p className="text-sm leading-tight text-white/70">
+          {product.barcode ?? product.sku} · {unitLabel(product.unit)}
+        </p>
+        {expiry && expiryDate && <p className="text-sm leading-tight text-white/90">ვადა {fmtDate(expiryDate)}</p>}
+      </div>
+      {!expiry && (
+        <>
+          <div className="grid grid-cols-[4rem_1fr_4rem] items-center gap-2">
+            <button type="button" onClick={() => setQty(String(Math.max(0, (Number(qty) || 0) - 1)))} className="h-14 rounded-xl bg-white/15 text-3xl">
+              −
+            </button>
+            <input
+              value={qty}
+              onChange={(e) => setQty(e.target.value.replace(/[^0-9]/g, ''))}
+              onFocus={(e) => e.currentTarget.select()}
+              inputMode="numeric"
+              className="h-14 rounded-xl bg-white text-center text-3xl font-semibold text-black"
+            />
+            <button type="button" onClick={() => setQty(String((Number(qty) || 0) + 1))} className="h-14 rounded-xl bg-white/15 text-3xl">
+              +
+            </button>
+          </div>
+          <button type="button" onClick={next} disabled={pending} className="h-14 rounded-xl bg-match text-xl font-semibold text-white disabled:opacity-60">
+            {pending ? '…' : 'შემდეგი →'}
+          </button>
+        </>
       )}
-    </>
-  ) : newBarcode ? (
-    <>
-      <p className="text-sm font-semibold leading-tight text-red-400">ახალი პროდუქტი</p>
-      <p className="text-xs leading-tight text-white/75">{newBarcode} · ცალი</p>
-    </>
+    </div>
+  ) : lastSaved ? (
+    <p className="text-center text-base font-semibold text-match">{lastSaved}</p>
   ) : null;
 
   return (
@@ -273,6 +289,8 @@ export default function CountPanel({
         }}
         overlay={overlay}
         onOpenChange={setCameraOn}
+        fullscreen={!expiry}
+        closeKey={closeCamera}
       />
       <form
         onSubmit={(e) => {

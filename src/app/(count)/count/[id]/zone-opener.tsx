@@ -59,7 +59,7 @@ export default function ZoneOpener({ stocktakeId, shelves }: { stocktakeId: stri
 
   return (
     <section className="grid gap-4">
-      <Scanner label="თაროს QR" onCode={go} variant="big" />
+      <Scanner label="თაროს QR" onCode={go} variant="big" fullscreen closeOnCode />
 
       <form
         onSubmit={(e) => {
