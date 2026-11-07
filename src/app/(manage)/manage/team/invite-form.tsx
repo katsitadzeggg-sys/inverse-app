@@ -101,7 +101,7 @@ export default function InviteForm({
           <p className="font-semibold text-match">✓ მოწვევა შენახულია</p>
           <p className="text-ink-soft">გაუგზავნე ეს ტექსტი:</p>
           <p className="select-all rounded-control border border-rule/70 p-2">{message}</p>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             <button
               type="button"
               className="rounded-control border border-rule-strong px-3 py-2"
@@ -123,6 +123,13 @@ export default function InviteForm({
               className="rounded-control border border-rule-strong px-3 py-2 text-center"
             >
               WhatsApp
+            </a>
+            {/* Opens the manager's own mail app with the letter ready to send. */}
+            <a
+              href={`mailto:${state.notice}?subject=${encodeURIComponent(`მოწვევა — ${company}`)}&body=${encodeURIComponent(message)}`}
+              className="rounded-control border border-rule-strong px-3 py-2 text-center"
+            >
+              ✉ მეილი
             </a>
           </div>
         </div>
