@@ -524,7 +524,12 @@ export async function closeZone(stocktakeId: string, locationId: string): Promis
  * the earlier lines for that item), then the shelf is checked against the book
  * again. Items left empty count as not found (0).
  */
-export async function recountAll(stocktakeId: string, locationId: string, _prev: FormState, formData: FormData): Promise<FormState> {
+export async function recountAll(
+  stocktakeId: string,
+  locationId: string,
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
   const session = await requireSession();
   const supabase = await createClient();
   for (const [key, value] of formData.entries()) {
@@ -533,8 +538,16 @@ export async function recountAll(stocktakeId: string, locationId: string, _prev:
     const raw = String(value).trim();
     const qty = raw === '' ? 0 : Number(raw.replace(',', '.'));
     if (!Number.isFinite(qty) || qty < 0) return { error: 'რაოდენობა არასწორია.' };
-    const { error: delError } = await supabase.from('stocktake_entries').delete().eq('stocktake_id', stocktakeId).eq('location_id', locationId).eq('product_id', productId);
-    if (delError) return { error: delError.message.includes('frozen') ? 'ეს პოზიცია გაყინულია.' : delError.message };
+    const { error: delError } = await supabase
+      .from('stocktake_entries')
+      .delete()
+      .eq('stocktake_id', stocktakeId)
+      .eq('location_id', locationId)
+      .eq('product_id', productId);
+    if (delError)
+      return {
+        error: delError.message.includes('frozen') ? 'ეს პოზიცია გაყინულია.' : delError.message,
+      };
     const { error } = await supabase.from('stocktake_entries').insert({
       company_id: session.company.id,
       stocktake_id: stocktakeId,
@@ -544,7 +557,8 @@ export async function recountAll(stocktakeId: string, locationId: string, _prev:
       counter_id: session.userId,
       recounted: true,
     });
-    if (error) return { error: error.message.includes('frozen') ? 'ეს პოზიცია გაყინულია.' : error.message };
+    if (error)
+      return { error: error.message.includes('frozen') ? 'ეს პოზიცია გაყინულია.' : error.message };
   }
   await closeZone(stocktakeId, locationId); // checks again; redirects when nothing is left
   return { notice: 'ok' };
@@ -795,17 +809,16 @@ export async function mediaForExport(
     .eq('stocktake_id', stocktakeId)
     .order('created_at');
   if (shelf !== 'all') q = q.eq('location_id', shelf);
-  const { data } =
-    await q.returns<
-      {
-        path: string;
-        kind: string;
-        poster_path: string | null;
-        created_at: string;
-        locations: { code: string } | null;
-        asset_checks: { inv_no: string } | null;
-      }[]
-    >();
+  const { data } = await q.returns<
+    {
+      path: string;
+      kind: string;
+      poster_path: string | null;
+      created_at: string;
+      locations: { code: string } | null;
+      asset_checks: { inv_no: string } | null;
+    }[]
+  >();
   const counters = new Map<string, number>();
   const sign = async (path: string) =>
     (await supabase.storage.from('stocktake-media').createSignedUrl(path, 60 * 30)).data
@@ -874,15 +887,13 @@ export async function setStocktakeMembers(stocktakeId: string, formData: FormDat
   const supabase = await createClient();
   await supabase.from('stocktake_members').delete().eq('stocktake_id', stocktakeId);
   if (ids.length) {
-    await supabase
-      .from('stocktake_members')
-      .insert(
-        ids.map((user_id) => ({
-          stocktake_id: stocktakeId,
-          user_id,
-          company_id: session.company.id,
-        })),
-      );
+    await supabase.from('stocktake_members').insert(
+      ids.map((user_id) => ({
+        stocktake_id: stocktakeId,
+        user_id,
+        company_id: session.company.id,
+      })),
+    );
   }
   revalidatePath(`/manage/${stocktakeId}`);
   revalidatePath('/count');
@@ -894,4 +905,24 @@ export async function productGroups(): Promise<string[]> {
   const supabase = await createClient();
   const { data } = await supabase.from('categories').select('name').order('name').limit(500);
   return [...new Set((data ?? []).map((c) => c.name as string))];
+}
+
+/** What has been counted on this shelf so far, per product (for "already scanned"). */
+export async function shelfCounts(
+  stocktakeId: string,
+  locationId: string,
+): Promise<Record<string, number>> {
+  await requireSession();
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('stocktake_entries')
+    .select('product_id, quantity')
+    .eq('stocktake_id', stocktakeId)
+    .eq('location_id', locationId)
+    .not('product_id', 'is', null)
+    .limit(5000);
+  const out: Record<string, number> = {};
+  for (const r of data ?? [])
+    out[r.product_id as string] = (out[r.product_id as string] ?? 0) + Number(r.quantity);
+  return out;
 }

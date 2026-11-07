@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { Alert, inputClass } from '@/components/ui';
 import Scanner from '../../scanner';
-import { addEntry, findProducts, productGroups, type ProductHit } from '../../actions';
+import { addEntry, findProducts, productGroups, shelfCounts, type ProductHit } from '../../actions';
 import ComboInput from '@/components/combo-input';
 import SerialField from './serial-field';
 import { scanFeedback } from '@/lib/haptic';
@@ -99,6 +99,14 @@ export default function CountPanel({
   }, []);
   const [qty, setQty] = useState('');
   const [message, setMessage] = useState<{ tone: 'error' | 'info'; text: string } | null>(null);
+  // Already counted on this shelf (product → qty), and the last line saved.
+  const [counted, setCounted] = useState<Record<string, number>>({});
+  const [last, setLast] = useState<{ code: string; name: string; qty: number } | null>(null);
+  useEffect(() => {
+    shelfCounts(stocktakeId, locationId)
+      .then(setCounted)
+      .catch(() => {});
+  }, [stocktakeId, locationId]);
   const [pending, start] = useTransition();
   const qtyRef = useRef<HTMLInputElement>(null);
   // The last lookup came from the camera: whatever was read is a code, never a name.
@@ -134,7 +142,16 @@ export default function CountPanel({
     setUnknown(null);
     setNewBarcode(null);
     setHits(null);
-    setMessage(null);
+    // Counted before on this shelf: say so; the new quantity is added to it.
+    const before = counted[p.id];
+    setMessage(
+      before
+        ? {
+            tone: 'error',
+            text: `⚠ უკვე დასკანერებულია: ${before} ${unitLabel(p.unit)}. ახალი რაოდენობა დაემატება.`,
+          }
+        : null,
+    );
     focusQty();
   }
 
@@ -271,10 +288,17 @@ export default function CountPanel({
         const batch = expiry
           ? ` · ${exp ? fmtDate(exp) : 'ვადა უცნობია'}${status && status !== 'ok' ? ` (${EXPIRY_LABEL[status]})` : ''}`
           : '';
-        setMessage({
-          tone: 'info',
-          text: `✓ ${product?.name ?? (newOpen ? newName : newBarcode ? newName || newBarcode : unknown)} — ${total}${batch}`,
-        });
+        const savedName =
+          product?.name ?? (newOpen ? newName : newBarcode ? newName || newBarcode : unknown) ?? '';
+        const savedCode = product
+          ? (product.barcode ?? product.sku)
+          : newOpen
+            ? newCode
+            : (newBarcode ?? '');
+        const sum = (product ? (counted[product.id] ?? 0) : 0) + total;
+        if (product) setCounted((c) => ({ ...c, [product.id]: sum }));
+        setLast({ code: savedCode, name: savedName, qty: sum });
+        setMessage(batch ? { tone: 'info', text: `✓ ${savedName} — ${total}${batch}` } : null);
         navigator.vibrate?.([40, 40, 40]);
         reset();
       }
@@ -285,7 +309,6 @@ export default function CountPanel({
 
   // What was just read, on the camera picture itself; in the stock app with
   // the quantity and Next, so a whole shelf is counted without leaving the camera.
-  const lastSaved = message?.tone === 'info' ? message.text : null;
   const overlay = product ? (
     <div className="grid gap-3">
       <div>
@@ -298,13 +321,18 @@ export default function CountPanel({
         )}
       </div>
     </div>
-  ) : lastSaved ? (
-    <p className="text-center text-base font-semibold text-match">{lastSaved}</p>
   ) : null;
 
   return (
     <>
       <section className="grid gap-3 rounded-control border border-rule/70 p-4">
+        {last && (
+          // The last product saved on this shelf, small, at the top.
+          <p className="-mt-1 truncate text-sm text-ink-soft">
+            ბოლოს დასკანერდა: <span className="text-ink-faint">{last.code}</span> ·{' '}
+            <b className="text-ink">{last.name}</b> · <b className="text-match">{last.qty}</b>
+          </p>
+        )}
         <Scanner
           label="პროდუქტის სკანირება"
           onCode={(c) => {
