@@ -6,6 +6,7 @@ import Scanner from '../../scanner';
 import {
   addEntry,
   bookShelves,
+  shelfCodeList,
   findProducts,
   productCatalog,
   productGroups,
@@ -115,6 +116,8 @@ export default function CountPanel({
   const [dup, setDup] = useState<string | null>(null);
   // Products kept on the phone, so a scan is recognised with no connection.
   const [catalog, setCatalog] = useState<ProductHit[]>([]);
+  // Shelf codes of the company: a shelf label read by the camera is ignored.
+  const [shelfCodes, setShelfCodes] = useState<Set<string>>(new Set());
   // Where each product is booked (shelf codes) — to catch items on the wrong shelf.
   type Home = { id: string; code: string; done: boolean };
   const [homes, setHomes] = useState<Map<string, Home[]>>(new Map());
@@ -132,6 +135,9 @@ export default function CountPanel({
           sum[j.input.productId] = (sum[j.input.productId] ?? 0) + j.input.quantity;
       setCounted(sum);
     });
+    shelfCodeList()
+      .then((c) => setShelfCodes(new Set(c.map((x) => x.toUpperCase()))))
+      .catch(() => {});
     bookShelves(stocktakeId)
       .then((rows) => {
         const m = new Map<string, Home[]>();
@@ -243,8 +249,14 @@ export default function CountPanel({
         return;
       if (product && openedBy.current !== code && now - openedAt.current < 1500) return;
     }
-    // The same item scanned again before Next: one more piece.
+    // A shelf's own QR is not a product.
+    if (scanned.current && shelfCodes.has(code.toUpperCase())) {
+      setMessage({ tone: 'error', text: `„${code}“ თაროს კოდია, პროდუქტი არ არის.` });
+      return;
+    }
+    // The same item scanned again before Next: one more piece (a scan, not 🔍).
     if (
+      scanned.current &&
       product &&
       (code === openedBy.current ||
         product.barcode === code ||
@@ -253,7 +265,7 @@ export default function CountPanel({
       setQty((v) => String((Number(v) || 0) + 1));
       return;
     }
-    if (newBarcode && newBarcode === code) {
+    if (scanned.current && newBarcode && newBarcode === code) {
       setQty((v) => String((Number(v) || 0) + 1));
       return;
     }

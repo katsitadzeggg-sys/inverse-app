@@ -333,6 +333,7 @@ export async function findProducts(query: string): Promise<ProductHit[]> {
     .from('products')
     .select(cols)
     .eq('company_id', session.company.id)
+    .eq('active', true)
     .or(`barcode.eq.${q.replace(/[,()]/g, '')},sku.ilike.${q.replace(/[,()%]/g, '')}`)
     .limit(5);
   if (exact && exact.length) return exact as ProductHit[];
@@ -340,6 +341,7 @@ export async function findProducts(query: string): Promise<ProductHit[]> {
     .from('products')
     .select(cols)
     .eq('company_id', session.company.id)
+    .eq('active', true)
     .ilike('name', `%${q.replace(/[%_]/g, '')}%`)
     .order('name')
     .limit(8);
@@ -1006,4 +1008,12 @@ export async function bookShelves(
     code: string;
     shelf_done: boolean;
   }[];
+}
+
+/** All shelf codes of the company (a shelf QR read as a product is ignored). */
+export async function shelfCodeList(): Promise<string[]> {
+  await requireSession();
+  const supabase = await createClient();
+  const { data } = await supabase.from('locations').select('code').eq('kind', 'shelf').limit(5000);
+  return (data ?? []).map((l) => l.code as string);
 }

@@ -91,7 +91,8 @@ export default function Scanner({
   }, [closeKey]);
   const [error, setError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const last = useRef<{ code: string; at: number }>({ code: '', at: 0 });
+  // Every code seen lately → when it was last in the picture.
+  const seen = useRef<Map<string, number>>(new Map());
   const closeOnRef = useRef(closeOnCode);
   useEffect(() => {
     closeOnRef.current = closeOnCode;
@@ -168,12 +169,11 @@ export default function Scanner({
             const codes = await detector.detect(ctx.getImageData(0, 0, cw, ch));
             const code = codes[0]?.rawValue?.trim();
             const now = Date.now();
-            // A code that stays in view is read once; it counts again only after
-            // it has been out of view for a moment (or another code came between).
-            if (code && code === last.current.code && now - last.current.at <= 1200) {
-              last.current.at = now;
-            } else if (code) {
-              last.current = { code, at: now };
+            // A code that stays in view is read once, even when two codes in the
+            // picture take turns; it counts again only after 1.5 s out of view.
+            const prev = code ? seen.current.get(code) : undefined;
+            if (code) seen.current.set(code, now);
+            if (code && (prev === undefined || now - prev > 1500)) {
               navigator.vibrate?.(60);
               // The result is shown on the picture (overlay), not as a text line.
               setStatus(null);
