@@ -24,7 +24,7 @@ export default function ManageNav({ platform }: { platform: boolean }) {
           href={l.href}
           aria-current={l.active ? 'page' : undefined}
           className={`whitespace-nowrap rounded-control px-3 py-1.5 text-sm font-medium transition ${
-            l.active ? 'bg-paper-sunk text-ink' : 'text-ink-faint hover:bg-paper-sunk/60 hover:text-ink'
+            l.active ? 'bg-white/20 text-white' : 'text-white hover:bg-white/10'
           }`}
         >
           {l.label}

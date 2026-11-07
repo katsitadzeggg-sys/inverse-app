@@ -783,7 +783,6 @@ select:focus {
 /* Manager backdrop: the blue ring takes the colours of the three apps in turn —
    stock (orange), fixed assets (green), expiry (red). */
 .brand-ring {
-  mix-blend-mode: screen;
   animation: brand-ring-hue 18s ease-in-out infinite;
 }
 @keyframes brand-ring-hue {
