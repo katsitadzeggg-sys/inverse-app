@@ -187,10 +187,9 @@ export default function MediaUpload({
           />
         </label>
       </div>
-      {!compact && <p className="text-center text-xs text-ink-faint">მხოლოდ კამერით. ფოტოს ეწერება თარიღი, შენი სახელი და ლოკაცია.</p>}
       {busy && <p className="text-center text-sm text-ink-soft">{busy}</p>}
       {error && <p className="text-sm text-mismatch">{error}</p>}
-      {!showItems && items.length + added.length > 0 && (
+      {!showItems && compact && items.length + added.length > 0 && (
         <p className="text-center text-sm text-match">✓ ატვირთულია: {items.length + added.filter((a) => !items.some((i) => i.path === a.path)).length}</p>
       )}
       {showItems && items.length + added.length > 0 && (
