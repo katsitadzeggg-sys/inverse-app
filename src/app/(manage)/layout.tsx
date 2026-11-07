@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
 import { requireSession } from '@/lib/session';
@@ -16,12 +15,17 @@ export default async function ManageLayout({ children }: LayoutProps<'/'>) {
   const { data: platformAdmin } = await (await createClient()).rpc('is_platform_admin');
 
   return (
-    <div className="flex min-h-full flex-col">
+    <div className="relative isolate flex min-h-full flex-col">
+      {/* Inverse as a full-screen backdrop behind every manager page. */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 -z-10 grid place-items-center overflow-hidden print:hidden"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo.svg" alt="" className="w-[92vw] max-w-none opacity-[0.08]" />
+      </div>
       <header className="sticky top-0 z-10 border-b border-rule/70 bg-paper/85 backdrop-blur">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-6 gap-y-3 px-6 py-3">
-          <Link href="/manage" className="text-base font-semibold tracking-tight">
-            Inverse
-          </Link>
           <Suspense>
             <ManageNav platform={!!platformAdmin} />
           </Suspense>

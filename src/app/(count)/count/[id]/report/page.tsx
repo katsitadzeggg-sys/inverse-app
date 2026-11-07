@@ -166,13 +166,15 @@ export default async function ReportPage({ params }: PageProps<'/count/[id]/repo
   }
 
   const ids = [...rows.keys(), ...checks.map((c) => c.product_id)];
-  const names = new Map<string, { name: string; sku: string }>();
+  const names = new Map<string, { name: string; sku: string; group: string }>();
   for (let i = 0; i < ids.length; i += 300) {
     const { data } = await supabase
       .from('products')
-      .select('id, name, sku')
-      .in('id', ids.slice(i, i + 300));
-    for (const p of data ?? []) names.set(p.id, { name: p.name, sku: p.sku });
+      .select('id, name, sku, categories (name)')
+      .in('id', ids.slice(i, i + 300))
+      .returns<{ id: string; name: string; sku: string; categories: { name: string } | null }[]>();
+    for (const p of data ?? [])
+      names.set(p.id, { name: p.name, sku: p.sku, group: p.categories?.name ?? 'ჯგუფის გარეშე' });
   }
   // Found on a shelf other than the one(s) in the book: to be moved back.
   const booked = new Map<string, Set<string>>();
@@ -235,6 +237,37 @@ export default async function ReportPage({ params }: PageProps<'/count/[id]/repo
   const extra = list.filter((r) => r.book === 0 && r.counted > 0 && !freshIds.has(r.pid));
   const ok = list.filter((r) => r.diff === 0).length;
   const value = list.reduce((s, r) => s + (r.cost != null ? r.diff * r.cost : 0), 0);
+
+  // Regrading (გადარევა): within a product group, a surplus of one item may
+  // cover a shortage of another (mixed up at receipt or sale). Per group:
+  // surplus and shortage in money, the part that offsets, and what is left.
+  const regrade = new Map<
+    string,
+    { plus: number; minus: number; plusQ: number; minusQ: number; items: typeof list }
+  >();
+  for (const r of list) {
+    if (!r.diff || r.cost == null) continue;
+    const g = names.get(r.pid)?.group ?? 'ჯგუფის გარეშე';
+    const x = regrade.get(g) ?? { plus: 0, minus: 0, plusQ: 0, minusQ: 0, items: [] };
+    if (r.diff > 0) {
+      x.plus += r.diff * r.cost;
+      x.plusQ += r.diff;
+    } else {
+      x.minus += -r.diff * r.cost;
+      x.minusQ += -r.diff;
+    }
+    x.items.push(r);
+    regrade.set(g, x);
+  }
+  const regradeRows = [...regrade.entries()].sort((a, b) => b[1].minus - a[1].minus);
+  const regradeAll = regradeRows.reduce(
+    (t, [, x]) => ({
+      plus: t.plus + x.plus,
+      minus: t.minus + x.minus,
+      off: t.off + Math.min(x.plus, x.minus),
+    }),
+    { plus: 0, minus: 0, off: 0 },
+  );
 
   // Expiry-date count: one line per product and expiry date (batch).
   const isExpiry = stocktake.kind === 'expiry';
@@ -384,6 +417,80 @@ export default async function ReportPage({ params }: PageProps<'/count/[id]/repo
           სხვაობა თანხით:{' '}
           <b className={value < 0 ? 'text-mismatch' : 'text-match'}>{money(value)}</b>
         </p>
+      )}
+
+      {regradeRows.length > 0 && (
+        <section className="grid gap-2 rounded-control border border-rule/70 p-4">
+          <h2 className="font-semibold">⇄ გადარევა — მეტობა და დანაკლისი ჯგუფებით</h2>
+          <p className="text-xs text-ink-faint">
+            ერთ ჯგუფში ერთი პროდუქტის მეტობა შეიძლება მეორის დანაკლისს ფარავდეს (აურიეს მიღებისას ან
+            გაყიდვისას). „დაფარული“ = ნაკლები ორ თანხას შორის.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-left text-xs text-ink-faint">
+                <tr>
+                  <th className="py-1 pr-2">ჯგუფი</th>
+                  <th className="px-2 text-right">მეტობა</th>
+                  <th className="px-2 text-right">დანაკლისი</th>
+                  <th className="px-2 text-right">დაფარული</th>
+                  <th className="pl-2 text-right">დარჩენილი</th>
+                </tr>
+              </thead>
+              <tbody>
+                {regradeRows.map(([g, x]) => {
+                  const left = x.plus - x.minus;
+                  return (
+                    <tr key={g} className="border-t border-rule/60 align-top">
+                      <td className="py-1.5 pr-2">
+                        <b>{g}</b>
+                        <span className="block text-xs text-ink-faint">
+                          {x.items
+                            .map((r) => `${r.name} ${r.diff > 0 ? '+' : ''}${fmt(r.diff)}`)
+                            .join(' · ')}
+                        </span>
+                      </td>
+                      <td className="px-2 text-right tabular-nums text-match">
+                        {money(x.plus)}
+                        <span className="block text-xs text-ink-faint">{fmt(x.plusQ)} ერთ.</span>
+                      </td>
+                      <td className="px-2 text-right tabular-nums text-mismatch">
+                        {money(x.minus)}
+                        <span className="block text-xs text-ink-faint">{fmt(x.minusQ)} ერთ.</span>
+                      </td>
+                      <td className="px-2 text-right tabular-nums">
+                        {money(Math.min(x.plus, x.minus))}
+                      </td>
+                      <td
+                        className={`pl-2 text-right font-semibold tabular-nums ${left < 0 ? 'text-mismatch' : 'text-match'}`}
+                      >
+                        {left > 0 ? '+' : ''}
+                        {money(left)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot className="font-semibold">
+                <tr className="border-t-2 border-rule-strong">
+                  <td className="py-1.5 pr-2">სულ</td>
+                  <td className="px-2 text-right tabular-nums text-match">
+                    {money(regradeAll.plus)}
+                  </td>
+                  <td className="px-2 text-right tabular-nums text-mismatch">
+                    {money(regradeAll.minus)}
+                  </td>
+                  <td className="px-2 text-right tabular-nums">{money(regradeAll.off)}</td>
+                  <td
+                    className={`pl-2 text-right tabular-nums ${regradeAll.plus - regradeAll.minus < 0 ? 'text-mismatch' : 'text-match'}`}
+                  >
+                    {money(regradeAll.plus - regradeAll.minus)}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </section>
       )}
 
       {checks.length > 0 && (
