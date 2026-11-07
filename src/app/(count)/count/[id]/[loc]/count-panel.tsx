@@ -164,6 +164,10 @@ export default function CountPanel({
   const scanned = useRef(false);
   // A code read while the previous product was still open; looked up once that one is saved.
   const pendingScan = useRef<string | null>(null);
+  // The code that opened the current product (a re-read of it is +1, not a new product).
+  const openedBy = useRef<string | null>(null);
+  const openedAt = useRef(0);
+  const justSaved = useRef<{ code: string; at: number } | null>(null);
   // Bumped to close the full-screen camera.
   const [closeCamera, setCloseCamera] = useState(0);
   const [cameraOn, setCameraOn] = useState(false);
@@ -228,8 +232,24 @@ export default function CountPanel({
       choose(product, gs1.expiry);
       return;
     }
+    // While a line is being saved, or a question is on screen, scans wait.
+    if (pending || misplaced) return;
+    if (scanned.current) {
+      const now = Date.now();
+      // Two codes in the picture at once must not ping-pong: the product just
+      // saved is not reopened by its own code for 5 s, and a freshly opened
+      // product is not replaced by another code for 1.5 s.
+      if (justSaved.current && justSaved.current.code === code && now - justSaved.current.at < 5000)
+        return;
+      if (product && openedBy.current !== code && now - openedAt.current < 1500) return;
+    }
     // The same item scanned again before Next: one more piece.
-    if (product && (product.barcode === code || product.sku.toLowerCase() === code.toLowerCase())) {
+    if (
+      product &&
+      (code === openedBy.current ||
+        product.barcode === code ||
+        product.sku.toLowerCase() === code.toLowerCase())
+    ) {
       setQty((v) => String((Number(v) || 0) + 1));
       return;
     }
@@ -239,7 +259,7 @@ export default function CountPanel({
     }
     // Another product scanned while one is open: the open one is saved first,
     // then the new one starts — no Next needed between products.
-    if (scanned.current && (product || newBarcode) && !newOpen) {
+    if (scanned.current && (product || newBarcode) && !newOpen && !pendingScan.current) {
       pendingScan.current = raw;
       next();
       return;
@@ -252,7 +272,11 @@ export default function CountPanel({
       const exact = found.find(
         (p) => p.barcode === q.trim() || p.sku.toLowerCase() === q.trim().toLowerCase(),
       );
-      if (exact) return choose(exact, gs1?.expiry ?? null);
+      if (exact) {
+        openedBy.current = code;
+        openedAt.current = Date.now();
+        return choose(exact, gs1?.expiry ?? null);
+      }
       setHits(found);
       setProduct(null);
       // Not found, or several to pick from: the camera steps aside for the form / the list.
@@ -387,6 +411,8 @@ export default function CountPanel({
         setMessage(batch ? { tone: 'info', text: `✓ ${savedName} — ${total}${batch}` } : null);
         navigator.vibrate?.([40, 40, 40]);
         reset();
+        if (openedBy.current) justSaved.current = { code: openedBy.current, at: Date.now() };
+        openedBy.current = null;
         const queued = pendingScan.current;
         pendingScan.current = null;
         if (queued) {

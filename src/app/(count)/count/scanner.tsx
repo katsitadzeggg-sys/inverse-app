@@ -168,7 +168,11 @@ export default function Scanner({
             const codes = await detector.detect(ctx.getImageData(0, 0, cw, ch));
             const code = codes[0]?.rawValue?.trim();
             const now = Date.now();
-            if (code && (code !== last.current.code || now - last.current.at > 2000)) {
+            // A code that stays in view is read once; it counts again only after
+            // it has been out of view for a moment (or another code came between).
+            if (code && code === last.current.code && now - last.current.at <= 1200) {
+              last.current.at = now;
+            } else if (code) {
               last.current = { code, at: now };
               navigator.vibrate?.(60);
               // The result is shown on the picture (overlay), not as a text line.
