@@ -247,7 +247,7 @@ export default function NewStocktakeForm({
             </svg>
             {locating && locating.startsWith('ვ')
               ? 'ვადგენ…'
-              : point
+              : here
                 ? '✓ ლოკაცია ჩართულია'
                 : 'ჩემი ლოკაცია'}
           </button>
