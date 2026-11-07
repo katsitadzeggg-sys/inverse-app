@@ -249,30 +249,10 @@ export default function CountPanel({
         <p className="text-sm leading-tight text-white/70">
           {product.barcode ?? product.sku} · {unitLabel(product.unit)}
         </p>
-        {expiry && expiryDate && <p className="text-sm leading-tight text-white/90">ვადა {fmtDate(expiryDate)}</p>}
+        {expiry && expiryDate && (
+          <p className="text-sm leading-tight text-white/90">ვადა {fmtDate(expiryDate)}</p>
+        )}
       </div>
-      {!expiry && (
-        <>
-          <div className="grid grid-cols-[4rem_1fr_4rem] items-center gap-2">
-            <button type="button" onClick={() => setQty(String(Math.max(0, (Number(qty) || 0) - 1)))} className="h-14 rounded-xl bg-white/15 text-3xl">
-              −
-            </button>
-            <input
-              value={qty}
-              onChange={(e) => setQty(e.target.value.replace(/[^0-9]/g, ''))}
-              onFocus={(e) => e.currentTarget.select()}
-              inputMode="numeric"
-              className="h-14 rounded-xl bg-white text-center text-3xl font-semibold text-black"
-            />
-            <button type="button" onClick={() => setQty(String((Number(qty) || 0) + 1))} className="h-14 rounded-xl bg-white/15 text-3xl">
-              +
-            </button>
-          </div>
-          <button type="button" onClick={next} disabled={pending} className="h-14 rounded-xl bg-match text-xl font-semibold text-white disabled:opacity-60">
-            {pending ? '…' : 'შემდეგი →'}
-          </button>
-        </>
-      )}
     </div>
   ) : lastSaved ? (
     <p className="text-center text-base font-semibold text-match">{lastSaved}</p>
