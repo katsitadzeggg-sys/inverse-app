@@ -171,6 +171,10 @@ export default function CountPanel({
   const scanned = useRef(false);
   // A code read while the previous product was still open; looked up once that one is saved.
   const pendingScan = useRef<string | null>(null);
+  // A line is being saved: scans wait in pendingScan instead of being lost.
+  const saving = useRef(false);
+  // The queued code, looked up after the save has re-rendered (fresh state, not a stale closure).
+  const [queuedScan, setQueuedScan] = useState<{ code: string; n: number } | null>(null);
   // The code that opened the current product (a re-read of it is +1, not a new product).
   const openedBy = useRef<string | null>(null);
   const openedAt = useRef(0);
@@ -239,8 +243,13 @@ export default function CountPanel({
       choose(product, gs1.expiry);
       return;
     }
-    // While a line is being saved, or a question is on screen, scans wait.
-    if (pending || misplaced) return;
+    // While a line is being saved, the scan waits and is looked up right after.
+    if (saving.current) {
+      if (scanned.current) pendingScan.current = raw;
+      return;
+    }
+    // A question is on screen: scans wait.
+    if (misplaced) return;
     if (scanned.current) {
       const now = Date.now();
       // Two codes in the picture at once must not ping-pong: the product just
@@ -336,6 +345,8 @@ export default function CountPanel({
   }
 
   function next() {
+    // One save at a time: a second Next / scan during a save never saves twice.
+    if (saving.current) return;
     // A check below fails → the queued scan is dropped (the open product stays on screen).
     const fail = (text: string) => {
       pendingScan.current = null;
@@ -351,7 +362,15 @@ export default function CountPanel({
     if (expiry && !expiryDate && !expiryUnknown)
       return fail('ჩაწერე ვარგისიანობის ვადა, ან მონიშნე „ვადა არ ჩანს“.');
     const exp = expiry && !expiryUnknown ? expiryDate : null;
+    saving.current = true;
     start(async () => {
+      try {
+        await save();
+      } finally {
+        saving.current = false;
+      }
+    });
+    async function save() {
       // The new product's photos go up first: the first is kept on the product,
       // all of them in the shelf's photos (the manager sees what was found).
       let photoPath: string | null = null;
@@ -442,13 +461,19 @@ export default function CountPanel({
         openedBy.current = null;
         const queued = pendingScan.current;
         pendingScan.current = null;
-        if (queued) {
-          scanned.current = true;
-          search(queued);
-        }
+        if (queued) setQueuedScan((q) => ({ code: queued, n: (q?.n ?? 0) + 1 }));
       }
-    });
+    }
   }
+
+  // The product scanned during the save: looked up now, with the screen already cleared.
+  useEffect(() => {
+    if (!queuedScan) return;
+    scanned.current = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- runs once per queued scan
+    search(queuedScan.code);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queuedScan]);
 
   const chosen = product || newBarcode || newOpen || unknown !== null;
 
@@ -553,6 +578,7 @@ export default function CountPanel({
           onSubmit={(e) => {
             e.preventDefault();
             scanned.current = false; // typed, not scanned
+            pendingScan.current = null;
             // 🔍 with nothing typed: straight to the new-product form.
             if (query.trim()) search(query);
             else openNew('');

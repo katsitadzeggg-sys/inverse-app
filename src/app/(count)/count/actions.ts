@@ -473,6 +473,22 @@ export async function addEntry(
   if (!input.productId && !input.unknownLabel?.trim())
     return { error: 'აირჩიე პროდუქტი ან აღწერე.' };
 
+  // Safety net: the same line sent twice within a few seconds (a phone glitch,
+  // a double tap) is written once.
+  if (input.productId) {
+    const { data: twin } = await supabase
+      .from('stocktake_entries')
+      .select('id')
+      .eq('stocktake_id', stocktakeId)
+      .eq('location_id', locationId)
+      .eq('product_id', input.productId)
+      .eq('quantity', input.quantity)
+      .eq('counter_id', session.userId)
+      .gte('created_at', new Date(Date.now() - 3000).toISOString())
+      .limit(1);
+    if (twin?.length) return { notice: 'ჩაიწერა' };
+  }
+
   const { error } = await supabase.from('stocktake_entries').insert({
     company_id: session.company.id,
     stocktake_id: stocktakeId,
