@@ -6,6 +6,7 @@ import Scanner from '../../scanner';
 import { addEntry, findProducts, productGroups, type ProductHit } from '../../actions';
 import ComboInput from '@/components/combo-input';
 import SerialField from './serial-field';
+import { scanFeedback } from '@/lib/haptic';
 import {
   EXPIRY_LABEL,
   expiryFromText,
@@ -131,12 +132,10 @@ export default function CountPanel({
     // The same item scanned again before Next: one more piece.
     if (product && (product.barcode === code || product.sku.toLowerCase() === code.toLowerCase())) {
       setQty((v) => String((Number(v) || 0) + 1));
-      navigator.vibrate?.(30);
       return;
     }
     if (newBarcode && newBarcode === code) {
       setQty((v) => String((Number(v) || 0) + 1));
-      navigator.vibrate?.(30);
       return;
     }
     setQuery(q);
@@ -264,7 +263,10 @@ export default function CountPanel({
     <section className="grid gap-3 rounded-control border border-rule/70 p-4">
       <Scanner
         label="პროდუქტის სკანირება"
-        onCode={search}
+        onCode={(c) => {
+          scanFeedback(); // buzz + beep: the code was read
+          search(c);
+        }}
         overlay={overlay}
         onOpenChange={setCameraOn}
       />
