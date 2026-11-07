@@ -6,7 +6,8 @@ import { Alert } from '@/components/ui';
 import { fmtDate, parseDate } from '@/lib/expiry';
 import { importBook, type BookRow } from '../../actions';
 
-type Field = 'barcode' | 'code' | 'name' | 'location' | 'qty' | 'unit' | 'cost' | 'expiry';
+type Field =
+  'barcode' | 'code' | 'name' | 'location' | 'qty' | 'unit' | 'cost' | 'expiry' | 'group';
 
 // Header words seen in exports from Balance, FINA, 1C and hand-made sheets.
 const GUESS: Record<Field, RegExp> = {
@@ -18,6 +19,7 @@ const GUESS: Record<Field, RegExp> = {
   unit: /(ერთეულ|ზომის|unit|uom|ед\.?\s*изм|единиц)/i,
   cost: /(ფასი|თვითღ|ღირებ|cost|price|цена|себест)/i,
   expiry: /(ვადა|ვარგ|expir|exp\b|best before|срок|годен)/i,
+  group: /(ჯგუფ|კატეგ|group|categ|группа|категор)/i,
 };
 
 const LABELS: Record<Field, string> = {
@@ -29,6 +31,7 @@ const LABELS: Record<Field, string> = {
   code: 'შიდა კოდი / არტიკული',
   cost: 'ერთეულის ფასი',
   expiry: 'ვარგისიანობის ვადა',
+  group: 'ჯგუფი',
 };
 
 function parseCsv(text: string): string[][] {
@@ -67,6 +70,7 @@ export default function BookImport({
     unit: -1,
     cost: -1,
     expiry: -1,
+    group: -1,
   });
   const [msg, setMsg] = useState<{ tone: 'error' | 'info'; text: string } | null>(null);
   const [pending, start] = useTransition();
@@ -129,6 +133,7 @@ export default function BookImport({
     qty: map.qty >= 0 ? num(r[map.qty]) : NaN,
     cost: map.cost >= 0 && r[map.cost] !== '' ? num(r[map.cost]) : null,
     expiry: expiry && map.expiry >= 0 ? parseDate(r[map.expiry]) : null,
+    group: cell(r, 'group'),
   }));
   const valid = preview.filter(
     (r) => (r.code.trim() || r.barcode.trim()) && Number.isFinite(r.qty),
@@ -139,7 +144,7 @@ export default function BookImport({
       <label className="grid cursor-pointer gap-2 rounded-control border-2 border-dashed border-rule-strong p-6 text-center">
         <span className="text-base font-semibold">📄 აირჩიე Excel ან CSV ფაილი</span>
         <span className="text-sm text-ink-faint">
-          საჭიროა: დასახელება, შტრიხკოდი, თაროს ნომერი, ნაშთი
+          საჭიროა: დასახელება, შტრიხკოდი, ჯგუფი, ნაშთი, თაროს ნომერი
           {expiry ? ', ვარგისიანობის ვადა (ყოველ პარტიას თავისი ხაზი)' : ''}. ზომის ერთეული —
           სურვილისამებრ (თუ არ წერია, „ცალი“)
         </span>

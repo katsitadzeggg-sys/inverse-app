@@ -647,6 +647,8 @@ export type BookRow = {
   unit: string;
   /** YYYY-MM-DD; expiry-date counts keep the book per batch. */
   expiry?: string | null;
+  /** Product group (category), e.g. სასმელები. */
+  group?: string;
 };
 
 /** Units as people write them → one spelling. Pieces are the default. */
@@ -724,6 +726,40 @@ export async function importBook(stocktakeId: string, rows: BookRow[]): Promise<
     if (error) return { error: `პროდუქტების დამატება ვერ მოხერხდა: ${error.message}` };
     for (const p of data ?? []) products.set(p.sku, p.id);
   }
+  // Groups: the file's group names become categories; every product in the file gets its group.
+  const groupNames = [...new Set(clean.map((r) => (r.group ?? '').trim()).filter(Boolean))];
+  if (groupNames.length) {
+    const cats = new Map<string, string>();
+    const { data: have } = await supabase
+      .from('categories')
+      .select('id, name')
+      .eq('company_id', company);
+    for (const c of have ?? []) cats.set(c.name.trim().toLowerCase(), c.id);
+    const toMake = groupNames.filter((g) => !cats.has(g.toLowerCase()));
+    if (toMake.length) {
+      const { data: made } = await supabase
+        .from('categories')
+        .insert(toMake.map((name) => ({ company_id: company, name })))
+        .select('id, name');
+      for (const c of made ?? []) cats.set(c.name.trim().toLowerCase(), c.id);
+    }
+    const byCat = new Map<string, Set<string>>();
+    for (const r of clean) {
+      const g = (r.group ?? '').trim().toLowerCase();
+      const id = known(r);
+      const cat = g ? cats.get(g) : undefined;
+      if (id && cat) byCat.set(cat, (byCat.get(cat) ?? new Set()).add(id));
+    }
+    for (const [cat, ids] of byCat) {
+      const list = [...ids];
+      for (let i = 0; i < list.length; i += 300)
+        await supabase
+          .from('products')
+          .update({ category_id: cat })
+          .in('id', list.slice(i, i + 300));
+    }
+  }
+
   // A unit given in the file updates existing products too.
   const unitUpdates = new Map<string, string>();
   for (const r of clean) {
@@ -955,4 +991,19 @@ export async function productCatalog(): Promise<ProductHit[]> {
     if (!data || data.length < 1000) break;
   }
   return out;
+}
+
+/** Shelves each product is booked on (codes only), for "this item belongs on another shelf". */
+export async function bookShelves(
+  stocktakeId: string,
+): Promise<{ product_id: string; location_id: string; code: string; shelf_done: boolean }[]> {
+  await requireSession();
+  const supabase = await createClient();
+  const { data } = await supabase.rpc('book_shelves', { p_stocktake: stocktakeId });
+  return (data ?? []) as {
+    product_id: string;
+    location_id: string;
+    code: string;
+    shelf_done: boolean;
+  }[];
 }

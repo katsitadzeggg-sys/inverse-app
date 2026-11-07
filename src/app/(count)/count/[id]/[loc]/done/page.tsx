@@ -105,13 +105,19 @@ export default async function ShelfDonePage({ params }: PageProps<'/count/[id]/[
     }),
   );
   // Stock: the differences of this shelf — book against what was counted.
-  type Diff = { name: string; code: string; diff: number };
+  type Diff = { name: string; code: string; diff: number; home?: string | null };
   let diffs: Diff[] = [];
   if (!isAssets) {
     // Counters cannot read the book (blind count); the closed shelf's
     // differences come from a database function that may.
-    const { data } = await supabase.rpc('shelf_differences', { p_stocktake: id, p_location: loc });
-    diffs = ((data ?? []) as { product_name: string; code: string; diff: number }[]).map((r) => ({
+    const { data } = await supabase.rpc('shelf_differences_v2', {
+      p_stocktake: id,
+      p_location: loc,
+    });
+    diffs = (
+      (data ?? []) as { product_name: string; code: string; diff: number; home: string | null }[]
+    ).map((r) => ({
+      home: r.home,
       name: r.product_name,
       code: r.code,
       diff: Math.round(Number(r.diff) * 1000) / 1000,
@@ -187,7 +193,7 @@ export default async function ShelfDonePage({ params }: PageProps<'/count/[id]/[
                 >
                   {d.diff > 0 ? `+${d.diff}` : d.diff}
                   <span className="block text-xs font-normal">
-                    {d.diff > 0 ? 'მეტობა' : 'დანაკლისი'}
+                    {d.diff > 0 ? (d.home ? `${d.home}-დან გადმოსატანი` : 'მეტობა') : 'დანაკლისი'}
                   </span>
                 </p>
               </li>

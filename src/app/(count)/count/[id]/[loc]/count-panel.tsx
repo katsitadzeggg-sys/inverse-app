@@ -5,6 +5,7 @@ import { Alert, inputClass } from '@/components/ui';
 import Scanner from '../../scanner';
 import {
   addEntry,
+  bookShelves,
   findProducts,
   productCatalog,
   productGroups,
@@ -114,6 +115,11 @@ export default function CountPanel({
   const [dup, setDup] = useState<string | null>(null);
   // Products kept on the phone, so a scan is recognised with no connection.
   const [catalog, setCatalog] = useState<ProductHit[]>([]);
+  // Where each product is booked (shelf codes) — to catch items on the wrong shelf.
+  type Home = { id: string; code: string; done: boolean };
+  const [homes, setHomes] = useState<Map<string, Home[]>>(new Map());
+  // "This belongs on K-02": count it here, or put it back there.
+  const [misplaced, setMisplaced] = useState<{ product: ProductHit; shelves: Home[] } | null>(null);
   useEffect(() => {
     // Saved counts plus lines still waiting on the phone.
     Promise.all([
@@ -126,6 +132,17 @@ export default function CountPanel({
           sum[j.input.productId] = (sum[j.input.productId] ?? 0) + j.input.quantity;
       setCounted(sum);
     });
+    bookShelves(stocktakeId)
+      .then((rows) => {
+        const m = new Map<string, Home[]>();
+        for (const r of rows)
+          m.set(r.product_id, [
+            ...(m.get(r.product_id) ?? []),
+            { id: r.location_id, code: r.code, done: r.shelf_done },
+          ]);
+        setHomes(m);
+      })
+      .catch(() => {});
     productCatalog()
       .then((rows) => {
         setCatalog(rows);
@@ -180,6 +197,10 @@ export default function CountPanel({
     // Counted before on this shelf: say so; the new quantity is added to it.
     const before = counted[p.id];
     setMessage(null);
+    // Booked only on other shelves: ask whether to count it here or put it back.
+    const shelves = homes.get(p.id);
+    if (!expiry && shelves?.length && !shelves.some((x) => x.id === locationId))
+      setMisplaced({ product: p, shelves });
     setDup(
       before
         ? `უკვე დასკანერებულია: ${before} ${unitLabel(p.unit)}.\nახალი რაოდენობა დაემატება.`
@@ -381,7 +402,43 @@ export default function CountPanel({
 
   return (
     <>
-      {dup && (
+      {misplaced && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4">
+          <div className="grid w-full max-w-sm gap-4 rounded-2xl border-2 border-review bg-paper p-5 text-center">
+            <p className="text-lg font-semibold">{misplaced.product.name}</p>
+            <p className="text-base">
+              სიით ეს პროდუქტი თარო{' '}
+              <b className="text-2xl">{misplaced.shelves.map((x) => x.code).join(', ')}</b>-ზეა.
+            </p>
+            <button
+              type="button"
+              onClick={() => setMisplaced(null)}
+              className="rounded-control bg-match px-4 py-4 text-lg font-semibold text-white"
+            >
+              ✓ დავთვალოთ და აქ დავტოვოთ
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const to = misplaced.shelves[0];
+                setMisplaced(null);
+                reset();
+                setDup(null);
+                setMessage({
+                  tone: 'info',
+                  text: to.done
+                    ? `↩ გადაიტანე ${to.code}-ზე. ${to.code} უკვე დათვლილია — მენეჯერს უთხარი, რომ იქ დაამატოს.`
+                    : `↩ გადაიტანე ${to.code}-ზე — იქ დაითვლება. აქ არ ჩაიწერა.`,
+                });
+              }}
+              className="rounded-control border-2 border-rule-strong px-4 py-4 text-lg font-semibold"
+            >
+              ↩ არ დავთვალოთ — გადავიტანოთ {misplaced.shelves[0].code}-ზე
+            </button>
+          </div>
+        </div>
+      )}
+      {dup && !misplaced && (
         // On top of the screen until Next (or a tap).
         <button
           type="button"
