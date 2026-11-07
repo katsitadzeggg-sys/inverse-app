@@ -99,8 +99,7 @@ export default function CountPanel({
   const [newGroup, setNewGroup] = useState('');
   const [newNote, setNewNote] = useState('');
   // New product's photo (required): taken with the camera, uploaded on Next.
-  const [newPhoto, setNewPhoto] = useState<File | null>(null);
-  const [newPhotoUrl, setNewPhotoUrl] = useState<string | null>(null);
+  const [newPhotos, setNewPhotos] = useState<{ file: File; url: string }[]>([]);
   const [groups, setGroups] = useState<string[]>([]);
   useEffect(() => {
     productGroups()
@@ -114,6 +113,8 @@ export default function CountPanel({
   const [last, setLast] = useState<{ code: string; name: string; qty: number } | null>(null);
   // "Already counted on this shelf" — a notice on the screen until Next.
   const [dup, setDup] = useState<string | null>(null);
+  // Lines saved here that are not a known product yet (new products), for the shelf total.
+  const [extra, setExtra] = useState({ sku: 0, pcs: 0 });
   // Products kept on the phone, so a scan is recognised with no connection.
   const [catalog, setCatalog] = useState<ProductHit[]>([]);
   // Shelf codes of the company: a shelf label read by the camera is ignored.
@@ -306,8 +307,7 @@ export default function CountPanel({
     setNewVariant('');
     setNewSerial('');
     setNewNote('');
-    setNewPhoto(null);
-    setNewPhotoUrl(null);
+    setNewPhotos([]);
     setNewUnit('ცალი');
     setQty('1');
     setExpiryDate('');
@@ -344,7 +344,7 @@ export default function CountPanel({
     if (!product && newOpen && !newName.trim()) return fail('ჩაწერე დასახელება.');
     if (!product && newOpen && isOffline())
       return fail('ახალი პროდუქტი ინტერნეტის გარეშე ვერ ჩაიწერება. ჩაწერე, როცა ქსელი დაბრუნდება.');
-    if (!product && newOpen && !newPhoto)
+    if (!product && newOpen && !newPhotos.length)
       return fail('📷 ახალი პროდუქტის ფოტოს გადაღება სავალდებულოა.');
     if (!product && !newBarcode && !newOpen && !unknown?.trim()) return fail('აირჩიე პროდუქტი.');
     if (qty === '' || !Number.isFinite(total) || total < 0) return fail('ჩაწერე რაოდენობა.');
@@ -352,16 +352,30 @@ export default function CountPanel({
       return fail('ჩაწერე ვარგისიანობის ვადა, ან მონიშნე „ვადა არ ჩანს“.');
     const exp = expiry && !expiryUnknown ? expiryDate : null;
     start(async () => {
-      // The new product's photo goes up first; its path is kept on the product.
+      // The new product's photos go up first: the first is kept on the product,
+      // all of them in the shelf's photos (the manager sees what was found).
       let photoPath: string | null = null;
-      if (newOpen && newPhoto) {
+      if (newOpen && newPhotos.length) {
         try {
-          const jpeg = await shrinkPhoto(newPhoto);
-          photoPath = `${companyId}/${stocktakeId}/${locationId}/product-${crypto.randomUUID()}.jpg`;
-          const { error: upErr } = await createClient()
-            .storage.from('stocktake-media')
-            .upload(photoPath, jpeg, { contentType: 'image/jpeg' });
-          if (upErr) throw upErr;
+          const supabase = createClient();
+          for (const [i, ph] of newPhotos.entries()) {
+            const jpeg = await shrinkPhoto(ph.file);
+            const path = `${companyId}/${stocktakeId}/${locationId}/product-${crypto.randomUUID()}.jpg`;
+            const { error: upErr } = await supabase.storage
+              .from('stocktake-media')
+              .upload(path, jpeg, { contentType: 'image/jpeg' });
+            if (upErr) throw upErr;
+            if (i === 0) photoPath = path;
+            await supabase.from('stocktake_media').insert({
+              company_id: companyId,
+              stocktake_id: stocktakeId,
+              location_id: locationId,
+              path,
+              kind: 'photo',
+              caption: `ახალი პროდუქტი: ${newName.trim()}${newCode.trim() ? ` · ${newCode.trim()}` : ''}`,
+              taken_at: new Date().toISOString(),
+            });
+          }
         } catch (e) {
           return setMessage({
             tone: 'error',
@@ -418,6 +432,7 @@ export default function CountPanel({
             : (newBarcode ?? '');
         const sum = (product ? (counted[product.id] ?? 0) : 0) + total;
         if (product) setCounted((c) => ({ ...c, [product.id]: sum }));
+        else setExtra((x) => ({ sku: x.sku + 1, pcs: x.pcs + total }));
         setLast({ code: savedCode, name: savedName, qty: sum });
         setDup(null);
         setMessage(batch ? { tone: 'info', text: `✓ ${savedName} — ${total}${batch}` } : null);
@@ -502,6 +517,18 @@ export default function CountPanel({
         </button>
       )}
       <section className="grid gap-3 rounded-control border border-rule/70 p-4">
+        {(() => {
+          // Counted on this shelf so far: products (SKU) and pieces.
+          const vals = Object.values(counted).filter((q) => q > 0);
+          const sku = vals.length + extra.sku;
+          const pcs = vals.reduce((a, q) => a + q, 0) + extra.pcs;
+          return sku > 0 ? (
+            <p className="-mt-1 text-right text-sm font-semibold text-ink">
+              ამ თაროზე დათვლილია: <span className="text-match">{sku} SKU</span> ·{' '}
+              <span className="text-match">{pcs} ც.</span>
+            </p>
+          ) : null;
+        })()}
         {last && (
           // The last product saved on this shelf, small, at the top.
           <p className="-mt-1 truncate text-sm text-ink-soft">
@@ -600,32 +627,50 @@ export default function CountPanel({
                   />
                 </label>
                 <div className="grid gap-1 text-sm text-ink-soft">
-                  ფოტო (სავალდებულო)
-                  <label
-                    className={`flex cursor-pointer items-center gap-3 rounded-control border-2 px-3 py-3 text-lg font-semibold text-ink ${newPhoto ? 'border-match' : 'border-mismatch/70'}`}
-                  >
-                    {newPhotoUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={newPhotoUrl} alt="" className="h-16 w-16 rounded-md object-cover" />
-                    ) : (
-                      <span className="text-3xl">📷</span>
+                  ფოტოები (მინიმუმ ერთი)
+                  <div className="flex flex-wrap gap-2">
+                    {newPhotos.map((ph, i) => (
+                      <button
+                        key={ph.url}
+                        type="button"
+                        onClick={() => setNewPhotos((all) => all.filter((_, j) => j !== i))}
+                        aria-label="ფოტოს წაშლა"
+                        className="relative h-20 w-20 overflow-hidden rounded-md border border-rule-strong"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={ph.url} alt="" className="h-full w-full object-cover" />
+                        <span className="absolute right-0.5 top-0.5 rounded-full bg-black/70 px-1.5 text-xs text-white">
+                          ✕
+                        </span>
+                      </button>
+                    ))}
+                    {newPhotos.length < 6 && (
+                      <label
+                        className={`grid h-20 cursor-pointer place-items-center rounded-md border-2 border-dashed px-3 text-center text-sm font-semibold text-ink ${newPhotos.length ? 'w-20 border-rule-strong' : 'w-full border-mismatch/70'}`}
+                      >
+                        <span>
+                          <span className="block text-2xl">📷</span>
+                          {newPhotos.length ? '+ კიდევ' : 'ფოტოს გადაღება'}
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          className="hidden"
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            e.target.value = '';
+                            if (!f) return;
+                            setNewPhotos((all) => [
+                              ...all,
+                              { file: f, url: URL.createObjectURL(f) },
+                            ]);
+                            setMessage(null);
+                          }}
+                        />
+                      </label>
                     )}
-                    {newPhoto ? '✓ გადაღებულია — შეცვლა' : 'ფოტოს გადაღება'}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      className="hidden"
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        e.target.value = '';
-                        if (!f) return;
-                        setNewPhoto(f);
-                        setNewPhotoUrl(URL.createObjectURL(f));
-                        setMessage(null);
-                      }}
-                    />
-                  </label>
+                  </div>
                 </div>
                 <label className="grid gap-1 text-sm text-ink-soft">
                   შტრიხკოდი

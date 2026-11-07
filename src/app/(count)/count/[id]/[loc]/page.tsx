@@ -133,7 +133,7 @@ export default async function ZonePage({ params }: PageProps<'/count/[id]/[loc]'
         </Link>
         <h1 className="mt-1 text-2xl font-semibold">
           {location.code}{' '}
-          {location.name !== location.code && (
+          {location.name !== location.code && !location.name.includes(location.code) && (
             <span className="text-base font-normal text-ink-soft">{location.name}</span>
           )}
         </h1>
