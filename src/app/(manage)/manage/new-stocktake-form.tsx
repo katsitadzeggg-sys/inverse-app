@@ -194,16 +194,33 @@ export default function NewStocktakeForm({
 
       <label className={`grid gap-1 ${stockUi ? 'text-base' : 'text-sm'}`}>
         საწყობი / ობიექტი
-        {sites.length > 0 && (
-          <select value={siteId} onChange={(e) => pickSite(e.target.value)} className={field}>
-            {sites.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-            {canType && <option value="new">+ სხვა (ხელით)</option>}
-          </select>
-        )}
+        {sites.length > 0 &&
+          (stockUi ? (
+            // The whole name shows (wrapping); the phone's own picker opens on tap.
+            <div className="relative">
+              <div className={`${field} flex items-center justify-between gap-3 whitespace-normal leading-snug`}>
+                <span>{sites.find((x) => x.id === siteId)?.name ?? '+ სხვა (ხელით)'}</span>
+                <span aria-hidden="true" className="shrink-0 text-gray-500">▾</span>
+              </div>
+              <select value={siteId} onChange={(e) => pickSite(e.target.value)} aria-label="საწყობი / ობიექტი" className="absolute inset-0 h-full w-full cursor-pointer opacity-0">
+                {sites.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+                {canType && <option value="new">+ სხვა (ხელით)</option>}
+              </select>
+            </div>
+          ) : (
+            <select value={siteId} onChange={(e) => pickSite(e.target.value)} className={field}>
+              {sites.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+              {canType && <option value="new">+ სხვა (ხელით)</option>}
+            </select>
+          ))}
       </label>
       {siteId === 'new' ? (
         <input
