@@ -26,7 +26,7 @@ export default async function CountLayout({ children }: LayoutProps<'/'>) {
           </Link>
           ) : (
             <Link href={home} className="rounded-control border border-rule-strong bg-paper-sunk px-2.5 py-1.5 text-sm font-semibold">
-              {app === 'stock' ? '📦 მარაგები' : '🏷 ძირ. საშუალებები'}
+              🏠 მთავარი
             </Link>
           )}
           <div className="ml-auto text-right">

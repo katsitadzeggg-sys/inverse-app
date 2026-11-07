@@ -102,6 +102,8 @@ export default function CountPanel({
   // Already counted on this shelf (product → qty), and the last line saved.
   const [counted, setCounted] = useState<Record<string, number>>({});
   const [last, setLast] = useState<{ code: string; name: string; qty: number } | null>(null);
+  // "Already counted on this shelf" — a notice on the screen until Next.
+  const [dup, setDup] = useState<string | null>(null);
   useEffect(() => {
     shelfCounts(stocktakeId, locationId)
       .then(setCounted)
@@ -144,12 +146,10 @@ export default function CountPanel({
     setHits(null);
     // Counted before on this shelf: say so; the new quantity is added to it.
     const before = counted[p.id];
-    setMessage(
+    setMessage(null);
+    setDup(
       before
-        ? {
-            tone: 'error',
-            text: `⚠ უკვე დასკანერებულია: ${before} ${unitLabel(p.unit)}. ახალი რაოდენობა დაემატება.`,
-          }
+        ? `უკვე დასკანერებულია: ${before} ${unitLabel(p.unit)}.\nახალი რაოდენობა დაემატება.`
         : null,
     );
     focusQty();
@@ -298,6 +298,7 @@ export default function CountPanel({
         const sum = (product ? (counted[product.id] ?? 0) : 0) + total;
         if (product) setCounted((c) => ({ ...c, [product.id]: sum }));
         setLast({ code: savedCode, name: savedName, qty: sum });
+        setDup(null);
         setMessage(batch ? { tone: 'info', text: `✓ ${savedName} — ${total}${batch}` } : null);
         navigator.vibrate?.([40, 40, 40]);
         reset();
@@ -325,6 +326,16 @@ export default function CountPanel({
 
   return (
     <>
+      {dup && (
+        // On top of the screen until Next (or a tap).
+        <button
+          type="button"
+          onClick={() => setDup(null)}
+          className="fixed inset-x-4 top-1/3 z-50 whitespace-pre-line rounded-2xl border-2 border-review bg-paper p-5 text-center text-xl font-semibold text-ink shadow-2xl"
+        >
+          ⚠ {dup}
+        </button>
+      )}
       <section className="grid gap-3 rounded-control border border-rule/70 p-4">
         {last && (
           // The last product saved on this shelf, small, at the top.
@@ -462,7 +473,7 @@ export default function CountPanel({
                 </label>
                 <div className="grid gap-1 text-sm text-ink-soft">
                   სერიული ნომერი
-                  <SerialField value={newSerial} onChange={setNewSerial} />
+                  <SerialField value={newSerial} onChange={setNewSerial} ocr={false} />
                 </div>
                 <div className="grid gap-1 text-sm text-ink-soft">
                   ჯგუფი
