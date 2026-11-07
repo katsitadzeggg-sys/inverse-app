@@ -379,6 +379,13 @@ export async function addEntry(
     return { error: 'რაოდენობა არასწორია.' };
   const supabase = await createClient();
 
+  // A shelf's own QR read by mistake must not become a product.
+  const newCodeTyped = input.newBarcode?.trim();
+  if (!input.productId && newCodeTyped) {
+    const { data: shelf } = await supabase.from('locations').select('id').ilike('code', newCodeTyped).limit(1).maybeSingle();
+    if (shelf) return { error: `„${newCodeTyped}“ თაროს კოდია, პროდუქტი არ არის.` };
+  }
+
   // New product's group: an existing category of the company, or a new one.
   let categoryId: string | null = null;
   const group = input.newGroup?.trim();
