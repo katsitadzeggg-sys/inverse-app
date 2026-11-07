@@ -801,3 +801,11 @@ select:focus {
   border-color: rgb(255 255 255 / 0.22);
   backdrop-filter: blur(10px);
 }
+
+/* Map picker pin (an emoji, so Leaflet needs no image files). */
+.map-pin {
+  background: none;
+  border: 0;
+  font-size: 30px;
+  line-height: 32px;
+}

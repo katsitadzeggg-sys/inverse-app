@@ -3,7 +3,7 @@
 import { useActionState, useState, useTransition } from 'react';
 import readXlsxFile from 'read-excel-file';
 import { Alert, Button, inputClass } from '@/components/ui';
-import { addressOf, currentPosition } from '@/lib/geo';
+import MapPicker from '@/components/map-picker';
 import { addSite, importSites } from './actions';
 import type { FormState } from '@/app/(count)/count/actions';
 
@@ -15,6 +15,7 @@ export default function SiteForms() {
   const [address, setAddress] = useState('');
   const [point, setPoint] = useState<{ lat: number; lng: number } | null>(null);
   const [locating, setLocating] = useState<string | null>(null);
+  const [mapOpen, setMapOpen] = useState(false);
   const [msg, setMsg] = useState<FormState>({});
   const [busy, start] = useTransition();
 
@@ -39,20 +40,23 @@ export default function SiteForms() {
         <input type="hidden" name="lng" value={point?.lng ?? ''} />
         <button
           type="button"
-          onClick={async () => {
-            setLocating('ვადგენ მდებარეობას…');
-            const p = await currentPosition(10000);
-            if (!p) return setLocating('მდებარეობა ვერ დადგინდა. ჩაწერე მისამართი ხელით.');
-            setPoint(p);
-            setLocating('ვეძებ მისამართს…');
-            const a = await addressOf(p.lat, p.lng);
-            if (a) setAddress(a);
-            setLocating(a ? null : 'წერტილი ჩაიწერა, მისამართი ჩაწერე ხელით.');
-          }}
+          onClick={() => setMapOpen(true)}
           className="rounded-control border border-rule-strong px-3 py-2 text-sm"
         >
-          📍 აქ ვარ — მისამართი და წერტილი ავტომატურად
+          📍 ლოკაცია რუკაზე — მისამართი ავტომატურად
         </button>
+        {mapOpen && (
+          <MapPicker
+            start={point}
+            onClose={() => setMapOpen(false)}
+            onPick={(p, a) => {
+              setPoint(p);
+              if (a) setAddress(a);
+              setLocating(a ? null : 'წერტილი ჩაიწერა, მისამართი ჩაწერე ხელით.');
+              setMapOpen(false);
+            }}
+          />
+        )}
         {point && <p className="text-xs text-match">✓ წერტილი ჩაიწერა</p>}
         {locating && <p className="text-xs text-ink-soft">{locating}</p>}
         {state.error && <Alert>{state.error}</Alert>}
