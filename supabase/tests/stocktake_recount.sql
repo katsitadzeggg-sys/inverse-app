@@ -1,4 +1,4 @@
--- Recount rule (0018): blind book, three recounts, then frozen.
+-- Recount rule (0018, 0037): blind book, one recount, then frozen.
 --   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/stocktake_recount.sql
 begin;
 
@@ -51,15 +51,12 @@ begin
   perform pg_temp.expect((select status from public.stocktake_zones where stocktake_id = st) = 'counting', 'zone stays open while recounts are due');
   perform pg_temp.expect((select status from public.stocktake_checks where product_id = p1) = 'ok', 'the matching item is ok');
 
-  -- p3 found on recount; p2 still wrong three more times.
+  -- p3 found on recount; p2 still wrong after its one recount.
   insert into public.stocktake_entries (company_id, stocktake_id, location_id, product_id, quantity, counter_id) values (co, st, loc, p3, 2, me);
   perform public.close_stocktake_zone(st, loc);
   perform pg_temp.expect((select status from public.stocktake_checks where product_id = p3) = 'ok', 'a recount that matches turns ok');
   perform pg_temp.expect((select attempts from public.stocktake_checks where product_id = p2) = 1, 'a failed recount is counted');
-  perform public.close_stocktake_zone(st, loc);
-  perform pg_temp.expect((select status from public.stocktake_checks where product_id = p2) = 'recount', 'still recount after two failed recounts');
-  perform public.close_stocktake_zone(st, loc);
-  perform pg_temp.expect((select status from public.stocktake_checks where product_id = p2) = 'frozen', 'frozen after the third failed recount');
+  perform pg_temp.expect((select status from public.stocktake_checks where product_id = p2) = 'frozen', 'frozen after one failed recount');
   perform pg_temp.expect((select status from public.stocktake_zones where stocktake_id = st) = 'done', 'zone done when only frozen items are left');
 
   begin
