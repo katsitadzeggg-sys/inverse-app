@@ -108,63 +108,14 @@ export default async function ShelfDonePage({ params }: PageProps<'/count/[id]/[
   type Diff = { name: string; code: string; diff: number };
   let diffs: Diff[] = [];
   if (!isAssets) {
-    const [{ data: book }, { data: lines }] = await Promise.all([
-      supabase
-        .from('stocktake_book')
-        .select('product_id, book_qty, products (name, sku, barcode)')
-        .eq('stocktake_id', id)
-        .eq('location_id', loc)
-        .returns<
-          {
-            product_id: string;
-            book_qty: number;
-            products: { name: string; sku: string; barcode: string | null } | null;
-          }[]
-        >(),
-      supabase
-        .from('stocktake_entries')
-        .select('product_id, unknown_label, quantity, products (name, sku, barcode)')
-        .eq('stocktake_id', id)
-        .eq('location_id', loc)
-        .returns<
-          {
-            product_id: string | null;
-            unknown_label: string | null;
-            quantity: number;
-            products: { name: string; sku: string; barcode: string | null } | null;
-          }[]
-        >(),
-    ]);
-    const rows = new Map<string, { name: string; code: string; book: number; counted: number }>();
-    for (const b of book ?? []) {
-      const r = rows.get(b.product_id) ?? {
-        name: b.products?.name ?? '',
-        code: b.products?.barcode ?? b.products?.sku ?? '',
-        book: 0,
-        counted: 0,
-      };
-      r.book += Number(b.book_qty);
-      rows.set(b.product_id, r);
-    }
-    for (const l of lines ?? []) {
-      const key = l.product_id ?? `?${l.unknown_label}`;
-      const r = rows.get(key) ?? {
-        name: l.products?.name ?? l.unknown_label ?? '',
-        code: l.products?.barcode ?? l.products?.sku ?? '',
-        book: 0,
-        counted: 0,
-      };
-      r.counted += Number(l.quantity);
-      rows.set(key, r);
-    }
-    diffs = [...rows.values()]
-      .map((r) => ({
-        name: r.name,
-        code: r.code,
-        diff: Math.round((r.counted - r.book) * 1000) / 1000,
-      }))
-      .filter((r) => r.diff !== 0)
-      .sort((a, b) => a.diff - b.diff);
+    // Counters cannot read the book (blind count); the closed shelf's
+    // differences come from a database function that may.
+    const { data } = await supabase.rpc('shelf_differences', { p_stocktake: id, p_location: loc });
+    diffs = ((data ?? []) as { product_name: string; code: string; diff: number }[]).map((r) => ({
+      name: r.product_name,
+      code: r.code,
+      diff: Math.round(Number(r.diff) * 1000) / 1000,
+    }));
   }
 
   const canEdit =
