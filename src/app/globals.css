@@ -779,3 +779,19 @@ select:focus {
   body:has(#stock-act) #stock-act { padding: 0 !important; max-width: none !important; }
   body:has(#stock-act) { background: #fff !important; }
 }
+
+/* Manager backdrop: the blue ring takes the colours of the three apps in turn —
+   stock (orange), fixed assets (green), expiry (red). */
+.brand-ring {
+  mix-blend-mode: screen;
+  animation: brand-ring-hue 18s ease-in-out infinite;
+}
+@keyframes brand-ring-hue {
+  0%, 25% { filter: hue-rotate(190deg) saturate(1.3); }   /* 📦 მარაგები */
+  33%, 58% { filter: hue-rotate(-55deg) saturate(1.2); }  /* 🏷 ძირ. საშუალებები */
+  66%, 91% { filter: hue-rotate(153deg) saturate(1.3); }  /* ⏳ ვადები */
+  100% { filter: hue-rotate(190deg) saturate(1.3); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .brand-ring { animation: none; }
+}

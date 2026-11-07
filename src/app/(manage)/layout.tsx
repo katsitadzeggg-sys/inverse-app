@@ -16,13 +16,22 @@ export default async function ManageLayout({ children }: LayoutProps<'/'>) {
 
   return (
     <div className="relative isolate flex min-h-full flex-col">
-      {/* Inverse as a full-screen backdrop behind every manager page. */}
+      {/* Inverse's spinning ring, full screen behind every manager page; its
+          colour moves through the three apps: stock, fixed assets, expiry. */}
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-0 -z-10 grid place-items-center overflow-hidden print:hidden"
+        className="pointer-events-none fixed inset-0 -z-10 overflow-hidden print:hidden"
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo.svg" alt="" className="w-[92vw] max-w-none opacity-[0.08]" />
+        <video
+          autoPlay
+          muted
+          loop
+          playsInline
+          className="brand-ring h-full w-full object-contain opacity-60"
+        >
+          <source src="/brand/ribbon.webm" type="video/webm" />
+          <source src="/brand/ribbon.mp4" type="video/mp4" />
+        </video>
       </div>
       <header className="sticky top-0 z-10 border-b border-rule/70 bg-paper/85 backdrop-blur">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-6 gap-y-3 px-6 py-3">
