@@ -377,6 +377,7 @@ export default function CountPanel({
       if (newOpen && newPhotos.length) {
         try {
           const supabase = createClient();
+          const { data: me } = await supabase.auth.getUser();
           for (const [i, ph] of newPhotos.entries()) {
             const jpeg = await shrinkPhoto(ph.file);
             const path = `${companyId}/${stocktakeId}/${locationId}/product-${crypto.randomUUID()}.jpg`;
@@ -385,7 +386,9 @@ export default function CountPanel({
               .upload(path, jpeg, { contentType: 'image/jpeg' });
             if (upErr) throw upErr;
             if (i === 0) photoPath = path;
+            // created_by is required by the row's access rule.
             await supabase.from('stocktake_media').insert({
+              created_by: me.user?.id,
               company_id: companyId,
               stocktake_id: stocktakeId,
               location_id: locationId,
