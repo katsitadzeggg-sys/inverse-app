@@ -156,7 +156,7 @@ export default async function ZonePage({ params }: PageProps<'/count/[id]/[loc]'
           <form action={finishZone.bind(null, id, loc)}>
             <button
               type="submit"
-              className="w-full rounded-control border-2 border-mismatch/60 px-4 py-3 text-base font-semibold text-mismatch"
+              className="w-full rounded-control bg-mismatch px-4 py-5 text-xl font-semibold text-white shadow-md active:opacity-80"
             >
               🔒 თაროს დახურვა
             </button>
