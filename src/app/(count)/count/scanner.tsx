@@ -53,6 +53,7 @@ export default function Scanner({
   fullscreen = false,
   closeOnCode = false,
   closeKey = 0,
+  shape = 'wide',
 }: {
   onCode: (code: string) => void;
   label?: string;
@@ -67,6 +68,8 @@ export default function Scanner({
   closeOnCode?: boolean;
   /** Changing this number closes the camera (e.g. the product was not found and its form must show). */
   closeKey?: number;
+  /** Aiming marks: 'square' for a shelf QR, 'wide' for a product barcode. */
+  shape?: 'square' | 'wide';
 }) {
   const [on, setOn] = useState(false);
   const onOpenRef = useRef(onOpenChange);
@@ -243,20 +246,37 @@ export default function Scanner({
               autoPlay
               className="absolute inset-0 h-full w-full object-cover"
             />
-            <svg
-              viewBox="0 0 100 100"
-              className="pointer-events-none absolute left-1/2 top-1/2 h-[70%] -translate-x-1/2 -translate-y-1/2"
-              fill="none"
-              stroke="white"
-              strokeWidth="3.2"
-              strokeLinecap="round"
-              aria-hidden="true"
-            >
-              <path d="M4 22 V12 A8 8 0 0 1 12 4 H22" />
-              <path d="M78 4 H88 A8 8 0 0 1 96 12 V22" />
-              <path d="M96 78 V88 A8 8 0 0 1 88 96 H78" />
-              <path d="M22 96 H12 A8 8 0 0 1 4 88 V78" />
-            </svg>
+            {shape === 'square' ? (
+              <svg
+                viewBox="0 0 100 100"
+                className="pointer-events-none absolute left-1/2 top-1/2 h-[72%] -translate-x-1/2 -translate-y-1/2"
+                fill="none"
+                stroke="white"
+                strokeWidth="3.2"
+                strokeLinecap="round"
+                aria-hidden="true"
+              >
+                <path d="M4 22 V12 A8 8 0 0 1 12 4 H22" />
+                <path d="M78 4 H88 A8 8 0 0 1 96 12 V22" />
+                <path d="M96 78 V88 A8 8 0 0 1 88 96 H78" />
+                <path d="M22 96 H12 A8 8 0 0 1 4 88 V78" />
+              </svg>
+            ) : (
+              <svg
+                viewBox="0 0 200 100"
+                className="pointer-events-none absolute left-1/2 top-1/2 w-[86%] -translate-x-1/2 -translate-y-1/2"
+                fill="none"
+                stroke="white"
+                strokeWidth="3.2"
+                strokeLinecap="round"
+                aria-hidden="true"
+              >
+                <path d="M4 26 V12 A8 8 0 0 1 12 4 H30" />
+                <path d="M170 4 H188 A8 8 0 0 1 196 12 V26" />
+                <path d="M196 74 V88 A8 8 0 0 1 188 96 H170" />
+                <path d="M30 96 H12 A8 8 0 0 1 4 88 V74" />
+              </svg>
+            )}
             <button
               type="button"
               onClick={() => setOn(false)}

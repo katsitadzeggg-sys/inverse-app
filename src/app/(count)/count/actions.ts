@@ -358,6 +358,8 @@ export type EntryInput = {
   newSerial?: string | null;
   newGroup?: string | null;
   newNote?: string | null;
+  /** Storage path of the new product's photo (stocktake-media). */
+  newPhoto?: string | null;
   unknownLabel: string | null;
   quantity: number;
   boxes: number | null;
@@ -417,6 +419,7 @@ export async function addEntry(
         unit: input.newUnit?.trim() || 'ცალი',
         category_id: categoryId,
         description,
+        image_url: input.newPhoto ?? null,
       })
       .select('id')
       .single<{ id: string }>();
@@ -445,6 +448,7 @@ export async function addEntry(
           unit: input.newUnit?.trim() || 'ცალი',
           category_id: categoryId,
           description,
+          image_url: input.newPhoto ?? null,
         })
         .select('id')
         .single<{ id: string }>();

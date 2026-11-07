@@ -15,7 +15,13 @@ const EMPTY: FormState = {};
  * drops down the shelves that match. A shelf that is not on the list is added
  * after a yes.
  */
-export default function ZoneOpener({ stocktakeId, shelves }: { stocktakeId: string; shelves: string[] }) {
+export default function ZoneOpener({
+  stocktakeId,
+  shelves,
+}: {
+  stocktakeId: string;
+  shelves: string[];
+}) {
   const [state, action, pending] = useActionState(openZone.bind(null, stocktakeId), EMPTY);
   const [typed, setTyped] = useState('');
   const [ask, setAsk] = useState<string | null>(null); // "add this shelf?"
@@ -59,7 +65,7 @@ export default function ZoneOpener({ stocktakeId, shelves }: { stocktakeId: stri
 
   return (
     <section className="grid gap-4">
-      <Scanner label="თაროს QR" onCode={go} variant="big" fullscreen closeOnCode />
+      <Scanner label="თაროს QR" onCode={go} variant="big" fullscreen closeOnCode shape="square" />
 
       <form
         onSubmit={(e) => {
@@ -79,7 +85,11 @@ export default function ZoneOpener({ stocktakeId, shelves }: { stocktakeId: stri
           className="w-full rounded-control border-2 border-white bg-white px-4 py-5 text-xl text-black caret-black placeholder:text-gray-400 focus:outline-none focus:ring-4 focus:ring-match/40"
         />
         {!ask && (
-          <button type="submit" disabled={!typed.trim() || busy || pending} className="rounded-control bg-match px-4 py-5 text-2xl font-semibold text-white disabled:opacity-50">
+          <button
+            type="submit"
+            disabled={!typed.trim() || busy || pending}
+            className="rounded-control bg-match px-4 py-5 text-2xl font-semibold text-white disabled:opacity-50"
+          >
             {busy || pending ? '…' : 'OK'}
           </button>
         )}
@@ -93,10 +103,19 @@ export default function ZoneOpener({ stocktakeId, shelves }: { stocktakeId: stri
             დავამატო?
           </p>
           <div className="grid grid-cols-2 gap-3">
-            <button type="button" onClick={() => setAsk(null)} className="rounded-control border-2 border-rule-strong py-4 text-lg font-semibold">
+            <button
+              type="button"
+              onClick={() => setAsk(null)}
+              className="rounded-control border-2 border-rule-strong py-4 text-lg font-semibold"
+            >
               არა
             </button>
-            <button type="button" disabled={pending} onClick={() => open(ask, true)} className="rounded-control bg-match py-4 text-lg font-semibold text-white disabled:opacity-50">
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => open(ask, true)}
+              className="rounded-control bg-match py-4 text-lg font-semibold text-white disabled:opacity-50"
+            >
               ✓ დამატება
             </button>
           </div>

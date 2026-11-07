@@ -103,8 +103,15 @@ export default async function ZonePage({ params }: PageProps<'/count/[id]/[loc]'
       .select('product_id, quantity')
       .eq('stocktake_id', id)
       .eq('location_id', loc)
-      .in('product_id', (checks ?? []).map((c) => c.product_id));
-    for (const l of lines ?? []) counted.set(l.product_id as string, (counted.get(l.product_id as string) ?? 0) + Number(l.quantity));
+      .in(
+        'product_id',
+        (checks ?? []).map((c) => c.product_id),
+      );
+    for (const l of lines ?? [])
+      counted.set(
+        l.product_id as string,
+        (counted.get(l.product_id as string) ?? 0) + Number(l.quantity),
+      );
   }
   const recount = (checks ?? [])
     .map((c) => ({
@@ -167,17 +174,20 @@ export default async function ZonePage({ params }: PageProps<'/count/[id]/[loc]'
           <CountPanel
             stocktakeId={id}
             locationId={loc}
+            companyId={company.id}
             expiry={stocktake.kind === 'expiry'}
             countDate={stocktake.count_date}
+            footer={
+              <form action={closeZone.bind(null, id, loc)}>
+                <button
+                  type="submit"
+                  className="w-full rounded-control bg-ink px-4 py-4 text-base font-semibold text-paper"
+                >
+                  ✓ თაროს გადამოწმება
+                </button>
+              </form>
+            }
           />
-          <form action={closeZone.bind(null, id, loc)}>
-            <button
-              type="submit"
-              className="w-full rounded-control bg-ink px-4 py-4 text-base font-semibold text-paper"
-            >
-              ✓ თაროს გადამოწმება
-            </button>
-          </form>
         </>
       )}
     </div>

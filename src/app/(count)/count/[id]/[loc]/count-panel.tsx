@@ -7,6 +7,20 @@ import { addEntry, findProducts, productGroups, type ProductHit } from '../../ac
 import ComboInput from '@/components/combo-input';
 import SerialField from './serial-field';
 import { scanFeedback } from '@/lib/haptic';
+import { createClient } from '@/lib/supabase/client';
+
+/** A camera photo made small enough to upload quickly (long side 1600 px, JPEG). */
+async function shrinkPhoto(file: File): Promise<Blob> {
+  const bmp = await createImageBitmap(file);
+  const k = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+  const c = document.createElement('canvas');
+  c.width = Math.round(bmp.width * k);
+  c.height = Math.round(bmp.height * k);
+  c.getContext('2d')!.drawImage(bmp, 0, 0, c.width, c.height);
+  return new Promise((ok, no) =>
+    c.toBlob((b) => (b ? ok(b) : no(new Error('photo'))), 'image/jpeg', 0.85),
+  );
+}
 import {
   EXPIRY_LABEL,
   expiryFromText,
@@ -48,9 +62,14 @@ export default function CountPanel({
   locationId,
   expiry = false,
   countDate,
+  companyId,
+  footer = null,
 }: {
   stocktakeId: string;
   locationId: string;
+  companyId: string;
+  /** "Check the shelf": shown only between products, not while one is being entered. */
+  footer?: React.ReactNode;
   /** Expiry-date count: each line also needs the batch's expiry date. */
   expiry?: boolean;
   countDate?: string;
@@ -69,6 +88,9 @@ export default function CountPanel({
   const [newSerial, setNewSerial] = useState('');
   const [newGroup, setNewGroup] = useState('');
   const [newNote, setNewNote] = useState('');
+  // New product's photo (required): taken with the camera, uploaded on Next.
+  const [newPhoto, setNewPhoto] = useState<File | null>(null);
+  const [newPhotoUrl, setNewPhotoUrl] = useState<string | null>(null);
   const [groups, setGroups] = useState<string[]>([]);
   useEffect(() => {
     productGroups()
@@ -166,6 +188,8 @@ export default function CountPanel({
     setNewVariant('');
     setNewSerial('');
     setNewNote('');
+    setNewPhoto(null);
+    setNewPhotoUrl(null);
     setNewUnit('ცალი');
     setQty('1');
     setExpiryDate('');
@@ -196,6 +220,8 @@ export default function CountPanel({
   function next() {
     if (newOpen && !newName.trim())
       return setMessage({ tone: 'error', text: 'ჩაწერე დასახელება.' });
+    if (newOpen && !newPhoto)
+      return setMessage({ tone: 'error', text: '📷 ახალი პროდუქტის ფოტოს გადაღება სავალდებულოა.' });
     if (!product && !newBarcode && !newOpen && !unknown?.trim())
       return setMessage({ tone: 'error', text: 'აირჩიე პროდუქტი.' });
     if (qty === '' || !Number.isFinite(total) || total < 0)
@@ -207,7 +233,25 @@ export default function CountPanel({
       });
     const exp = expiry && !expiryUnknown ? expiryDate : null;
     start(async () => {
+      // The new product's photo goes up first; its path is kept on the product.
+      let photoPath: string | null = null;
+      if (newOpen && newPhoto) {
+        try {
+          const jpeg = await shrinkPhoto(newPhoto);
+          photoPath = `${companyId}/${stocktakeId}/${locationId}/product-${crypto.randomUUID()}.jpg`;
+          const { error: upErr } = await createClient()
+            .storage.from('stocktake-media')
+            .upload(photoPath, jpeg, { contentType: 'image/jpeg' });
+          if (upErr) throw upErr;
+        } catch (e) {
+          return setMessage({
+            tone: 'error',
+            text: `ფოტო ვერ აიტვირთა: ${e instanceof Error ? e.message : String(e)}`,
+          });
+        }
+      }
       const res = await addEntry(stocktakeId, locationId, {
+        newPhoto: photoPath,
         productId: product?.id ?? null,
         unknownLabel: product || newBarcode || newOpen ? null : unknown,
         newBarcode: product ? null : newOpen ? newCode.trim() || null : newBarcode,
@@ -259,257 +303,289 @@ export default function CountPanel({
   ) : null;
 
   return (
-    <section className="grid gap-3 rounded-control border border-rule/70 p-4">
-      <Scanner
-        label="პროდუქტის სკანირება"
-        onCode={(c) => {
-          scanFeedback(); // buzz + beep: the code was read
-          scanned.current = true;
-          search(c);
-        }}
-        overlay={overlay}
-        onOpenChange={setCameraOn}
-        fullscreen={!expiry}
-        closeKey={closeCamera}
-      />
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          scanned.current = false; // typed, not scanned
-          // 🔍 with nothing typed: straight to the new-product form.
-          if (query.trim()) search(query);
-          else openNew('');
-        }}
-        className="flex gap-2"
-      >
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="ან ჩაწერე შტრიხკოდი ან სახელი"
-          className={`${inputClass} text-base`}
+    <>
+      <section className="grid gap-3 rounded-control border border-rule/70 p-4">
+        <Scanner
+          label="პროდუქტის სკანირება"
+          onCode={(c) => {
+            scanFeedback(); // buzz + beep: the code was read
+            scanned.current = true;
+            search(c);
+          }}
+          overlay={overlay}
+          onOpenChange={setCameraOn}
+          fullscreen={!expiry}
+          shape="wide"
+          closeKey={closeCamera}
         />
-        <button type="submit" className="rounded-control border border-rule-strong px-4">
-          🔍
-        </button>
-      </form>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            scanned.current = false; // typed, not scanned
+            // 🔍 with nothing typed: straight to the new-product form.
+            if (query.trim()) search(query);
+            else openNew('');
+          }}
+          className="flex gap-2"
+        >
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="ან ჩაწერე შტრიხკოდი ან სახელი"
+            className={`${inputClass} text-base`}
+          />
+          <button type="submit" className="rounded-control border border-rule-strong px-4">
+            🔍
+          </button>
+        </form>
 
-      {hits && hits.length > 0 && !product && (
-        <ul className="grid gap-1">
-          {hits.map((p) => (
-            <li key={p.id}>
-              <button
-                type="button"
-                onClick={() => choose(p)}
-                className="w-full rounded-control border border-rule px-3 py-2 text-left"
-              >
-                <span className="font-medium">{p.name}</span>
-                <span className="block text-xs text-ink-faint">{p.barcode ?? p.sku}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+        {hits && hits.length > 0 && !product && (
+          <ul className="grid gap-1">
+            {hits.map((p) => (
+              <li key={p.id}>
+                <button
+                  type="button"
+                  onClick={() => choose(p)}
+                  className="w-full rounded-control border border-rule px-3 py-2 text-left"
+                >
+                  <span className="font-medium">{p.name}</span>
+                  <span className="block text-xs text-ink-faint">{p.barcode ?? p.sku}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
 
-      {chosen && (
-        <div className="grid gap-3">
-          {product && !cameraOn && (
-            <p className="text-lg font-semibold">
-              {product.name}
-              <span className="block text-sm font-normal text-ink-faint">
-                {product.barcode ?? product.sku} · {unitLabel(product.unit)}
-              </span>
-            </p>
-          )}
-          {newBarcode && !product && (
-            <div className="grid gap-2">
-              {!cameraOn && (
-                <>
-                  <p className="text-lg font-semibold text-mismatch">ახალი პროდუქტი</p>
-                  <p className="-mt-2 text-sm text-ink-faint">{newBarcode} · ცალი</p>
-                </>
-              )}
-              <input
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                placeholder="დასახელება"
-                className={`${inputClass} text-base`}
-              />
-            </div>
-          )}
-          {newOpen && !product && (
-            <div className="grid gap-3 rounded-control border-2 border-review/70 p-3">
-              <p className="text-lg font-semibold text-mismatch">ახალი პროდუქტი</p>
-              <label className="grid gap-1 text-sm text-ink-soft">
-                დასახელება
+        {chosen && (
+          <div className="grid gap-3">
+            {product && !cameraOn && (
+              <p className="text-lg font-semibold">
+                {product.name}
+                <span className="block text-sm font-normal text-ink-faint">
+                  {product.barcode ?? product.sku} · {unitLabel(product.unit)}
+                </span>
+              </p>
+            )}
+            {newBarcode && !product && (
+              <div className="grid gap-2">
+                {!cameraOn && (
+                  <>
+                    <p className="text-lg font-semibold text-mismatch">ახალი პროდუქტი</p>
+                    <p className="-mt-2 text-sm text-ink-faint">{newBarcode} · ცალი</p>
+                  </>
+                )}
                 <input
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
-                  autoFocus={!newName}
-                  placeholder="მაგ. ლიმონათი ზედაზენი"
-                  className={`${inputClass} py-4 text-lg`}
-                />
-              </label>
-              <label className="grid gap-1 text-sm text-ink-soft">
-                შტრიხკოდი
-                <input
-                  value={newCode}
-                  onChange={(e) => setNewCode(e.target.value)}
-                  placeholder="თუ აქვს"
-                  className={`${inputClass} py-4 text-lg`}
-                />
-              </label>
-              <div className="grid gap-1 text-sm text-ink-soft">
-                სერიული ნომერი
-                <SerialField value={newSerial} onChange={setNewSerial} />
-              </div>
-              <div className="grid gap-1 text-sm text-ink-soft">
-                ჯგუფი
-                <ComboInput
-                  value={newGroup}
-                  onChange={setNewGroup}
-                  options={groups}
-                  placeholder="მაგ. სასმელები"
-                  className={`${inputClass} py-4 text-lg`}
-                />
-              </div>
-              <label className="grid gap-1 text-sm text-ink-soft">
-                კომენტარი
-                <textarea
-                  value={newNote}
-                  onChange={(e) => setNewNote(e.target.value)}
-                  rows={2}
-                  placeholder="დეტალები, ზომა, ფერი"
-                  className={`${inputClass} text-lg`}
-                />
-              </label>
-              <div className="grid gap-1 text-sm text-ink-soft">
-                ერთეული
-                <div className="grid grid-cols-5 gap-1.5">
-                  {['ცალი', 'კგ', 'ლ', 'ყუთი', 'შეკვრა'].map((u) => (
-                    <button
-                      key={u}
-                      type="button"
-                      onClick={() => setNewUnit(u)}
-                      className={`rounded-control border-2 py-3 text-base font-semibold ${newUnit === u ? 'border-match text-match' : 'border-rule-strong text-ink-soft'}`}
-                    >
-                      {u}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-          {unknown !== null && !product && !newBarcode && !newOpen && (
-            <div className="grid gap-2">
-              <p className="text-lg font-semibold text-mismatch">ახალი პროდუქტი</p>
-              <input
-                value={unknown}
-                onChange={(e) => setUnknown(e.target.value)}
-                placeholder="დასახელება, ზომა, ფერი"
-                className={`${inputClass} text-base`}
-              />
-            </div>
-          )}
-
-          {expiry && (
-            <div className="grid gap-2 rounded-control border border-rule/70 p-3">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-semibold">ვარგისიანობის ვადა</span>
-                {status && (
-                  <span className={`text-sm font-semibold ${STATUS_TONE[status]}`}>
-                    {EXPIRY_LABEL[status]}
-                  </span>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <input
-                  type="date"
-                  value={expiryDate}
-                  disabled={expiryUnknown}
-                  onChange={(e) => setExpiryDate(e.target.value)}
+                  placeholder="დასახელება"
                   className={`${inputClass} text-base`}
                 />
-                <label className="cursor-pointer whitespace-nowrap rounded-control border border-rule-strong px-3 py-2 text-sm">
-                  📷 წაკითხვა
+              </div>
+            )}
+            {newOpen && !product && (
+              <div className="grid gap-3 rounded-control border-2 border-review/70 p-3">
+                <p className="text-lg font-semibold text-mismatch">ახალი პროდუქტი</p>
+                <label className="grid gap-1 text-sm text-ink-soft">
+                  დასახელება
                   <input
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    className="hidden"
-                    onChange={async (e) => {
-                      const f = e.target.files?.[0];
-                      e.target.value = '';
-                      if (!f) return;
-                      setReading('ვკითხულობ ეტიკეტს…');
-                      try {
-                        const { date, text } = await readExpiry(f);
-                        if (date) {
-                          setExpiryDate(date);
-                          setExpiryUnknown(false);
-                          setReading(`წავიკითხე: ${fmtDate(date)}. შეამოწმე.`);
-                        } else
-                          setReading(
-                            `თარიღი ვერ ვიპოვე${text ? ` („${text.slice(0, 40)}“)` : ''}. ჩაწერე ხელით.`,
-                          );
-                      } catch {
-                        setReading('ვერ წავიკითხე. ჩაწერე ხელით.');
-                      }
-                    }}
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    autoFocus={!newName}
+                    placeholder="მაგ. ლიმონათი ზედაზენი"
+                    className={`${inputClass} py-4 text-lg`}
                   />
                 </label>
+                <div className="grid gap-1 text-sm text-ink-soft">
+                  ფოტო (სავალდებულო)
+                  <label
+                    className={`flex cursor-pointer items-center gap-3 rounded-control border-2 px-3 py-3 text-lg font-semibold text-ink ${newPhoto ? 'border-match' : 'border-mismatch/70'}`}
+                  >
+                    {newPhotoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={newPhotoUrl} alt="" className="h-16 w-16 rounded-md object-cover" />
+                    ) : (
+                      <span className="text-3xl">📷</span>
+                    )}
+                    {newPhoto ? '✓ გადაღებულია — შეცვლა' : 'ფოტოს გადაღება'}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        e.target.value = '';
+                        if (!f) return;
+                        setNewPhoto(f);
+                        setNewPhotoUrl(URL.createObjectURL(f));
+                        setMessage(null);
+                      }}
+                    />
+                  </label>
+                </div>
+                <label className="grid gap-1 text-sm text-ink-soft">
+                  შტრიხკოდი
+                  <input
+                    value={newCode}
+                    onChange={(e) => setNewCode(e.target.value)}
+                    placeholder="თუ აქვს"
+                    className={`${inputClass} py-4 text-lg`}
+                  />
+                </label>
+                <div className="grid gap-1 text-sm text-ink-soft">
+                  სერიული ნომერი
+                  <SerialField value={newSerial} onChange={setNewSerial} />
+                </div>
+                <div className="grid gap-1 text-sm text-ink-soft">
+                  ჯგუფი
+                  <ComboInput
+                    value={newGroup}
+                    onChange={setNewGroup}
+                    options={groups}
+                    placeholder="მაგ. სასმელები"
+                    className={`${inputClass} py-4 text-lg`}
+                  />
+                </div>
+                <label className="grid gap-1 text-sm text-ink-soft">
+                  კომენტარი
+                  <textarea
+                    value={newNote}
+                    onChange={(e) => setNewNote(e.target.value)}
+                    rows={2}
+                    placeholder="დეტალები, ზომა, ფერი"
+                    className={`${inputClass} text-lg`}
+                  />
+                </label>
+                <div className="grid gap-1 text-sm text-ink-soft">
+                  ერთეული
+                  <div className="grid grid-cols-5 gap-1.5">
+                    {['ცალი', 'კგ', 'ლ', 'ყუთი', 'შეკვრა'].map((u) => (
+                      <button
+                        key={u}
+                        type="button"
+                        onClick={() => setNewUnit(u)}
+                        className={`rounded-control border-2 py-3 text-base font-semibold ${newUnit === u ? 'border-match text-match' : 'border-rule-strong text-ink-soft'}`}
+                      >
+                        {u}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
-              {reading && <p className="text-xs text-ink-soft">{reading}</p>}
-              <label className="flex items-center gap-2 text-sm text-ink-soft">
+            )}
+            {unknown !== null && !product && !newBarcode && !newOpen && (
+              <div className="grid gap-2">
+                <p className="text-lg font-semibold text-mismatch">ახალი პროდუქტი</p>
                 <input
-                  type="checkbox"
-                  checked={expiryUnknown}
-                  onChange={(e) => setExpiryUnknown(e.target.checked)}
+                  value={unknown}
+                  onChange={(e) => setUnknown(e.target.value)}
+                  placeholder="დასახელება, ზომა, ფერი"
+                  className={`${inputClass} text-base`}
                 />
-                ვადა არ ჩანს / არ აწერია
-              </label>
-            </div>
-          )}
+              </div>
+            )}
 
-          <div className="flex items-center gap-2">
+            {expiry && (
+              <div className="grid gap-2 rounded-control border border-rule/70 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-semibold">ვარგისიანობის ვადა</span>
+                  {status && (
+                    <span className={`text-sm font-semibold ${STATUS_TONE[status]}`}>
+                      {EXPIRY_LABEL[status]}
+                    </span>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="date"
+                    value={expiryDate}
+                    disabled={expiryUnknown}
+                    onChange={(e) => setExpiryDate(e.target.value)}
+                    className={`${inputClass} text-base`}
+                  />
+                  <label className="cursor-pointer whitespace-nowrap rounded-control border border-rule-strong px-3 py-2 text-sm">
+                    📷 წაკითხვა
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const f = e.target.files?.[0];
+                        e.target.value = '';
+                        if (!f) return;
+                        setReading('ვკითხულობ ეტიკეტს…');
+                        try {
+                          const { date, text } = await readExpiry(f);
+                          if (date) {
+                            setExpiryDate(date);
+                            setExpiryUnknown(false);
+                            setReading(`წავიკითხე: ${fmtDate(date)}. შეამოწმე.`);
+                          } else
+                            setReading(
+                              `თარიღი ვერ ვიპოვე${text ? ` („${text.slice(0, 40)}“)` : ''}. ჩაწერე ხელით.`,
+                            );
+                        } catch {
+                          setReading('ვერ წავიკითხე. ჩაწერე ხელით.');
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+                {reading && <p className="text-xs text-ink-soft">{reading}</p>}
+                <label className="flex items-center gap-2 text-sm text-ink-soft">
+                  <input
+                    type="checkbox"
+                    checked={expiryUnknown}
+                    onChange={(e) => setExpiryUnknown(e.target.checked)}
+                  />
+                  ვადა არ ჩანს / არ აწერია
+                </label>
+              </div>
+            )}
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setQty(String(Math.max(0, (Number(qty) || 0) - 1)))}
+                className="h-14 w-14 rounded-control border border-rule-strong text-2xl"
+              >
+                −
+              </button>
+              <input
+                ref={qtyRef}
+                inputMode="numeric"
+                pattern="[0-9]*"
+                enterKeyHint="next"
+                value={qty}
+                onChange={(e) => setQty(e.target.value.replace(/[^0-9]/g, ''))}
+                onKeyDown={(e) => e.key === 'Enter' && next()}
+                placeholder="0"
+                className={`${inputClass} py-3 text-center text-2xl font-semibold`}
+              />
+              <button
+                type="button"
+                onClick={() => setQty(String((Number(qty) || 0) + 1))}
+                className="h-14 w-14 rounded-control border border-rule-strong text-2xl"
+              >
+                +
+              </button>
+            </div>
+
             <button
               type="button"
-              onClick={() => setQty(String(Math.max(0, (Number(qty) || 0) - 1)))}
-              className="h-14 w-14 rounded-control border border-rule-strong text-2xl"
+              onClick={next}
+              disabled={pending}
+              className="rounded-control bg-ink px-4 py-4 text-lg font-semibold text-paper disabled:opacity-60"
             >
-              −
-            </button>
-            <input
-              ref={qtyRef}
-              inputMode="numeric"
-              pattern="[0-9]*"
-              enterKeyHint="next"
-              value={qty}
-              onChange={(e) => setQty(e.target.value.replace(/[^0-9]/g, ''))}
-              onKeyDown={(e) => e.key === 'Enter' && next()}
-              placeholder="0"
-              className={`${inputClass} py-3 text-center text-2xl font-semibold`}
-            />
-            <button
-              type="button"
-              onClick={() => setQty(String((Number(qty) || 0) + 1))}
-              className="h-14 w-14 rounded-control border border-rule-strong text-2xl"
-            >
-              +
+              {pending ? '…' : 'შემდეგი →'}
             </button>
           </div>
+        )}
 
-          <button
-            type="button"
-            onClick={next}
-            disabled={pending}
-            className="rounded-control bg-ink px-4 py-4 text-lg font-semibold text-paper disabled:opacity-60"
-          >
-            {pending ? '…' : 'შემდეგი →'}
-          </button>
-        </div>
-      )}
-
-      {message && <Alert tone={message.tone}>{message.text}</Alert>}
-    </section>
+        {message && <Alert tone={message.tone}>{message.text}</Alert>}
+      </section>
+      {!chosen && footer}
+    </>
   );
 }
