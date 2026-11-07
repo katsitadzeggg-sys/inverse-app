@@ -763,3 +763,9 @@ select:focus {
   --color-match: #fb923c;
   --color-review: #facc15;
 }
+
+/* Stock app: the camera's aiming frame with soft round corners. */
+[data-app='stock'] .scan-frame {
+  border-radius: 1.5rem;
+  border-width: 3px;
+}

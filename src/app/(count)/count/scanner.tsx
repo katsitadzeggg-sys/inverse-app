@@ -177,7 +177,7 @@ export default function Scanner({
         <div className="relative overflow-hidden rounded-control bg-black">
           <video ref={videoRef} muted playsInline autoPlay className="aspect-[4/3] w-full object-cover" />
           {/* Guide: the band the reader looks at. */}
-          <div className="pointer-events-none absolute inset-x-[5%] top-1/2 h-[45%] -translate-y-1/2 rounded-md border-2 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
+          <div className="pointer-events-none absolute inset-x-[5%] top-1/2 h-[45%] -translate-y-1/2 scan-frame rounded-md border-2 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
           {status && (
             <p className="pointer-events-none absolute inset-x-0 top-0 bg-black/40 px-3 py-1.5 text-center text-xs text-white">{status}</p>
           )}
