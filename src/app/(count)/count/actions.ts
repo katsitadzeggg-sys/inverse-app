@@ -382,7 +382,12 @@ export async function addEntry(
   // A shelf's own QR read by mistake must not become a product.
   const newCodeTyped = input.newBarcode?.trim();
   if (!input.productId && newCodeTyped) {
-    const { data: shelf } = await supabase.from('locations').select('id').ilike('code', newCodeTyped).limit(1).maybeSingle();
+    const { data: shelf } = await supabase
+      .from('locations')
+      .select('id')
+      .ilike('code', newCodeTyped)
+      .limit(1)
+      .maybeSingle();
     if (shelf) return { error: `„${newCodeTyped}“ თაროს კოდია, პროდუქტი არ არის.` };
   }
 
@@ -931,5 +936,23 @@ export async function shelfCounts(
   const out: Record<string, number> = {};
   for (const r of data ?? [])
     out[r.product_id as string] = (out[r.product_id as string] ?? 0) + Number(r.quantity);
+  return out;
+}
+
+/** The company's products, kept on the phone so scans are recognised with no connection. */
+export async function productCatalog(): Promise<ProductHit[]> {
+  const session = await requireSession();
+  const supabase = await createClient();
+  const out: ProductHit[] = [];
+  for (let from = 0; from < 20000; from += 1000) {
+    const { data } = await supabase
+      .from('products')
+      .select('id, sku, barcode, name, variant, unit')
+      .eq('company_id', session.company.id)
+      .eq('active', true)
+      .range(from, from + 999);
+    out.push(...((data ?? []) as ProductHit[]));
+    if (!data || data.length < 1000) break;
+  }
   return out;
 }

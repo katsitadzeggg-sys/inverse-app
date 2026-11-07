@@ -16,6 +16,7 @@
 import { createClient } from '@/lib/supabase/client';
 import { resumableUpload } from '@/lib/resumable-upload';
 import { saveAssetCheck } from '@/app/(count)/count/assets-actions';
+import { addEntry, type EntryInput, type ProductHit } from '@/app/(count)/count/actions';
 import type { AssetHit } from '@/app/(count)/count/assets-actions';
 
 type AssetInput = Parameters<typeof saveAssetCheck>[2];
@@ -42,7 +43,17 @@ export type MediaJob = {
   at: number;
 };
 
-type Job = CheckJob | MediaJob;
+/** Stock: a counted line saved with no connection. */
+export type EntryJob = {
+  key: string;
+  type: 'entry';
+  stocktakeId: string;
+  locationId: string;
+  input: EntryInput;
+  at: number;
+};
+
+type Job = CheckJob | MediaJob | EntryJob;
 
 const DB = 'inverse-outbox';
 const JOBS = 'jobs';
@@ -63,7 +74,11 @@ function open(): Promise<IDBDatabase> {
   });
 }
 
-async function tx<T>(store: string, mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<T> | void): Promise<T | undefined> {
+async function tx<T>(
+  store: string,
+  mode: IDBTransactionMode,
+  fn: (s: IDBObjectStore) => IDBRequest<T> | void,
+): Promise<T | undefined> {
   const db = await open();
   return new Promise((resolve, reject) => {
     const t = db.transaction(store, mode);
@@ -95,25 +110,90 @@ export async function pendingJobs(): Promise<Job[]> {
 
 /** Assets saved offline in this room and not yet sent. */
 export async function pendingInRoom(locationId: string): Promise<number> {
-  return (await pendingJobs()).filter((j) => j.type === 'check' && j.locationId === locationId).length;
+  return (await pendingJobs()).filter((j) => j.type === 'check' && j.locationId === locationId)
+    .length;
 }
 
 /** A failure that means "no connection" rather than a refusal from the server. */
 export function isOffline(e?: unknown): boolean {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return true;
-  const msg = e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e ?? '');
-  return /failed to fetch|load failed|networkerror|network request failed|fetch failed|internet connection/i.test(msg);
+  const msg =
+    e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e ?? '');
+  return /failed to fetch|load failed|networkerror|network request failed|fetch failed|internet connection/i.test(
+    msg,
+  );
 }
 
-export async function queueCheck(stocktakeId: string, locationId: string, input: AssetInput): Promise<string> {
+export async function queueCheck(
+  stocktakeId: string,
+  locationId: string,
+  input: AssetInput,
+): Promise<string> {
   const key = `local:${crypto.randomUUID()}`;
-  await tx(JOBS, 'readwrite', (s) => s.put({ key, type: 'check', stocktakeId, locationId, input, at: Date.now() } satisfies CheckJob));
+  await tx(JOBS, 'readwrite', (s) =>
+    s.put({
+      key,
+      type: 'check',
+      stocktakeId,
+      locationId,
+      input,
+      at: Date.now(),
+    } satisfies CheckJob),
+  );
   changed();
   return key;
 }
 
+export async function queueEntry(
+  stocktakeId: string,
+  locationId: string,
+  input: EntryInput,
+): Promise<void> {
+  await tx(JOBS, 'readwrite', (s) =>
+    s.put({
+      key: `entry:${crypto.randomUUID()}`,
+      type: 'entry',
+      stocktakeId,
+      locationId,
+      input,
+      at: Date.now(),
+    } satisfies EntryJob),
+  );
+  changed();
+}
+
+/** Stock lines of this shelf waiting to be sent (product → qty), for "already counted". */
+export async function pendingEntries(locationId: string): Promise<EntryJob[]> {
+  return (await pendingJobs()).filter(
+    (j): j is EntryJob => j.type === 'entry' && j.locationId === locationId,
+  );
+}
+
+/** The product list, kept on the phone for lookups without a connection. */
+export async function keepCatalog(rows: ProductHit[]): Promise<void> {
+  try {
+    await tx(REG, 'readwrite', (s) => s.put(rows, 'products'));
+  } catch {}
+}
+
+export async function storedCatalog(): Promise<ProductHit[]> {
+  try {
+    return ((await tx<ProductHit[]>(REG, 'readonly', (s) => s.get('products'))) ??
+      []) as ProductHit[];
+  } catch {
+    return [];
+  }
+}
+
 export async function queueMedia(job: Omit<MediaJob, 'key' | 'type' | 'at'>): Promise<void> {
-  await tx(JOBS, 'readwrite', (s) => s.put({ ...job, key: `media:${crypto.randomUUID()}`, type: 'media', at: Date.now() } satisfies MediaJob));
+  await tx(JOBS, 'readwrite', (s) =>
+    s.put({
+      ...job,
+      key: `media:${crypto.randomUUID()}`,
+      type: 'media',
+      at: Date.now(),
+    } satisfies MediaJob),
+  );
   changed();
 }
 
@@ -147,7 +227,10 @@ export function flushOutbox(): Promise<void> {
     const supabase = createClient();
     try {
       for (const job of jobs) {
-        if (job.type === 'check') {
+        if (job.type === 'entry') {
+          const res = await addEntry(job.stocktakeId, job.locationId, job.input);
+          if (res.error) console.warn('outbox: entry refused', res.error);
+        } else if (job.type === 'check') {
           const res = await saveAssetCheck(job.stocktakeId, job.locationId, job.input);
           if (res.error || !res.id) {
             // Refused by the server (not a network problem): drop it rather than block the queue.
@@ -158,21 +241,35 @@ export function flushOutbox(): Promise<void> {
         } else {
           let checkId: string | null = job.checkId || null; // '' = shelf photo, no asset
           if (checkId?.startsWith('local:')) {
-            checkId = ((await tx<string>(IDS, 'readonly', (s) => s.get(job.checkId))) as string | undefined) ?? null;
+            checkId =
+              ((await tx<string>(IDS, 'readonly', (s) => s.get(job.checkId))) as
+                string | undefined) ?? null;
             if (!checkId) continue; // its record has not gone through yet
           }
           if (job.blob.size > 6 * 1048576) {
-            await resumableUpload(supabase, 'stocktake-media', job.path, new File([job.blob], job.path.split('/').pop()!, { type: job.contentType }), () => {});
+            await resumableUpload(
+              supabase,
+              'stocktake-media',
+              job.path,
+              new File([job.blob], job.path.split('/').pop()!, { type: job.contentType }),
+              () => {},
+            );
           } else {
-            const { error } = await supabase.storage.from('stocktake-media').upload(job.path, job.blob, { contentType: job.contentType, upsert: true });
+            const { error } = await supabase.storage
+              .from('stocktake-media')
+              .upload(job.path, job.blob, { contentType: job.contentType, upsert: true });
             if (error) throw error;
           }
           let posterPath = job.posterPath;
           if (job.poster && posterPath) {
-            const { error } = await supabase.storage.from('stocktake-media').upload(posterPath, job.poster, { contentType: 'image/jpeg', upsert: true });
+            const { error } = await supabase.storage
+              .from('stocktake-media')
+              .upload(posterPath, job.poster, { contentType: 'image/jpeg', upsert: true });
             if (error) posterPath = null;
           }
-          const { error: rowErr } = await supabase.from('stocktake_media').insert({ ...job.row, poster_path: posterPath, asset_check_id: checkId });
+          const { error: rowErr } = await supabase
+            .from('stocktake_media')
+            .insert({ ...job.row, poster_path: posterPath, asset_check_id: checkId });
           if (rowErr) throw rowErr;
         }
         await tx(JOBS, 'readwrite', (s) => s.delete(job.key));

@@ -3,7 +3,15 @@
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { Alert, inputClass } from '@/components/ui';
 import Scanner from '../../scanner';
-import { addEntry, findProducts, productGroups, shelfCounts, type ProductHit } from '../../actions';
+import {
+  addEntry,
+  findProducts,
+  productCatalog,
+  productGroups,
+  shelfCounts,
+  type ProductHit,
+} from '../../actions';
+import { isOffline, keepCatalog, pendingEntries, queueEntry, storedCatalog } from '@/lib/outbox';
 import ComboInput from '@/components/combo-input';
 import SerialField from './serial-field';
 import { scanFeedback } from '@/lib/haptic';
@@ -104,11 +112,35 @@ export default function CountPanel({
   const [last, setLast] = useState<{ code: string; name: string; qty: number } | null>(null);
   // "Already counted on this shelf" — a notice on the screen until Next.
   const [dup, setDup] = useState<string | null>(null);
+  // Products kept on the phone, so a scan is recognised with no connection.
+  const [catalog, setCatalog] = useState<ProductHit[]>([]);
   useEffect(() => {
-    shelfCounts(stocktakeId, locationId)
-      .then(setCounted)
-      .catch(() => {});
+    // Saved counts plus lines still waiting on the phone.
+    Promise.all([
+      shelfCounts(stocktakeId, locationId).catch(() => ({}) as Record<string, number>),
+      pendingEntries(locationId),
+    ]).then(([c, waiting]) => {
+      const sum = { ...c };
+      for (const j of waiting)
+        if (j.input.productId)
+          sum[j.input.productId] = (sum[j.input.productId] ?? 0) + j.input.quantity;
+      setCounted(sum);
+    });
+    productCatalog()
+      .then((rows) => {
+        setCatalog(rows);
+        keepCatalog(rows);
+      })
+      .catch(() => storedCatalog().then(setCatalog));
   }, [stocktakeId, locationId]);
+
+  /** Lookup in the products kept on the phone (no connection). */
+  function localFind(q: string): ProductHit[] {
+    const t = q.trim().toLowerCase();
+    const exact = catalog.filter((p) => p.barcode === q.trim() || p.sku.toLowerCase() === t);
+    if (exact.length) return exact;
+    return catalog.filter((p) => p.name.toLowerCase().includes(t)).slice(0, 8);
+  }
   const [pending, start] = useTransition();
   const qtyRef = useRef<HTMLInputElement>(null);
   // The last lookup came from the camera: whatever was read is a code, never a name.
@@ -143,6 +175,7 @@ export default function CountPanel({
     setProduct(p);
     setUnknown(null);
     setNewBarcode(null);
+    setNewOpen(false);
     setHits(null);
     // Counted before on this shelf: say so; the new quantity is added to it.
     const before = counted[p.id];
@@ -183,7 +216,7 @@ export default function CountPanel({
     }
     setQuery(q);
     start(async () => {
-      const found = await findProducts(q);
+      const found = isOffline() ? localFind(q) : await findProducts(q).catch(() => localFind(q));
       const exact = found.find(
         (p) => p.barcode === q.trim() || p.sku.toLowerCase() === q.trim().toLowerCase(),
       );
@@ -235,9 +268,14 @@ export default function CountPanel({
   }
 
   function next() {
-    if (newOpen && !newName.trim())
+    if (!product && newOpen && !newName.trim())
       return setMessage({ tone: 'error', text: 'ჩაწერე დასახელება.' });
-    if (newOpen && !newPhoto)
+    if (!product && newOpen && isOffline())
+      return setMessage({
+        tone: 'error',
+        text: 'ახალი პროდუქტი ინტერნეტის გარეშე ვერ ჩაიწერება. ჩაწერე, როცა ქსელი დაბრუნდება.',
+      });
+    if (!product && newOpen && !newPhoto)
       return setMessage({ tone: 'error', text: '📷 ახალი პროდუქტის ფოტოს გადაღება სავალდებულოა.' });
     if (!product && !newBarcode && !newOpen && !unknown?.trim())
       return setMessage({ tone: 'error', text: 'აირჩიე პროდუქტი.' });
@@ -267,7 +305,7 @@ export default function CountPanel({
           });
         }
       }
-      const res = await addEntry(stocktakeId, locationId, {
+      const input = {
         newPhoto: photoPath,
         productId: product?.id ?? null,
         unknownLabel: product || newBarcode || newOpen ? null : unknown,
@@ -282,7 +320,24 @@ export default function CountPanel({
         boxes: null,
         perBox: null,
         expiryDate: exp,
-      });
+      };
+      let res: { error?: string | null };
+      try {
+        if (isOffline()) throw new TypeError('Failed to fetch');
+        res = await addEntry(stocktakeId, locationId, input);
+      } catch (e) {
+        if (!isOffline(e) || newOpen) {
+          res = {
+            error: newOpen
+              ? 'ახალი პროდუქტი ინტერნეტის გარეშე ვერ ჩაიწერება.'
+              : 'ვერ შეინახა. სცადე თავიდან.',
+          };
+        } else {
+          // No connection: kept on the phone, sent when the signal is back.
+          await queueEntry(stocktakeId, locationId, input);
+          res = {};
+        }
+      }
       if (res.error) setMessage({ tone: 'error', text: res.error });
       else {
         const batch = expiry
