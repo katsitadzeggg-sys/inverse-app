@@ -98,8 +98,12 @@ export default function InviteForm({
 
       {message && (
         <div className="grid gap-2 rounded-control bg-paper-sunk p-3 text-sm">
-          <p className="font-semibold text-match">✓ მოწვევა შენახულია</p>
-          <p className="text-ink-soft">გაუგზავნე ეს ტექსტი:</p>
+          <p className="font-semibold text-match">
+            {state.mailed ? `✓ მოწვევა გაიგზავნა მეილზე: ${state.notice}` : '✓ მოწვევა შენახულია'}
+          </p>
+          <p className="text-ink-soft">
+            {state.mailed ? 'სურვილისამებრ, ესეც გაუგზავნე:' : 'გაუგზავნე ეს ტექსტი:'}
+          </p>
           <p className="select-all rounded-control border border-rule/70 p-2">{message}</p>
           <div className="grid grid-cols-3 gap-2">
             <button

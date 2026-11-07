@@ -2,9 +2,11 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import { headers } from 'next/headers';
 import { requireSession } from '@/lib/session';
+import { sendMail } from '@/lib/mail';
 
-export type InviteState = { error?: string; notice?: string };
+export type InviteState = { error?: string; notice?: string; mailed?: boolean };
 
 const ROLES = new Set(['member', 'admin']);
 
@@ -47,8 +49,21 @@ export async function inviteMember(_prev: InviteState, formData: FormData): Prom
     .insert({ company_id: company.id, email, role, modules, invited_by: userId });
   if (error) return { error: error.message };
 
+  // The invitation goes out from the company's own mailbox when it is set up.
+  const h = await headers();
+  const appUrl = `${h.get('x-forwarded-proto') ?? 'https'}://${h.get('x-forwarded-host') ?? h.get('host')}`;
+  const what = role === 'admin' ? 'მენეჯერად' : 'აღმწერად';
+  const text = `გამარჯობა!\n\n${company.name}-ში ${what} დაგამატეს.\n\nგახსენი ${appUrl}/login და დარეგისტრირდი ამ მეილით: ${email}\n\nInverse`;
+  const html = `<div style="font-family:Arial,sans-serif;font-size:15px;color:#0f172a;line-height:1.6">
+<p>გამარჯობა!</p>
+<p><b>${company.name}</b>-ში ${what} დაგამატეს.</p>
+<p><a href="${appUrl}/login" style="display:inline-block;background:#38bdf8;color:#0f172a;padding:12px 22px;border-radius:10px;text-decoration:none;font-weight:bold">შესვლა და რეგისტრაცია</a></p>
+<p>დარეგისტრირდი <b>ამ მეილით</b>: ${email}</p>
+<p style="color:#64748b;font-size:13px">Inverse · inverse.ge</p></div>`;
+  const mailed = await sendMail(email, `მოწვევა — ${company.name}`, text, html);
+
   revalidatePath('/manage/sites');
-  return { notice: email };
+  return { notice: email, mailed };
 }
 
 export async function cancelInvite(id: string): Promise<void> {
