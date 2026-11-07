@@ -100,9 +100,10 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
           <Link href={`/count/${id}/labels`} className="rounded-control border border-rule-strong px-3 py-3 text-center">🏷 QR ეტიკეტები</Link>
         </div>
       ) : (
-      <div className="grid grid-cols-2 gap-2 text-sm">
+      <div className="grid grid-cols-3 gap-2 text-sm">
         <Link href={`/count/${id}/book`} className="rounded-control border border-rule-strong px-3 py-3 text-center">📄 ნაშთის ჩატვირთვა</Link>
         <Link href={`/count/${id}/report`} className="rounded-control border border-rule-strong px-3 py-3 text-center">{st.kind === 'expiry' ? '📊 სხვაობები და ვადები' : '📊 სხვაობები'}</Link>
+        <Link href={`/manage/${id}/act`} className="rounded-control border border-rule-strong px-3 py-3 text-center">🖨 აქტი</Link>
       </div>
       )}
 

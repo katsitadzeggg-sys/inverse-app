@@ -769,3 +769,13 @@ select:focus {
   border-radius: 1.5rem;
   border-width: 3px;
 }
+
+/* Stock act: printing shows only the act. */
+@media print {
+  @page { size: A4; margin: 12mm; }
+  body:has(#stock-act) header,
+  body:has(#stock-act) .no-print { display: none !important; }
+  body:has(#stock-act) main { padding: 0 !important; max-width: none !important; }
+  body:has(#stock-act) #stock-act { padding: 0 !important; max-width: none !important; }
+  body:has(#stock-act) { background: #fff !important; }
+}
