@@ -45,6 +45,19 @@ export default async function StocktakePage({ params }: PageProps<'/count/[id]'>
     const { data: reg } = await supabase.from('asset_register').select('room').eq('stocktake_id', id).not('room', 'is', null).limit(5000);
     rooms = [...new Set((reg ?? []).map((r) => String(r.room).trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).slice(0, 40);
   }
+  // Stock: the company's shelves to pick from while typing (not the rooms of fixed-asset counts).
+  let shelves: string[] = [];
+  if (stocktake.kind !== 'assets') {
+    const [{ data: locs }, { data: roomZones }] = await Promise.all([
+      supabase.from('locations').select('id, code').eq('kind', 'shelf').limit(3000),
+      supabase.from('stocktake_zones').select('location_id, stocktakes!inner(kind)').eq('stocktakes.kind', 'assets').limit(5000),
+    ]);
+    const roomIds = new Set((roomZones ?? []).map((z) => z.location_id as string));
+    shelves = (locs ?? [])
+      .filter((l) => !roomIds.has(l.id) && !/^[0-9a-f]{8}-[0-9a-f]{4}-/.test(l.code))
+      .map((l) => l.code)
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  }
   const open = mine.find((z) => z.status === 'counting');
 
   return (
@@ -72,7 +85,7 @@ export default async function StocktakePage({ params }: PageProps<'/count/[id]'>
           <RoomOpener stocktakeId={id} suggestions={rooms} close={open.location_id} />
         </div>
       ) : open ? (
-        <Link href={`/count/${id}/${open.location_id}`} className="rounded-control bg-ink px-4 py-4 text-center text-base font-semibold text-paper">
+        <Link href={`/count/${id}/${open.location_id}`} className="rounded-control bg-match px-4 py-5 text-center text-xl font-semibold text-white">
           გააგრძელე {stocktake.kind === 'assets' ? 'ოთახი' : 'თარო'} {open.locations?.code} →
         </Link>
       ) : (
@@ -80,7 +93,7 @@ export default async function StocktakePage({ params }: PageProps<'/count/[id]'>
           {stocktake.kind === 'assets' ? (
             <RoomOpener stocktakeId={id} suggestions={rooms} />
           ) : (
-            <ZoneOpener stocktakeId={id} client={stocktake.client_name ?? stocktake.name} branch={stocktake.branch ?? ''} />
+            <ZoneOpener stocktakeId={id} shelves={shelves} />
           )}
         </div>
       )}
