@@ -3,9 +3,19 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
-export type Tile = { code: string; state: 'idle' | 'counting' | 'ok' | 'diff'; who?: string; href?: string };
+export type Tile = {
+  code: string;
+  state: 'idle' | 'counting' | 'ok' | 'diff';
+  who?: string;
+  href?: string;
+};
 
-const COLOR: Record<Tile['state'], number> = { idle: 0x98a2b3, counting: 0xf5a524, ok: 0x22a06b, diff: 0xe5484d };
+const COLOR: Record<Tile['state'], number> = {
+  idle: 0x98a2b3,
+  counting: 0xf5a524,
+  ok: 0x22a06b,
+  diff: 0xe5484d,
+};
 
 /**
  * The same shelves in 3D: each row of codes (A-01, A-02 …) becomes a rack
@@ -59,7 +69,10 @@ export default function Map3D({ rows }: { rows: { row: string; tiles: Tile[] }[]
       const longest = Math.max(1, ...rows.map((r) => r.tiles.length));
       const width = longest * STEP;
       const depth = rows.length * AISLE;
-      const floor = new THREE.Mesh(new THREE.PlaneGeometry(width + 6, depth + 6), new THREE.MeshStandardMaterial({ color: 0x1e293b }));
+      const floor = new THREE.Mesh(
+        new THREE.PlaneGeometry(width + 6, depth + 6),
+        new THREE.MeshStandardMaterial({ color: 0x1e293b }),
+      );
       floor.rotation.x = -Math.PI / 2;
       floor.position.set(width / 2 - STEP / 2, 0, depth / 2 - AISLE / 2);
       scene.add(floor);
@@ -74,7 +87,9 @@ export default function Map3D({ rows }: { rows: { row: string; tiles: Tile[] }[]
         ctx.fillStyle = color;
         ctx.textBaseline = 'middle';
         ctx.fillText(text, 12, c.height / 2);
-        const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false }));
+        const sprite = new THREE.Sprite(
+          new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false }),
+        );
         sprite.scale.set((c.width / c.height) * 0.45, 0.45, 1);
         return sprite;
       };
@@ -87,7 +102,14 @@ export default function Map3D({ rows }: { rows: { row: string; tiles: Tile[] }[]
         rowLabel.position.set(-1.6, 1.2, z);
         scene.add(rowLabel);
         r.tiles.forEach((t, i) => {
-          const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: COLOR[t.state], roughness: 0.6, emissive: t.state === 'counting' ? 0x6b4500 : 0x000000 }));
+          const mesh = new THREE.Mesh(
+            geo,
+            new THREE.MeshStandardMaterial({
+              color: COLOR[t.state],
+              roughness: 0.6,
+              emissive: t.state === 'counting' ? 0x6b4500 : 0x000000,
+            }),
+          );
           mesh.position.set(i * STEP, 1.1, z);
           scene.add(mesh);
           boxes.push({ mesh, tile: t });
@@ -110,12 +132,20 @@ export default function Map3D({ rows }: { rows: { row: string; tiles: Tile[] }[]
       let downAt = { x: 0, y: 0 };
       const pick = (ev: PointerEvent) => {
         const rect = renderer.domElement.getBoundingClientRect();
-        pointer.set(((ev.clientX - rect.left) / rect.width) * 2 - 1, -((ev.clientY - rect.top) / rect.height) * 2 + 1);
+        pointer.set(
+          ((ev.clientX - rect.left) / rect.width) * 2 - 1,
+          -((ev.clientY - rect.top) / rect.height) * 2 + 1,
+        );
         ray.setFromCamera(pointer, camera);
         const hit = ray.intersectObjects(boxes.map((b) => b.mesh))[0];
         return hit ? boxes.find((b) => b.mesh === hit.object)?.tile : undefined;
       };
-      const STATE: Record<Tile['state'], string> = { idle: 'არ გახსნილა', counting: 'ითვლება', ok: 'ემთხვევა', diff: 'სხვაობაა' };
+      const STATE: Record<Tile['state'], string> = {
+        idle: 'არ გახსნილა',
+        counting: 'ითვლება',
+        ok: 'ემთხვევა',
+        diff: 'სხვაობაა',
+      };
       const onMove = (ev: PointerEvent) => {
         const t = pick(ev);
         setHover(t ? `${t.code} · ${STATE[t.state]}${t.who ? ` · ${t.who}` : ''}` : null);
@@ -164,9 +194,19 @@ export default function Map3D({ rows }: { rows: { row: string; tiles: Tile[] }[]
 
   return (
     <div className="relative">
-      <div ref={ref} style={{ height: '60vh', minHeight: 320 }} className="w-full touch-none overflow-hidden rounded-control" />
-      {hover && <p className="pointer-events-none absolute left-2 top-2 rounded bg-black/70 px-2 py-1 text-xs text-white">{hover}</p>}
-      <p className="mt-1 text-xs text-ink-faint">გადაატრიალე თითით, მიაახლოვე ორი თითით, შეეხე თაროს — გაიხსნება.</p>
+      <div
+        ref={ref}
+        style={{ height: '60vh', minHeight: 320 }}
+        className="w-full touch-none overflow-hidden rounded-control"
+      />
+      {hover && (
+        <p className="pointer-events-none absolute left-2 top-2 rounded bg-black/70 px-2 py-1 text-xs text-white">
+          {hover}
+        </p>
+      )}
+      <p className="mt-1 text-xs text-ink-faint">
+        გადაატრიალე თითით, მიაახლოვე ორი თითით, შეეხე თაროს — გაიხსნება.
+      </p>
     </div>
   );
 }

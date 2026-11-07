@@ -5,11 +5,13 @@ import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
 import type { FormState } from '@/app/(count)/count/actions';
 
-const num = (v: FormDataEntryValue | null) => (v === null || v === '' ? null : Number.isFinite(Number(v)) ? Number(v) : null);
+const num = (v: FormDataEntryValue | null) =>
+  v === null || v === '' ? null : Number.isFinite(Number(v)) ? Number(v) : null;
 
 export async function addSite(_prev: FormState, formData: FormData): Promise<FormState> {
   const { company, profile } = await requireSession();
-  if (profile.role !== 'owner' && profile.role !== 'admin') return { error: 'მხოლოდ მენეჯერს შეუძლია.' };
+  if (profile.role !== 'owner' && profile.role !== 'admin')
+    return { error: 'მხოლოდ მენეჯერს შეუძლია.' };
   const name = String(formData.get('name') ?? '').trim();
   if (!name) return { error: 'ჩაწერე საწყობის / ობიექტის სახელი.' };
   const supabase = await createClient();
@@ -30,7 +32,8 @@ export async function addSite(_prev: FormState, formData: FormData): Promise<For
 
 export async function importSites(rows: { name: string; address: string }[]): Promise<FormState> {
   const { company, profile } = await requireSession();
-  if (profile.role !== 'owner' && profile.role !== 'admin') return { error: 'მხოლოდ მენეჯერს შეუძლია.' };
+  if (profile.role !== 'owner' && profile.role !== 'admin')
+    return { error: 'მხოლოდ მენეჯერს შეუძლია.' };
   const seen = new Set<string>();
   const clean = rows
     .map((r) => ({ name: r.name.trim(), address: r.address.trim() }))

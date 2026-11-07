@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
-import { ButtonLink, Card, Stat } from '@/components/ui';
+import { Card, Stat } from '@/components/ui';
 import type { Stocktake } from '@/types/database';
 
 export const metadata = { title: 'მთავარი' };
@@ -107,7 +107,6 @@ export default async function ManageDashboard() {
             {open.length} მიმდინარე ინვენტარიზაცია · სულ {all.length}
           </p>
         </div>
-        <ButtonLink href="/manage/new">+ ახალი ინვენტარიზაცია</ButtonLink>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -131,15 +130,13 @@ export default async function ManageDashboard() {
         <Card
           title="მიმდინარე ინვენტარიზაციები"
           action={
-            <Link href="/manage/stocktakes?kind=stock" className="text-xs text-ink">
+            <Link href="/manage/stocktakes" className="text-xs text-ink">
               ყველა
             </Link>
           }
         >
           {open.length === 0 ? (
-            <p className="text-sm text-ink-faint">
-              ღია ინვენტარიზაცია არ არის. დაიწყე ზედა ღილაკით.
-            </p>
+            <p className="text-sm text-ink-faint">ღია ინვენტარიზაცია არ არის.</p>
           ) : (
             <ul className="divide-y divide-rule/70">
               {open.slice(0, 10).map((s) => {

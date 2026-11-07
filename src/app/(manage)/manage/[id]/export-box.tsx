@@ -9,10 +9,20 @@ import { mediaForExport } from '@/app/(count)/count/actions';
  * photos/videos as one ZIP with a folder per shelf. The ZIP is put together in
  * the browser, so large videos do not have to pass through the server.
  */
-export default function ExportBox({ stocktakeId, number, shelves }: { stocktakeId: string; number: string; shelves: { id: string; code: string }[] }) {
+export default function ExportBox({
+  stocktakeId,
+  number,
+  shelves,
+}: {
+  stocktakeId: string;
+  number: string;
+  shelves: { id: string; code: string }[];
+}) {
   const [shelf, setShelf] = useState('all');
   const [busy, setBusy] = useState<string | null>(null);
-  const unique = shelves.filter((s, i, a) => a.findIndex((x) => x.id === s.id) === i).sort((a, b) => a.code.localeCompare(b.code));
+  const unique = shelves
+    .filter((s, i, a) => a.findIndex((x) => x.id === s.id) === i)
+    .sort((a, b) => a.code.localeCompare(b.code));
 
   async function downloadMedia() {
     setBusy('ვამზადებ…');
@@ -34,7 +44,8 @@ export default function ExportBox({ stocktakeId, number, shelves }: { stocktakeI
       const data = await new Promise<Uint8Array>((resolve, reject) =>
         zip(parts, { level: 0 }, (err, out) => (err ? reject(err) : resolve(out))),
       );
-      const shelfCode = shelf === 'all' ? 'ყველა' : (unique.find((s) => s.id === shelf)?.code ?? 'თარო');
+      const shelfCode =
+        shelf === 'all' ? 'ყველა' : (unique.find((s) => s.id === shelf)?.code ?? 'თარო');
       const url = URL.createObjectURL(new Blob([data as BlobPart], { type: 'application/zip' }));
       const a = document.createElement('a');
       a.href = url;
@@ -58,14 +69,24 @@ export default function ExportBox({ stocktakeId, number, shelves }: { stocktakeI
       >
         <option value="all">ყველა თარო</option>
         {unique.map((s) => (
-          <option key={s.id} value={s.id}>{s.code}</option>
+          <option key={s.id} value={s.id}>
+            {s.code}
+          </option>
         ))}
       </select>
       <div className="grid grid-cols-2 gap-2">
-        <a href={`/count/${stocktakeId}/export?shelf=${shelf}`} className="rounded-control border border-rule-strong px-3 py-3 text-center text-sm font-semibold">
+        <a
+          href={`/count/${stocktakeId}/export?shelf=${shelf}`}
+          className="rounded-control border border-rule-strong px-3 py-3 text-center text-sm font-semibold"
+        >
           ⬇ Excel
         </a>
-        <button type="button" onClick={downloadMedia} disabled={!!busy} className="rounded-control border border-rule-strong px-3 py-3 text-sm font-semibold">
+        <button
+          type="button"
+          onClick={downloadMedia}
+          disabled={!!busy}
+          className="rounded-control border border-rule-strong px-3 py-3 text-sm font-semibold"
+        >
           {busy ?? '⬇ ფოტო/ვიდეო (ZIP)'}
         </button>
       </div>

@@ -25,7 +25,7 @@ export default async function NewStocktake({ searchParams }: PageProps<'/manage/
   return (
     <div className="mx-auto grid w-full max-w-md gap-4">
       <Link
-        href="/manage"
+        href="/manage/stocktakes"
         className="inline-flex w-fit items-center gap-2 rounded-control border border-rule-strong px-4 py-2 text-base font-medium"
       >
         ← დაბრუნება

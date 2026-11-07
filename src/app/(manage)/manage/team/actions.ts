@@ -11,13 +11,17 @@ const ROLES = new Set(['member', 'admin']);
 /** Owner/admin invites a counter (member) or manager (admin) by email. */
 export async function inviteMember(_prev: InviteState, formData: FormData): Promise<InviteState> {
   const { userId, profile, company } = await requireSession();
-  if (profile.role !== 'owner' && profile.role !== 'admin') return { error: 'მოწვევა მხოლოდ მენეჯერს შეუძლია.' };
+  if (profile.role !== 'owner' && profile.role !== 'admin')
+    return { error: 'მოწვევა მხოლოდ მენეჯერს შეუძლია.' };
 
-  const email = String(formData.get('email') ?? '').trim().toLowerCase();
+  const email = String(formData.get('email') ?? '')
+    .trim()
+    .toLowerCase();
   const role = String(formData.get('role') ?? 'member');
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: 'მეილი არასწორია.' };
   if (!ROLES.has(role)) return { error: 'როლი აირჩიე.' };
-  if (role === 'admin' && profile.role !== 'owner') return { error: 'მენეჯერის მოწვევა მხოლოდ მფლობელს შეუძლია.' };
+  if (role === 'admin' && profile.role !== 'owner')
+    return { error: 'მენეჯერის მოწვევა მხოლოდ მფლობელს შეუძლია.' };
 
   const supabase = await createClient();
   const { data: existing } = await supabase
@@ -30,7 +34,13 @@ export async function inviteMember(_prev: InviteState, formData: FormData): Prom
   // Replace an older open invite for the same email.
   await supabase.from('company_invites').delete().eq('email', email).is('accepted_at', null);
   const all = ['stock', 'expiry', 'assets'];
-  const modules = role === 'admin' ? all : formData.getAll('modules').map(String).filter((m) => all.includes(m));
+  const modules =
+    role === 'admin'
+      ? all
+      : formData
+          .getAll('modules')
+          .map(String)
+          .filter((m) => all.includes(m));
   if (!modules.length) return { error: 'აღმწერს ერთი მოდული მაინც მოუნიშნე.' };
   const { error } = await supabase
     .from('company_invites')
@@ -60,9 +70,16 @@ export async function setModules(id: string, formData: FormData): Promise<void> 
   const { profile } = await requireSession();
   if (profile.role !== 'owner' && profile.role !== 'admin') return;
   const all = ['stock', 'expiry', 'assets'];
-  const modules = formData.getAll('modules').map(String).filter((m) => all.includes(m));
+  const modules = formData
+    .getAll('modules')
+    .map(String)
+    .filter((m) => all.includes(m));
   if (!modules.length) return;
   const supabase = await createClient();
-  await supabase.from('user_profiles').update({ modules, can_open: formData.get('can_open') === '1' }).eq('id', id).eq('role', 'member');
+  await supabase
+    .from('user_profiles')
+    .update({ modules, can_open: formData.get('can_open') === '1' })
+    .eq('id', id)
+    .eq('role', 'member');
   revalidatePath('/manage/team');
 }

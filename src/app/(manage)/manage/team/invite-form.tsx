@@ -11,7 +11,15 @@ const EMPTY: InviteState = {};
  * by WhatsApp, Viber or mail: the person signs up with exactly that email and
  * lands in this company.
  */
-export default function InviteForm({ appUrl, company, isOwner }: { appUrl: string; company: string; isOwner: boolean }) {
+export default function InviteForm({
+  appUrl,
+  company,
+  isOwner,
+}: {
+  appUrl: string;
+  company: string;
+  isOwner: boolean;
+}) {
   const [state, action, pending] = useActionState(inviteMember, EMPTY);
   const [copied, setCopied] = useState(false);
   const [role, setRole] = useState('member');
@@ -25,11 +33,24 @@ export default function InviteForm({ appUrl, company, isOwner }: { appUrl: strin
         <p className="text-sm font-semibold">➕ აღმწერის დამატება</p>
         <label className="grid gap-1 text-sm">
           მეილი
-          <input name="email" type="email" required inputMode="email" autoComplete="off" placeholder="name@example.com" className={inputClass} />
+          <input
+            name="email"
+            type="email"
+            required
+            inputMode="email"
+            autoComplete="off"
+            placeholder="name@example.com"
+            className={inputClass}
+          />
         </label>
         <label className="grid gap-1 text-sm">
           როლი
-          <select name="role" value={role} onChange={(e) => setRole(e.target.value)} className={inputClass}>
+          <select
+            name="role"
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+            className={inputClass}
+          >
             <option value="member">აღმწერი — მხოლოდ დათვლა</option>
             {isOwner && <option value="admin">მენეჯერი — მართვაც</option>}
           </select>
@@ -37,13 +58,42 @@ export default function InviteForm({ appUrl, company, isOwner }: { appUrl: strin
         {role === 'member' && (
           <fieldset className="grid gap-1 text-sm">
             <legend className="mb-1 text-ink-soft">რისი დათვლა შეუძლია</legend>
-            <label className="flex items-center gap-2"><input type="checkbox" name="modules" value="assets" defaultChecked className="h-4 w-4" /> 🏷 ძირითადი საშუალებები</label>
-            <label className="flex items-center gap-2"><input type="checkbox" name="modules" value="stock" defaultChecked className="h-4 w-4" /> 📦 მარაგები</label>
-            <label className="flex items-center gap-2"><input type="checkbox" name="modules" value="expiry" defaultChecked className="h-4 w-4" /> ⏳ ვადიანი</label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                name="modules"
+                value="assets"
+                defaultChecked
+                className="h-4 w-4"
+              />{' '}
+              🏷 ძირითადი საშუალებები
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                name="modules"
+                value="stock"
+                defaultChecked
+                className="h-4 w-4"
+              />{' '}
+              📦 მარაგები
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                name="modules"
+                value="expiry"
+                defaultChecked
+                className="h-4 w-4"
+              />{' '}
+              ⏳ ვადიანი
+            </label>
           </fieldset>
         )}
         {state.error && <Alert>{state.error}</Alert>}
-        <Button type="submit" disabled={pending}>{pending ? 'ვინახავ…' : 'მოწვევა'}</Button>
+        <Button type="submit" disabled={pending}>
+          {pending ? 'ვინახავ…' : 'მოწვევა'}
+        </Button>
       </form>
 
       {message && (
@@ -66,7 +116,12 @@ export default function InviteForm({ appUrl, company, isOwner }: { appUrl: strin
             >
               {copied ? '✓ დაკოპირდა' : '📋 კოპირება'}
             </button>
-            <a href={`https://wa.me/?text=${encodeURIComponent(message)}`} target="_blank" rel="noreferrer" className="rounded-control border border-rule-strong px-3 py-2 text-center">
+            <a
+              href={`https://wa.me/?text=${encodeURIComponent(message)}`}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-control border border-rule-strong px-3 py-2 text-center"
+            >
               WhatsApp
             </a>
           </div>
