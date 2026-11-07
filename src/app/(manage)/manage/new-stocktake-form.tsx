@@ -216,7 +216,39 @@ export default function NewStocktakeForm({
       )}
 
       {stockUi ? (
-        <input type="hidden" name="address" value={address} />
+        // Stock app: the address in a big white field and one large location button.
+        <div className="grid gap-2">
+          <label className="grid gap-1 text-base">
+            მისამართი
+            <input
+              name="address"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="მისამართი"
+              className={field}
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => locate(true)}
+            disabled={!!locating && locating.startsWith('ვ')}
+            className={`flex items-center justify-center gap-3 rounded-control border-2 px-4 py-5 text-xl font-semibold disabled:opacity-60 ${point ? 'border-[#4285F4] bg-[#4285F4]/15 text-ink' : 'border-[#4285F4] text-ink'}`}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              className="h-8 w-8 text-[#4285F4]"
+              fill="currentColor"
+              aria-hidden="true"
+            >
+              <path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm8.94 3A8.99 8.99 0 0 0 13 3.06V1h-2v2.06A8.99 8.99 0 0 0 3.06 11H1v2h2.06A8.99 8.99 0 0 0 11 20.94V23h2v-2.06A8.99 8.99 0 0 0 20.94 13H23v-2h-2.06zM12 19a7 7 0 1 1 0-14 7 7 0 0 1 0 14z" />
+            </svg>
+            {locating && locating.startsWith('ვ')
+              ? 'ვადგენ…'
+              : point
+                ? '✓ ლოკაცია ჩართულია'
+                : 'ჩემი ლოკაცია'}
+          </button>
+        </div>
       ) : (
         <label className="grid gap-1 text-sm">
           მისამართი
@@ -245,7 +277,9 @@ export default function NewStocktakeForm({
 
       <input type="hidden" name="lat" value={point?.lat ?? ''} />
       <input type="hidden" name="lng" value={point?.lng ?? ''} />
-      {locating && !stockUi && <p className="text-sm text-ink-soft">{locating}</p>}
+      {locating && !(stockUi && locating.startsWith('ვ')) && (
+        <p className="text-sm text-ink-soft">{locating}</p>
+      )}
 
       {fixed && chosen === 'assets' && (
         <label className="grid gap-1 text-sm">
