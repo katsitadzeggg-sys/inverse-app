@@ -310,7 +310,7 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
         {counters.length === 0 ? (
           <p className="text-sm text-ink-soft">
             გუნდში აღმწერი ჯერ არ არის —{' '}
-            <Link href="/manage/team" className="underline">
+            <Link href="/manage/sites#team" className="underline">
               მოიწვიე
             </Link>
             .

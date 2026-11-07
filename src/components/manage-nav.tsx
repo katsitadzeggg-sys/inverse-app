@@ -13,8 +13,11 @@ export default function ManageNav({ platform }: { platform: boolean }) {
       label: '📋 ინვენტარიზაციები',
       active: pathname === '/manage/stocktakes' || pathname === '/manage/new',
     },
-    { href: '/manage/sites', label: '🏬 ობიექტები', active: pathname.startsWith('/manage/sites') },
-    { href: '/manage/team', label: '👥 გუნდი', active: pathname.startsWith('/manage/team') },
+    {
+      href: '/manage/sites',
+      label: '⚙️ მართვის პანელი',
+      active: pathname.startsWith('/manage/sites') || pathname.startsWith('/manage/team'),
+    },
     ...(platform
       ? [
           {

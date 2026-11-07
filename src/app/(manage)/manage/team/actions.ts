@@ -47,7 +47,7 @@ export async function inviteMember(_prev: InviteState, formData: FormData): Prom
     .insert({ company_id: company.id, email, role, modules, invited_by: userId });
   if (error) return { error: error.message };
 
-  revalidatePath('/manage/team');
+  revalidatePath('/manage/sites');
   return { notice: email };
 }
 
@@ -55,14 +55,14 @@ export async function cancelInvite(id: string): Promise<void> {
   await requireSession();
   const supabase = await createClient();
   await supabase.from('company_invites').delete().eq('id', id).is('accepted_at', null);
-  revalidatePath('/manage/team');
+  revalidatePath('/manage/sites');
 }
 
 export async function removeMember(id: string): Promise<void> {
   await requireSession();
   const supabase = await createClient();
   await supabase.rpc('remove_team_member', { p_user: id });
-  revalidatePath('/manage/team');
+  revalidatePath('/manage/sites');
 }
 
 /** Which modules a counter may count in. */
@@ -81,5 +81,5 @@ export async function setModules(id: string, formData: FormData): Promise<void> 
     .update({ modules, can_open: formData.get('can_open') === '1' })
     .eq('id', id)
     .eq('role', 'member');
-  revalidatePath('/manage/team');
+  revalidatePath('/manage/sites');
 }
