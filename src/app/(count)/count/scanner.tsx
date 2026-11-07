@@ -17,10 +17,21 @@ function getDetector(): Promise<Detector> {
     if (Native) return new Native();
     const mod = await import('barcode-detector/ponyfill');
     mod.setZXingModuleOverrides({
-      locateFile: (path: string, prefix: string) => (path.endsWith('.wasm') ? '/zxing/zxing_reader.wasm' : prefix + path),
+      locateFile: (path: string, prefix: string) =>
+        path.endsWith('.wasm') ? '/zxing/zxing_reader.wasm' : prefix + path,
     });
     return new mod.BarcodeDetector({
-      formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'qr_code', 'data_matrix', 'itf'],
+      formats: [
+        'ean_13',
+        'ean_8',
+        'upc_a',
+        'upc_e',
+        'code_128',
+        'code_39',
+        'qr_code',
+        'data_matrix',
+        'itf',
+      ],
     }) as unknown as Detector;
   })();
   detectorPromise.catch(() => (detectorPromise = null));
@@ -50,7 +61,7 @@ export default function Scanner({
   onOpenChange?: (open: boolean) => void;
   /** 'big': large green button with a barcode picture (fixed-asset screen). */
   variant?: 'default' | 'big';
-  /** Stock app: the camera fills the screen, corner marks, a torch and ✕ (like the iPhone code scanner). */
+  /** Stock app: iPhone code-scanner look — corner marks, a torch and ✕; what was read shows under the picture. */
   fullscreen?: boolean;
   /** Close the camera as soon as a code is read (shelf QR). */
   closeOnCode?: boolean;
@@ -98,7 +109,11 @@ export default function Scanner({
     (async () => {
       try {
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+          video: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+          },
           audio: false,
         });
       } catch (e) {
@@ -186,70 +201,104 @@ export default function Scanner({
 
   return (
     <div className="grid gap-2">
-      <button
-        type="button"
-        onClick={() => {
-          setError(null);
-          setStatus(null);
-          setOn((v) => !v);
-        }}
-        className={
-          variant === 'big'
-            ? `flex items-center justify-center gap-3 rounded-control px-4 py-5 text-xl font-semibold ${on ? 'border border-rule-strong bg-paper-sunk' : 'bg-match text-white'}`
-            : 'rounded-control border border-rule-strong bg-paper-sunk px-4 py-3 text-base font-semibold'
-        }
-      >
-        {variant === 'big' && !on && (
-          // A barcode picture, so the button is recognised at a glance.
-          <svg viewBox="0 0 48 32" className="h-8 w-12" aria-hidden="true" fill="currentColor">
-            {[0, 4, 7, 12, 15, 18, 23, 27, 30, 35, 38, 42, 45].map((x, i) => (
-              <rect key={x} x={x} y="0" width={i % 3 === 0 ? 3 : i % 3 === 1 ? 1.5 : 2.2} height="32" />
-            ))}
-          </svg>
-        )}
-        {on ? 'კამერის დახურვა' : variant === 'big' ? label : `📷 ${label}`}
-      </button>
+      {!(on && fullscreen) && (
+        <button
+          type="button"
+          onClick={() => {
+            setError(null);
+            setStatus(null);
+            setOn((v) => !v);
+          }}
+          className={
+            variant === 'big'
+              ? `flex items-center justify-center gap-3 rounded-control px-4 py-5 text-xl font-semibold ${on ? 'border border-rule-strong bg-paper-sunk' : 'bg-match text-white'}`
+              : 'rounded-control border border-rule-strong bg-paper-sunk px-4 py-3 text-base font-semibold'
+          }
+        >
+          {variant === 'big' && !on && (
+            // A barcode picture, so the button is recognised at a glance.
+            <svg viewBox="0 0 48 32" className="h-8 w-12" aria-hidden="true" fill="currentColor">
+              {[0, 4, 7, 12, 15, 18, 23, 27, 30, 35, 38, 42, 45].map((x, i) => (
+                <rect
+                  key={x}
+                  x={x}
+                  y="0"
+                  width={i % 3 === 0 ? 3 : i % 3 === 1 ? 1.5 : 2.2}
+                  height="32"
+                />
+              ))}
+            </svg>
+          )}
+          {on ? 'კამერის დახურვა' : variant === 'big' ? label : `📷 ${label}`}
+        </button>
+      )}
       {on && fullscreen && (
-        <div className="fixed inset-0 z-50 bg-black">
-          <video ref={videoRef} muted playsInline autoPlay className="absolute inset-0 h-full w-full object-cover" />
-          {/* Four corner marks, as on the iPhone code scanner. */}
-          <svg viewBox="0 0 100 100" className="pointer-events-none absolute left-1/2 top-[42%] w-[72vw] max-w-sm -translate-x-1/2 -translate-y-1/2" fill="none" stroke="white" strokeWidth="3.2" strokeLinecap="round" aria-hidden="true">
-            <path d="M4 22 V12 A8 8 0 0 1 12 4 H22" />
-            <path d="M78 4 H88 A8 8 0 0 1 96 12 V22" />
-            <path d="M96 78 V88 A8 8 0 0 1 88 96 H78" />
-            <path d="M22 96 H12 A8 8 0 0 1 4 88 V78" />
-          </svg>
-          <button
-            type="button"
-            onClick={() => setOn(false)}
-            aria-label="დახურვა"
-            className="absolute right-4 top-[max(1rem,env(safe-area-inset-top))] flex h-12 w-12 items-center justify-center rounded-full bg-black/55 text-2xl text-white"
-          >
-            ✕
-          </button>
-          {status && <p className="pointer-events-none absolute inset-x-0 top-[max(1.2rem,env(safe-area-inset-top))] px-16 text-center text-sm text-white/85">{status}</p>}
-          <div className="absolute inset-x-0 bottom-0 grid gap-3 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
-            {overlay && <div className="rounded-2xl bg-black/70 p-4 text-white backdrop-blur">{overlay}</div>}
+        // iPhone code-scanner look, inside the page: corner marks, ✕, torch.
+        <div className="grid gap-2">
+          <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-black">
+            <video
+              ref={videoRef}
+              muted
+              playsInline
+              autoPlay
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+            <svg
+              viewBox="0 0 100 100"
+              className="pointer-events-none absolute left-1/2 top-1/2 h-[70%] -translate-x-1/2 -translate-y-1/2"
+              fill="none"
+              stroke="white"
+              strokeWidth="3.2"
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
+              <path d="M4 22 V12 A8 8 0 0 1 12 4 H22" />
+              <path d="M78 4 H88 A8 8 0 0 1 96 12 V22" />
+              <path d="M96 78 V88 A8 8 0 0 1 88 96 H78" />
+              <path d="M22 96 H12 A8 8 0 0 1 4 88 V78" />
+            </svg>
+            <button
+              type="button"
+              onClick={() => setOn(false)}
+              aria-label="დახურვა"
+              className="absolute right-2 top-2 flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-xl text-white"
+            >
+              ✕
+            </button>
             {torchable && (
               <button
                 type="button"
                 onClick={toggleTorch}
                 aria-label="ფანარი"
-                className={`mx-auto flex h-14 w-14 items-center justify-center rounded-full text-2xl ${torch ? 'bg-white text-black' : 'bg-black/60 text-white'}`}
+                className={`absolute bottom-2 left-1/2 flex h-11 w-11 -translate-x-1/2 items-center justify-center rounded-full text-xl ${torch ? 'bg-white text-black' : 'bg-black/60 text-white'}`}
               >
                 🔦
               </button>
             )}
+            {status && (
+              <p className="pointer-events-none absolute inset-x-0 top-2 px-14 text-center text-xs text-white/85">
+                {status}
+              </p>
+            )}
           </div>
+          {overlay && <div className="rounded-2xl bg-black/80 p-3 text-white">{overlay}</div>}
         </div>
       )}
       {on && !fullscreen && (
         <div className="relative overflow-hidden rounded-control bg-black">
-          <video ref={videoRef} muted playsInline autoPlay className="aspect-[4/3] w-full object-cover" />
+          <video
+            ref={videoRef}
+            muted
+            playsInline
+            autoPlay
+            className="aspect-[4/3] w-full object-cover"
+          />
           {/* Guide: the band the reader looks at. */}
           <div className="pointer-events-none absolute inset-x-[5%] top-1/2 h-[45%] -translate-y-1/2 scan-frame rounded-md border-2 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
           {status && (
-            <p className="pointer-events-none absolute inset-x-0 top-0 bg-black/40 px-3 py-1.5 text-center text-xs text-white">{status}</p>
+            <p className="pointer-events-none absolute inset-x-0 top-0 bg-black/40 px-3 py-1.5 text-center text-xs text-white">
+              {status}
+            </p>
           )}
           {overlay && (
             <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/60 to-transparent px-3 pb-2 pt-6 text-white">
