@@ -4,7 +4,14 @@ import { useRef, useState, useTransition } from 'react';
 import { Alert, inputClass } from '@/components/ui';
 import Scanner from '../../scanner';
 import { addEntry, findProducts, type ProductHit } from '../../actions';
-import { EXPIRY_LABEL, expiryFromText, expiryStatus, fmtDate, parseGs1, type ExpiryStatus } from '@/lib/expiry';
+import {
+  EXPIRY_LABEL,
+  expiryFromText,
+  expiryStatus,
+  fmtDate,
+  parseGs1,
+  type ExpiryStatus,
+} from '@/lib/expiry';
 
 const STATUS_TONE: Record<ExpiryStatus, string> = {
   expired: 'text-mismatch',
@@ -18,7 +25,9 @@ const STATUS_TONE: Record<ExpiryStatus, string> = {
 async function readExpiry(file: File): Promise<{ date: string | null; text: string }> {
   const { createWorker } = await import('tesseract.js');
   const worker = await createWorker('eng');
-  await worker.setParameters({ tessedit_char_whitelist: '0123456789./-: EXPBexpbUSYTOuseytoБГДОгодеснрк' });
+  await worker.setParameters({
+    tessedit_char_whitelist: '0123456789./-: EXPBexpbUSYTOuseytoБГДОгодеснрк',
+  });
   const { data } = await worker.recognize(file);
   await worker.terminate();
   return { date: expiryFromText(data.text), text: data.text.replace(/\s+/g, ' ').trim() };
@@ -49,6 +58,11 @@ export default function CountPanel({
   const [unknown, setUnknown] = useState<string | null>(null);
   const [newBarcode, setNewBarcode] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
+  // New product form: opened when 🔍 finds nothing.
+  const [newOpen, setNewOpen] = useState(false);
+  const [newCode, setNewCode] = useState('');
+  const [newVariant, setNewVariant] = useState('');
+  const [newUnit, setNewUnit] = useState('ცალი');
   const [qty, setQty] = useState('');
   const [message, setMessage] = useState<{ tone: 'error' | 'info'; text: string } | null>(null);
   const [pending, start] = useTransition();
@@ -57,7 +71,11 @@ export default function CountPanel({
   const [expiryDate, setExpiryDate] = useState('');
   const [expiryUnknown, setExpiryUnknown] = useState(false);
   const [reading, setReading] = useState<string | null>(null);
-  const status = expiryUnknown ? 'unknown' : expiryDate ? expiryStatus(expiryDate, countDate) : null;
+  const status = expiryUnknown
+    ? 'unknown'
+    : expiryDate
+      ? expiryStatus(expiryDate, countDate)
+      : null;
 
   const total = Number(qty.replace(',', '.'));
 
@@ -87,7 +105,14 @@ export default function CountPanel({
     const gs1 = parseGs1(raw);
     const q = gs1 ? gs1.ean : raw;
     const code = q.trim();
-    if (gs1 && expiry && product && product.barcode === code && gs1.expiry && gs1.expiry !== expiryDate) {
+    if (
+      gs1 &&
+      expiry &&
+      product &&
+      product.barcode === code &&
+      gs1.expiry &&
+      gs1.expiry !== expiryDate
+    ) {
       // Same product, another batch: start a new line for it.
       choose(product, gs1.expiry);
       return;
@@ -106,7 +131,9 @@ export default function CountPanel({
     setQuery(q);
     start(async () => {
       const found = await findProducts(q);
-      const exact = found.find((p) => p.barcode === q.trim() || p.sku.toLowerCase() === q.trim().toLowerCase());
+      const exact = found.find(
+        (p) => p.barcode === q.trim() || p.sku.toLowerCase() === q.trim().toLowerCase(),
+      );
       if (exact) return choose(exact, gs1?.expiry ?? null);
       setHits(found);
       setProduct(null);
@@ -119,13 +146,32 @@ export default function CountPanel({
         setUnknown(null);
         setMessage(null);
         focusQty();
-      } else if (!found.length) {
-        setMessage({ tone: 'error', text: `„${q}“ ვერ მოიძებნა.` });
-      }
+      } else if (!found.length) openNew(q.trim());
     });
   }
 
+  /** Nothing found: the new-product form, the code or the name already filled in. */
+  function openNew(text: string) {
+    const looksLikeCode = /^[A-Za-z0-9\-./]{4,30}$/.test(text);
+    setNewCode(looksLikeCode ? text : '');
+    setNewName(looksLikeCode ? '' : text);
+    setNewVariant('');
+    setNewUnit('ცალი');
+    setQty('1');
+    setExpiryDate('');
+    setExpiryUnknown(false);
+    setProduct(null);
+    setNewBarcode(null);
+    setUnknown(null);
+    setHits(null);
+    setMessage(null);
+    setNewOpen(true);
+  }
+
   function reset() {
+    setNewOpen(false);
+    setNewCode('');
+    setNewVariant('');
     setProduct(null);
     setUnknown(null);
     setNewBarcode(null);
@@ -138,16 +184,26 @@ export default function CountPanel({
   }
 
   function next() {
-    if (!product && !newBarcode && !unknown?.trim()) return setMessage({ tone: 'error', text: 'აირჩიე პროდუქტი.' });
-    if (qty === '' || !Number.isFinite(total) || total < 0) return setMessage({ tone: 'error', text: 'ჩაწერე რაოდენობა.' });
-    if (expiry && !expiryDate && !expiryUnknown) return setMessage({ tone: 'error', text: 'ჩაწერე ვარგისიანობის ვადა, ან მონიშნე „ვადა არ ჩანს“.' });
+    if (newOpen && !newName.trim())
+      return setMessage({ tone: 'error', text: 'ჩაწერე დასახელება.' });
+    if (!product && !newBarcode && !newOpen && !unknown?.trim())
+      return setMessage({ tone: 'error', text: 'აირჩიე პროდუქტი.' });
+    if (qty === '' || !Number.isFinite(total) || total < 0)
+      return setMessage({ tone: 'error', text: 'ჩაწერე რაოდენობა.' });
+    if (expiry && !expiryDate && !expiryUnknown)
+      return setMessage({
+        tone: 'error',
+        text: 'ჩაწერე ვარგისიანობის ვადა, ან მონიშნე „ვადა არ ჩანს“.',
+      });
     const exp = expiry && !expiryUnknown ? expiryDate : null;
     start(async () => {
       const res = await addEntry(stocktakeId, locationId, {
         productId: product?.id ?? null,
-        unknownLabel: product || newBarcode ? null : unknown,
-        newBarcode: product ? null : newBarcode,
+        unknownLabel: product || newBarcode || newOpen ? null : unknown,
+        newBarcode: product ? null : newOpen ? newCode.trim() || null : newBarcode,
         newName: product ? null : newName,
+        newUnit: product ? null : newOpen ? newUnit : null,
+        newVariant: product ? null : newOpen ? newVariant : null,
         quantity: total,
         boxes: null,
         perBox: null,
@@ -155,22 +211,31 @@ export default function CountPanel({
       });
       if (res.error) setMessage({ tone: 'error', text: res.error });
       else {
-        const batch = expiry ? ` · ${exp ? fmtDate(exp) : 'ვადა უცნობია'}${status && status !== 'ok' ? ` (${EXPIRY_LABEL[status]})` : ''}` : '';
-        setMessage({ tone: 'info', text: `✓ ${product?.name ?? (newBarcode ? newName || newBarcode : unknown)} — ${total}${batch}` });
+        const batch = expiry
+          ? ` · ${exp ? fmtDate(exp) : 'ვადა უცნობია'}${status && status !== 'ok' ? ` (${EXPIRY_LABEL[status]})` : ''}`
+          : '';
+        setMessage({
+          tone: 'info',
+          text: `✓ ${product?.name ?? (newOpen ? newName : newBarcode ? newName || newBarcode : unknown)} — ${total}${batch}`,
+        });
         navigator.vibrate?.([40, 40, 40]);
         reset();
       }
     });
   }
 
-  const chosen = product || newBarcode || unknown !== null;
+  const chosen = product || newBarcode || newOpen || unknown !== null;
 
   // What was just read, written on the camera picture itself.
   const overlay = product ? (
     <>
       <p className="truncate text-sm font-semibold leading-tight">{product.name}</p>
-      <p className="text-xs leading-tight text-white/75">{product.barcode ?? product.sku} · {unitLabel(product.unit)}</p>
-      {expiry && expiryDate && <p className="text-xs leading-tight text-white/90">ვადა {fmtDate(expiryDate)}</p>}
+      <p className="text-xs leading-tight text-white/75">
+        {product.barcode ?? product.sku} · {unitLabel(product.unit)}
+      </p>
+      {expiry && expiryDate && (
+        <p className="text-xs leading-tight text-white/90">ვადა {fmtDate(expiryDate)}</p>
+      )}
     </>
   ) : newBarcode ? (
     <>
@@ -181,11 +246,18 @@ export default function CountPanel({
 
   return (
     <section className="grid gap-3 rounded-control border border-rule/70 p-4">
-      <Scanner label="პროდუქტის სკანირება" onCode={search} overlay={overlay} onOpenChange={setCameraOn} />
+      <Scanner
+        label="პროდუქტის სკანირება"
+        onCode={search}
+        overlay={overlay}
+        onOpenChange={setCameraOn}
+      />
       <form
         onSubmit={(e) => {
           e.preventDefault();
+          // 🔍 with nothing typed: straight to the new-product form.
           if (query.trim()) search(query);
+          else openNew('');
         }}
         className="flex gap-2"
       >
@@ -195,26 +267,26 @@ export default function CountPanel({
           placeholder="ან ჩაწერე შტრიხკოდი ან სახელი"
           className={`${inputClass} text-base`}
         />
-        <button type="submit" className="rounded-control border border-rule-strong px-4">🔍</button>
+        <button type="submit" className="rounded-control border border-rule-strong px-4">
+          🔍
+        </button>
       </form>
 
       {hits && hits.length > 0 && !product && (
         <ul className="grid gap-1">
           {hits.map((p) => (
             <li key={p.id}>
-              <button type="button" onClick={() => choose(p)} className="w-full rounded-control border border-rule px-3 py-2 text-left">
+              <button
+                type="button"
+                onClick={() => choose(p)}
+                className="w-full rounded-control border border-rule px-3 py-2 text-left"
+              >
                 <span className="font-medium">{p.name}</span>
                 <span className="block text-xs text-ink-faint">{p.barcode ?? p.sku}</span>
               </button>
             </li>
           ))}
         </ul>
-      )}
-
-      {!chosen && hits && hits.length === 0 && query && !/^\d{6,14}$/.test(query.trim()) && (
-        <button type="button" onClick={() => setUnknown(query)} className="text-left text-sm text-ink-soft underline">
-          ❓ ჩავწერო უცნობ პროდუქტად
-        </button>
       )}
 
       {chosen && (
@@ -235,13 +307,71 @@ export default function CountPanel({
                   <p className="-mt-2 text-sm text-ink-faint">{newBarcode} · ცალი</p>
                 </>
               )}
-              <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="დასახელება" className={`${inputClass} text-base`} />
+              <input
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="დასახელება"
+                className={`${inputClass} text-base`}
+              />
             </div>
           )}
-          {unknown !== null && !product && !newBarcode && (
+          {newOpen && !product && (
+            <div className="grid gap-3 rounded-control border-2 border-review/70 p-3">
+              <p className="text-lg font-semibold text-mismatch">ახალი პროდუქტი</p>
+              <label className="grid gap-1 text-sm text-ink-soft">
+                დასახელება
+                <input
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  autoFocus={!newName}
+                  placeholder="მაგ. ლიმონათი ზედაზენი"
+                  className={`${inputClass} py-4 text-lg`}
+                />
+              </label>
+              <label className="grid gap-1 text-sm text-ink-soft">
+                შტრიხკოდი / კოდი
+                <input
+                  value={newCode}
+                  onChange={(e) => setNewCode(e.target.value)}
+                  placeholder="თუ აქვს"
+                  className={`${inputClass} py-4 text-lg`}
+                />
+              </label>
+              <label className="grid gap-1 text-sm text-ink-soft">
+                ზომა / ფერი / გემო
+                <input
+                  value={newVariant}
+                  onChange={(e) => setNewVariant(e.target.value)}
+                  placeholder="მაგ. 0.5ლ, მსხალი"
+                  className={`${inputClass} py-4 text-lg`}
+                />
+              </label>
+              <div className="grid gap-1 text-sm text-ink-soft">
+                ერთეული
+                <div className="grid grid-cols-5 gap-1.5">
+                  {['ცალი', 'კგ', 'ლ', 'ყუთი', 'შეკვრა'].map((u) => (
+                    <button
+                      key={u}
+                      type="button"
+                      onClick={() => setNewUnit(u)}
+                      className={`rounded-control border-2 py-3 text-base font-semibold ${newUnit === u ? 'border-match text-match' : 'border-rule-strong text-ink-soft'}`}
+                    >
+                      {u}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+          {unknown !== null && !product && !newBarcode && !newOpen && (
             <div className="grid gap-2">
               <p className="text-lg font-semibold text-mismatch">ახალი პროდუქტი</p>
-              <input value={unknown} onChange={(e) => setUnknown(e.target.value)} placeholder="დასახელება, ზომა, ფერი" className={`${inputClass} text-base`} />
+              <input
+                value={unknown}
+                onChange={(e) => setUnknown(e.target.value)}
+                placeholder="დასახელება, ზომა, ფერი"
+                className={`${inputClass} text-base`}
+              />
             </div>
           )}
 
@@ -249,7 +379,11 @@ export default function CountPanel({
             <div className="grid gap-2 rounded-control border border-rule/70 p-3">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-sm font-semibold">ვარგისიანობის ვადა</span>
-                {status && <span className={`text-sm font-semibold ${STATUS_TONE[status]}`}>{EXPIRY_LABEL[status]}</span>}
+                {status && (
+                  <span className={`text-sm font-semibold ${STATUS_TONE[status]}`}>
+                    {EXPIRY_LABEL[status]}
+                  </span>
+                )}
               </div>
               <div className="flex gap-2">
                 <input
@@ -277,7 +411,10 @@ export default function CountPanel({
                           setExpiryDate(date);
                           setExpiryUnknown(false);
                           setReading(`წავიკითხე: ${fmtDate(date)}. შეამოწმე.`);
-                        } else setReading(`თარიღი ვერ ვიპოვე${text ? ` („${text.slice(0, 40)}“)` : ''}. ჩაწერე ხელით.`);
+                        } else
+                          setReading(
+                            `თარიღი ვერ ვიპოვე${text ? ` („${text.slice(0, 40)}“)` : ''}. ჩაწერე ხელით.`,
+                          );
                       } catch {
                         setReading('ვერ წავიკითხე. ჩაწერე ხელით.');
                       }
@@ -287,14 +424,24 @@ export default function CountPanel({
               </div>
               {reading && <p className="text-xs text-ink-soft">{reading}</p>}
               <label className="flex items-center gap-2 text-sm text-ink-soft">
-                <input type="checkbox" checked={expiryUnknown} onChange={(e) => setExpiryUnknown(e.target.checked)} />
+                <input
+                  type="checkbox"
+                  checked={expiryUnknown}
+                  onChange={(e) => setExpiryUnknown(e.target.checked)}
+                />
                 ვადა არ ჩანს / არ აწერია
               </label>
             </div>
           )}
 
           <div className="flex items-center gap-2">
-            <button type="button" onClick={() => setQty(String(Math.max(0, (Number(qty) || 0) - 1)))} className="h-14 w-14 rounded-control border border-rule-strong text-2xl">−</button>
+            <button
+              type="button"
+              onClick={() => setQty(String(Math.max(0, (Number(qty) || 0) - 1)))}
+              className="h-14 w-14 rounded-control border border-rule-strong text-2xl"
+            >
+              −
+            </button>
             <input
               ref={qtyRef}
               inputMode="numeric"
@@ -306,10 +453,21 @@ export default function CountPanel({
               placeholder="0"
               className={`${inputClass} py-3 text-center text-2xl font-semibold`}
             />
-            <button type="button" onClick={() => setQty(String((Number(qty) || 0) + 1))} className="h-14 w-14 rounded-control border border-rule-strong text-2xl">+</button>
+            <button
+              type="button"
+              onClick={() => setQty(String((Number(qty) || 0) + 1))}
+              className="h-14 w-14 rounded-control border border-rule-strong text-2xl"
+            >
+              +
+            </button>
           </div>
 
-          <button type="button" onClick={next} disabled={pending} className="rounded-control bg-ink px-4 py-4 text-lg font-semibold text-paper disabled:opacity-60">
+          <button
+            type="button"
+            onClick={next}
+            disabled={pending}
+            className="rounded-control bg-ink px-4 py-4 text-lg font-semibold text-paper disabled:opacity-60"
+          >
             {pending ? '…' : 'შემდეგი →'}
           </button>
         </div>

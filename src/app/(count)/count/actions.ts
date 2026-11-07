@@ -283,6 +283,9 @@ export type EntryInput = {
   /** Counting without a product list: a scanned barcode that is not known yet. */
   newBarcode?: string | null;
   newName?: string | null;
+  /** New product's unit (ცალი, კგ, ლ, ყუთი…) and variant (ზომა, ფერი, გემო). */
+  newUnit?: string | null;
+  newVariant?: string | null;
   unknownLabel: string | null;
   quantity: number;
   boxes: number | null;
@@ -298,6 +301,23 @@ export async function addEntry(stocktakeId: string, locationId: string, input: E
   const supabase = await createClient();
 
   // A new barcode becomes a product on the spot, so the next scan finds it.
+  // No barcode but a name: the product gets a code of its own (N-…).
+  if (!input.productId && !input.newBarcode?.trim() && input.newName?.trim()) {
+    const { data: made, error: pErr } = await supabase
+      .from('products')
+      .insert({
+        company_id: session.company.id,
+        sku: `N-${Date.now().toString(36).toUpperCase()}`,
+        barcode: null,
+        name: input.newName.trim(),
+        variant: input.newVariant?.trim() || null,
+        unit: input.newUnit?.trim() || 'ცალი',
+      })
+      .select('id')
+      .single<{ id: string }>();
+    if (pErr) return { error: pErr.message };
+    input.productId = made.id;
+  }
   if (!input.productId && input.newBarcode?.trim()) {
     const barcode = input.newBarcode.trim();
     const { data: existing } = await supabase
@@ -311,7 +331,14 @@ export async function addEntry(stocktakeId: string, locationId: string, input: E
     else {
       const { data: made, error: pErr } = await supabase
         .from('products')
-        .insert({ company_id: session.company.id, sku: barcode, barcode, name: input.newName?.trim() || `ახალი · ${barcode}`, unit: 'ცალი' })
+        .insert({
+          company_id: session.company.id,
+          sku: barcode,
+          barcode,
+          name: input.newName?.trim() || `ახალი · ${barcode}`,
+          variant: input.newVariant?.trim() || null,
+          unit: input.newUnit?.trim() || 'ცალი',
+        })
         .select('id')
         .single<{ id: string }>();
       if (pErr) return { error: pErr.message };
