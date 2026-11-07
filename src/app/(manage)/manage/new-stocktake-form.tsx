@@ -96,6 +96,14 @@ export default function NewStocktakeForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [siteId]);
 
+  // Stock app: ask for the phone's location right away ("შემდეგი" waits for it).
+  useEffect(() => {
+    if (!(fixed && chosen === 'stock')) return;
+    const t = setTimeout(() => locate(false), 300);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chosen]);
+
   // The object picked last time comes up first (per device).
   useEffect(() => {
     let last: string | null = null;
@@ -309,7 +317,7 @@ export default function NewStocktakeForm({
       {state.error && <Alert>{state.error}</Alert>}
       <button
         type="submit"
-        disabled={pending || !(siteId === 'new' ? branch.trim() : branch)}
+        disabled={pending || !(siteId === 'new' ? branch.trim() : branch) || (stockUi && !here)}
         className={`rounded-control bg-match px-4 font-semibold text-white disabled:opacity-50 ${stockUi ? 'py-5 text-2xl' : 'py-4 text-xl'}`}
       >
         {pending ? 'იწყება…' : stockUi ? 'შემდეგი →' : '▶ დაწყება'}
