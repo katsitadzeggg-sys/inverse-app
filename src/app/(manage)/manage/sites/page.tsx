@@ -30,7 +30,6 @@ export default async function SitesPage() {
   const list = data ?? [];
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight">⚙️ მართვის პანელი</h1>
       <div className="grid gap-8 lg:grid-cols-2">
         <TeamSection />
         <section className="grid content-start gap-4">
