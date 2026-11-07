@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
 import { requireSession } from '@/lib/session';
@@ -15,26 +16,18 @@ export default async function ManageLayout({ children }: LayoutProps<'/'>) {
   const { data: platformAdmin } = await (await createClient()).rpc('is_platform_admin');
 
   return (
-    <div className="relative isolate flex min-h-full flex-col">
-      {/* Inverse's spinning ring, full screen behind every manager page; its
-          colour moves through the three apps: stock, fixed assets, expiry. */}
-      <div
-        aria-hidden
-        className="pointer-events-none fixed inset-0 -z-10 overflow-hidden print:hidden"
-      >
-        <video
-          autoPlay
-          muted
-          loop
-          playsInline
-          className="brand-ring h-full w-full object-contain opacity-60"
-        >
-          <source src="/brand/ribbon.webm" type="video/webm" />
-          <source src="/brand/ribbon.mp4" type="video/mp4" />
-        </video>
-      </div>
+    <div className="flex min-h-full flex-col">
       <header className="sticky top-0 z-10 border-b border-rule/70 bg-paper/85 backdrop-blur">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-6 gap-y-3 px-6 py-3">
+          {/* Inverse's spinning ring (2 × 2 cm), colour cycling through the three apps. */}
+          <Link href="/manage" aria-label="მთავარი" className="shrink-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/brand/ring.webp"
+              alt=""
+              className="brand-ring h-[2cm] w-[2cm] object-contain"
+            />
+          </Link>
           <Suspense>
             <ManageNav platform={!!platformAdmin} />
           </Suspense>

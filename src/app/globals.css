@@ -795,3 +795,10 @@ select:focus {
 @media (prefers-reduced-motion: reduce) {
   .brand-ring { animation: none; }
 }
+
+/* Dashboard tiles: white and see-through over the navy ground. */
+.dash-glass [class*='bg-paper-sunk/60'] {
+  background-color: rgb(255 255 255 / 0.07);
+  border-color: rgb(255 255 255 / 0.22);
+  backdrop-filter: blur(10px);
+}
