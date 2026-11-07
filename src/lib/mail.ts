@@ -20,10 +20,14 @@ export async function sendMail(
       host: process.env.SMTP_HOST ?? 'smtp.gmail.com',
       port: 465,
       secure: true,
-      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+      // App passwords are shown in groups of four; Google wants them without spaces.
+      auth: {
+        user: process.env.SMTP_USER!.trim(),
+        pass: process.env.SMTP_PASS!.replace(/\s+/g, ''),
+      },
     });
     await t.sendMail({
-      from: `"Inverse" <${process.env.SMTP_USER}>`,
+      from: `"Inverse" <${process.env.SMTP_USER!.trim()}>`,
       to,
       subject,
       text,
