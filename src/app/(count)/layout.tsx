@@ -17,7 +17,7 @@ export default async function CountLayout({ children }: LayoutProps<'/'>) {
   const home = app === 'stock' ? '/stock' : '/count';
 
   return (
-    <div data-app={app} className="flex min-h-full flex-col bg-paper">
+    <div data-app={app} className="flex min-h-dvh flex-col bg-paper">
       <header className="sticky top-0 z-10 border-b border-rule/70 bg-paper/90 backdrop-blur">
         <div className="mx-auto flex max-w-xl items-center gap-3 px-4 py-3">
           {manager ? (
