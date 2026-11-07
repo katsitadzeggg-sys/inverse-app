@@ -221,19 +221,11 @@ export default function NewStocktakeForm({
       {stockUi ? (
         // Stock app: the address in a big white field and one large location button.
         <div className="grid gap-2">
-          <label className="grid gap-1 text-base">
-            მისამართი
-            <input
-              name="address"
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              placeholder="მისამართი"
-              className={field}
-            />
-          </label>
+          {/* The object's address goes in as it is; the button only records where the phone is. */}
+          <input type="hidden" name="address" value={address} />
           <button
             type="button"
-            onClick={() => locate(true)}
+            onClick={() => locate(false)}
             disabled={!!locating && locating.startsWith('ვ')}
             className={`flex items-center justify-center gap-3 rounded-control border-2 px-4 py-5 text-xl font-semibold disabled:opacity-60 ${here ? 'border-[#4285F4] bg-[#4285F4]/15 text-ink' : 'border-[#4285F4] text-ink'}`}
           >
