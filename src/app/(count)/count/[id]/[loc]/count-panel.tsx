@@ -162,6 +162,8 @@ export default function CountPanel({
   const qtyRef = useRef<HTMLInputElement>(null);
   // The last lookup came from the camera: whatever was read is a code, never a name.
   const scanned = useRef(false);
+  // A code read while the previous product was still open; looked up once that one is saved.
+  const pendingScan = useRef<string | null>(null);
   // Bumped to close the full-screen camera.
   const [closeCamera, setCloseCamera] = useState(0);
   const [cameraOn, setCameraOn] = useState(false);
@@ -235,6 +237,15 @@ export default function CountPanel({
       setQty((v) => String((Number(v) || 0) + 1));
       return;
     }
+    // Another product scanned while one is open: the open one is saved first,
+    // then the new one starts — no Next needed between products.
+    if (scanned.current && (product || newBarcode) && !newOpen) {
+      pendingScan.current = raw;
+      next();
+      return;
+    }
+    // The new-product form is being filled in: a stray scan is ignored.
+    if (scanned.current && newOpen) return;
     setQuery(q);
     start(async () => {
       const found = isOffline() ? localFind(q) : await findProducts(q).catch(() => localFind(q));
@@ -289,24 +300,20 @@ export default function CountPanel({
   }
 
   function next() {
-    if (!product && newOpen && !newName.trim())
-      return setMessage({ tone: 'error', text: 'ჩაწერე დასახელება.' });
+    // A check below fails → the queued scan is dropped (the open product stays on screen).
+    const fail = (text: string) => {
+      pendingScan.current = null;
+      setMessage({ tone: 'error', text });
+    };
+    if (!product && newOpen && !newName.trim()) return fail('ჩაწერე დასახელება.');
     if (!product && newOpen && isOffline())
-      return setMessage({
-        tone: 'error',
-        text: 'ახალი პროდუქტი ინტერნეტის გარეშე ვერ ჩაიწერება. ჩაწერე, როცა ქსელი დაბრუნდება.',
-      });
+      return fail('ახალი პროდუქტი ინტერნეტის გარეშე ვერ ჩაიწერება. ჩაწერე, როცა ქსელი დაბრუნდება.');
     if (!product && newOpen && !newPhoto)
-      return setMessage({ tone: 'error', text: '📷 ახალი პროდუქტის ფოტოს გადაღება სავალდებულოა.' });
-    if (!product && !newBarcode && !newOpen && !unknown?.trim())
-      return setMessage({ tone: 'error', text: 'აირჩიე პროდუქტი.' });
-    if (qty === '' || !Number.isFinite(total) || total < 0)
-      return setMessage({ tone: 'error', text: 'ჩაწერე რაოდენობა.' });
+      return fail('📷 ახალი პროდუქტის ფოტოს გადაღება სავალდებულოა.');
+    if (!product && !newBarcode && !newOpen && !unknown?.trim()) return fail('აირჩიე პროდუქტი.');
+    if (qty === '' || !Number.isFinite(total) || total < 0) return fail('ჩაწერე რაოდენობა.');
     if (expiry && !expiryDate && !expiryUnknown)
-      return setMessage({
-        tone: 'error',
-        text: 'ჩაწერე ვარგისიანობის ვადა, ან მონიშნე „ვადა არ ჩანს“.',
-      });
+      return fail('ჩაწერე ვარგისიანობის ვადა, ან მონიშნე „ვადა არ ჩანს“.');
     const exp = expiry && !expiryUnknown ? expiryDate : null;
     start(async () => {
       // The new product's photo goes up first; its path is kept on the product.
@@ -359,8 +366,10 @@ export default function CountPanel({
           res = {};
         }
       }
-      if (res.error) setMessage({ tone: 'error', text: res.error });
-      else {
+      if (res.error) {
+        pendingScan.current = null;
+        setMessage({ tone: 'error', text: res.error });
+      } else {
         const batch = expiry
           ? ` · ${exp ? fmtDate(exp) : 'ვადა უცნობია'}${status && status !== 'ok' ? ` (${EXPIRY_LABEL[status]})` : ''}`
           : '';
@@ -378,6 +387,12 @@ export default function CountPanel({
         setMessage(batch ? { tone: 'info', text: `✓ ${savedName} — ${total}${batch}` } : null);
         navigator.vibrate?.([40, 40, 40]);
         reset();
+        const queued = pendingScan.current;
+        pendingScan.current = null;
+        if (queued) {
+          scanned.current = true;
+          search(queued);
+        }
       }
     });
   }
