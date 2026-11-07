@@ -4,7 +4,7 @@ import { useActionState, useState } from 'react';
 import { inputClass } from '@/components/ui';
 import { recountAll, recountItem, type FormState } from '../../actions';
 
-type Item = { product_id: string; name: string; code: string };
+type Item = { product_id: string; name: string; code: string; qty?: number };
 
 const EMPTY: FormState = {};
 
@@ -161,6 +161,8 @@ export default function RecountList({
             </p>
             <input
               name={`qty:${i.product_id}`}
+              defaultValue={String(i.qty ?? 0)}
+              onFocus={(e) => e.currentTarget.select()}
               inputMode="numeric"
               pattern="[0-9]*"
               placeholder="რაოდენობა"
@@ -169,8 +171,7 @@ export default function RecountList({
           </li>
         ))}
       </ul>
-      <p className="text-xs text-ink-faint">ცარიელი ველი = არ არის თაროზე (0).</p>
-      {state.error && <p className="text-sm text-mismatch">{state.error}</p>}
+            {state.error && <p className="text-sm text-mismatch">{state.error}</p>}
       <button
         type="submit"
         disabled={pending}

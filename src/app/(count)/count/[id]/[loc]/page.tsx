@@ -95,11 +95,23 @@ export default async function ZonePage({ params }: PageProps<'/count/[id]/[loc]'
         products: { name: string; sku: string; barcode: string | null } | null;
       }[]
     >();
+  // What was counted on this shelf so far: the recount field starts from it (0 if nothing).
+  const counted = new Map<string, number>();
+  if ((checks ?? []).length) {
+    const { data: lines } = await supabase
+      .from('stocktake_entries')
+      .select('product_id, quantity')
+      .eq('stocktake_id', id)
+      .eq('location_id', loc)
+      .in('product_id', (checks ?? []).map((c) => c.product_id));
+    for (const l of lines ?? []) counted.set(l.product_id as string, (counted.get(l.product_id as string) ?? 0) + Number(l.quantity));
+  }
   const recount = (checks ?? [])
     .map((c) => ({
       product_id: c.product_id,
       name: c.products?.name ?? '',
       code: c.products?.barcode ?? c.products?.sku ?? '',
+      qty: counted.get(c.product_id) ?? 0,
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
