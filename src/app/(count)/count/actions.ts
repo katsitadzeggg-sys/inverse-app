@@ -984,26 +984,33 @@ export async function setStocktakeArchived(stocktakeId: string, archived: boolea
 }
 
 /** The manager picks who counts in this stocktake. Nobody ticked = whole team. */
-export async function setStocktakeMembers(stocktakeId: string, formData: FormData): Promise<void> {
+export async function setStocktakeMembers(
+  stocktakeId: string,
+  memberIds: string[],
+): Promise<{ error?: string }> {
   const session = await requireSession();
-  if (!isManager(session.profile.role)) return;
-  const ids = formData
-    .getAll('member')
-    .map(String)
-    .filter((v) => /^[0-9a-f-]{36}$/.test(v));
+  if (!isManager(session.profile.role)) return { error: 'მხოლოდ მენეჯერს შეუძლია.' };
+  const ids = memberIds.filter((v) => /^[0-9a-f-]{36}$/.test(v));
   const supabase = await createClient();
-  await supabase.from('stocktake_members').delete().eq('stocktake_id', stocktakeId);
+  const { error: delError } = await supabase
+    .from('stocktake_members')
+    .delete()
+    .eq('stocktake_id', stocktakeId);
+  if (delError) return { error: delError.message };
   if (ids.length) {
-    await supabase.from('stocktake_members').insert(
+    const { error } = await supabase.from('stocktake_members').insert(
       ids.map((user_id) => ({
         stocktake_id: stocktakeId,
         user_id,
         company_id: session.company.id,
       })),
     );
+    if (error) return { error: error.message };
   }
   revalidatePath(`/manage/${stocktakeId}`);
   revalidatePath('/count');
+  revalidatePath('/stock');
+  return {};
 }
 
 /** Product groups (categories) of the company, for the new-product form. */

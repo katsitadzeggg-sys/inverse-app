@@ -4,13 +4,9 @@ import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
 import type { Stocktake, StocktakeZone } from '@/types/database';
 import { mapsLink } from '@/lib/geo';
-import {
-  setShowBook,
-  setStocktakeArchived,
-  setStocktakeMembers,
-  setStocktakeStatus,
-} from '@/app/(count)/count/actions';
+import { setShowBook, setStocktakeArchived, setStocktakeStatus } from '@/app/(count)/count/actions';
 import ExportBox from './export-box';
+import MembersForm from './members-form';
 
 type ZoneRow = StocktakeZone & {
   locations: { code: string } | null;
@@ -127,49 +123,70 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
       : [{ count: 0 }, { count: 0 }];
   const done = list.filter((z) => z.status === 'done').length;
 
-  // Action buttons stand out from the info tiles: solid orange.
+  // Action buttons: raised orange keys, clearly different from the faded info tiles.
   const btn =
-    'rounded-control bg-[#f97316] px-3 py-3 text-center font-semibold text-white shadow-sm hover:bg-[#ea580c]';
-  const tile = 'rounded-control border border-white/10 bg-white/[0.04] p-2 opacity-80';
+    'rounded-lg border border-[#9a3412] border-b-4 bg-gradient-to-b from-[#fb923c] to-[#ea580c] px-3 py-2.5 text-center font-semibold text-white shadow-md transition hover:brightness-110 active:translate-y-px active:border-b-2';
+  const tile = 'rounded-control border border-white/10 bg-white/[0.04] p-2 opacity-75';
 
   return (
-    <div className="grid gap-4">
-      <div className="grid gap-1">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <Link
-            href={`/manage/stocktakes?kind=${st.kind}`}
-            className="inline-flex w-fit items-center gap-2 rounded-control border border-rule-strong px-3 py-1.5 text-sm font-medium text-ink"
-          >
-            ← დაბრუნება
-          </Link>
-          <p className="text-sm text-ink-faint">
-            {st.number} · {new Date(st.count_date).toLocaleDateString('ka-GE')} ·{' '}
-            {st.kind === 'expiry'
-              ? '⏳ ვადიანი პროდუქცია'
-              : st.kind === 'assets'
-                ? '🏷 ძირითადი საშუალებები'
-                : '📦 მარაგები'}
-          </p>
-        </div>
-        <h1 className="text-2xl font-semibold">
+    <div className="grid gap-3">
+      {/* One line: back · number · date · kind · client · branch · address · book switch */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <Link
+          href={`/manage/stocktakes?kind=${st.kind}`}
+          className="inline-flex w-fit items-center gap-2 rounded-control border border-rule-strong px-3 py-1.5 text-sm font-medium text-ink"
+        >
+          ← დაბრუნება
+        </Link>
+        <span className="text-sm text-ink-faint">
+          {st.number} · {new Date(st.count_date).toLocaleDateString('ka-GE')} ·{' '}
+          {st.kind === 'expiry' ? '⏳' : st.kind === 'assets' ? '🏷' : '📦'}
+        </span>
+        <h1 className="text-xl font-semibold">
           {st.client_name ?? st.name}
           {st.branch && <span className="font-normal text-ink-soft"> · {st.branch}</span>}
-          {(st.address || st.lat != null) && (
-            <span className="ml-2 text-sm font-normal text-ink-soft">
-              📍 {st.address ?? ''}{' '}
-              {st.lat != null && st.lng != null && (
-                <a
-                  href={mapsLink(st.lat, st.lng)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="underline"
-                >
-                  რუკაზე
-                </a>
-              )}
-            </span>
-          )}
         </h1>
+        {(st.address || st.lat != null) && (
+          <span className="text-sm text-ink-soft">
+            📍{' '}
+            {st.lat != null && st.lng != null ? (
+              <a
+                href={mapsLink(st.lat, st.lng)}
+                target="_blank"
+                rel="noreferrer"
+                className="underline"
+              >
+                {st.address || 'რუკაზე'}
+              </a>
+            ) : (
+              st.address
+            )}
+          </span>
+        )}
+        {st.kind !== 'assets' && (
+          // Counters see the book quantity while counting (on), or count blind (off).
+          <form action={setShowBook.bind(null, id, !st.show_book)} className="ml-auto">
+            <button
+              type="submit"
+              role="switch"
+              aria-checked={st.show_book}
+              title={st.show_book ? 'დააჭირე — ბრმა დათვლა' : 'დააჭირე — აღმწერს ნაშთი გამოუჩნდება'}
+              className="flex items-center gap-2 text-sm"
+            >
+              👁 აღმწერს ნაშთი უჩანს
+              <span
+                className={`relative inline-block h-6 w-11 rounded-full transition ${st.show_book ? 'bg-[#16a34a]' : 'bg-[#dc2626]'}`}
+              >
+                <span
+                  className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${st.show_book ? 'left-[22px]' : 'left-0.5'}`}
+                />
+              </span>
+              <b className={st.show_book ? 'text-[#4ade80]' : 'text-[#f87171]'}>
+                {st.show_book ? 'კი' : 'არა'}
+              </b>
+            </button>
+          </form>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-2 text-center text-sm sm:grid-cols-4">
@@ -210,7 +227,7 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
       </div>
 
       {st.kind === 'assets' ? (
-        <div className="grid grid-cols-3 gap-2 text-sm">
+        <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
           <Link href={`/count/${id}/register`} className={btn}>
             📄 რეესტრი
           </Link>
@@ -220,14 +237,21 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
           <Link href={`/count/${id}/labels`} className={btn}>
             🏷 ეტიკეტები
           </Link>
+          <Link
+            href={`/manage/${id}/map`}
+            className={btn}
+            title="რომელი ოთახი დაითვალა, სად არის სხვაობა"
+          >
+            🗺 რუკა
+          </Link>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-5">
           <Link href={`/count/${id}/book`} className={btn}>
-            📄 ნაშთის ჩატვირთვა
+            📄 ნაშთი
           </Link>
           <Link href={`/count/${id}/report`} className={btn}>
-            {st.kind === 'expiry' ? '📊 სხვაობები და ვადები' : '📊 სხვაობები'}
+            {st.kind === 'expiry' ? '📊 სხვაობები / ვადები' : '📊 სხვაობები'}
           </Link>
           <Link href={`/manage/${id}/act`} className={btn}>
             🖨 აქტი
@@ -235,29 +259,15 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
           <Link href={`/count/${id}/labels`} className={btn}>
             🏷 ეტიკეტები
           </Link>
+          <Link
+            href={`/manage/${id}/map`}
+            className={btn}
+            title="რომელი თარო დაითვალა, სად არის სხვაობა"
+          >
+            🗺 რუკა
+          </Link>
         </div>
       )}
-      {st.kind !== 'assets' && (
-        // Counters see the book quantity while counting (on), or count blind (off).
-        <form
-          action={setShowBook.bind(null, id, !st.show_book)}
-          className="flex items-center justify-between gap-3 rounded-control border border-rule/70 px-4 py-3 text-sm"
-        >
-          <span>
-            👁 აღმწერს ნაშთი უჩანს:{' '}
-            <b className={st.show_book ? 'text-match' : 'text-ink-faint'}>
-              {st.show_book ? 'კი' : 'არა (ბრმა დათვლა)'}
-            </b>
-          </span>
-          <button type="submit" className="rounded-control border border-rule-strong px-3 py-1.5">
-            {st.show_book ? 'დამალვა' : 'ჩვენება'}
-          </button>
-        </form>
-      )}
-
-      <Link href={`/manage/${id}/map`} className={`${btn} text-sm`}>
-        🗺 რუკა — რომელი თარო დაითვალა, სად არის სხვაობა
-      </Link>
 
       {list.length > 0 && (
         <ExportBox
@@ -276,38 +286,44 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
             <table className="w-full text-sm">
               <thead className="bg-paper-sunk text-left text-xs text-ink-faint">
                 <tr>
-                  <th className="p-2">თარო</th>
-                  <th className="p-2">აღმწერი</th>
-                  <th className="p-2">სტატუსი</th>
-                  <th className="p-2 text-right">ჩანაწ.</th>
-                  <th className="p-2 text-right">სხვაობა</th>
-                  <th className="p-2">📷</th>
-                  <th className="p-2">📍</th>
-                  <th className="p-2">კომენტარი</th>
+                  <th className="px-2 py-1">თარო</th>
+                  <th className="px-2 py-1">აღმწერი</th>
+                  <th className="px-2 py-1">სტატუსი</th>
+                  <th className="px-2 py-1 text-right">ჩანაწ.</th>
+                  <th className="px-2 py-1 text-right">სხვაობა</th>
+                  <th className="px-2 py-1">📷</th>
+                  <th className="px-2 py-1">📍</th>
+                  <th className="px-2 py-1">კომენტარი</th>
                 </tr>
               </thead>
               <tbody>
                 {list.map((z) => (
                   <tr key={z.id} className="border-t border-rule/60 align-top">
-                    <td className="p-2 font-semibold">
+                    <td className="px-2 py-1 font-semibold">
                       <Link href={`/count/${id}/${z.location_id}/done`} className="underline">
                         {z.locations?.code}
                       </Link>
                     </td>
-                    <td className="p-2">{z.user_profiles?.full_name ?? z.user_profiles?.email}</td>
-                    <td className={`p-2 ${z.status === 'done' ? 'text-match' : 'text-review'}`}>
+                    <td className="px-2 py-1">
+                      {z.user_profiles?.full_name ?? z.user_profiles?.email}
+                    </td>
+                    <td
+                      className={`px-2 py-1 ${z.status === 'done' ? 'text-match' : 'text-review'}`}
+                    >
                       {z.status === 'done'
                         ? `✓ ${new Date(z.done_at ?? z.started_at).toLocaleTimeString('ka-GE', { hour: '2-digit', minute: '2-digit' })}`
                         : 'ითვლება'}
                     </td>
-                    <td className="p-2 text-right tabular-nums">{lines.get(z.location_id) ?? 0}</td>
+                    <td className="px-2 py-1 text-right tabular-nums">
+                      {lines.get(z.location_id) ?? 0}
+                    </td>
                     <td
-                      className={`p-2 text-right tabular-nums ${diffs.get(z.location_id) ? 'font-semibold text-mismatch' : ''}`}
+                      className={`px-2 py-1 text-right tabular-nums ${diffs.get(z.location_id) ? 'font-semibold text-mismatch' : ''}`}
                     >
                       {diffs.get(z.location_id) ?? 0}
                     </td>
-                    <td className="p-2">{shots.get(z.location_id) ?? ''}</td>
-                    <td className="p-2">
+                    <td className="px-2 py-1">{shots.get(z.location_id) ?? ''}</td>
+                    <td className="px-2 py-1">
                       {z.lat != null && z.lng != null ? (
                         <a
                           href={mapsLink(z.lat, z.lng)}
@@ -321,7 +337,7 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
                         ''
                       )}
                     </td>
-                    <td className="p-2 text-ink-soft">{z.note}</td>
+                    <td className="px-2 py-1 text-ink-soft">{z.note}</td>
                   </tr>
                 ))}
               </tbody>
@@ -330,8 +346,8 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
         )}
       </section>
 
-      <section className="grid gap-2 rounded-control border border-rule/70 p-4">
-        <h2 className="font-semibold">👷 აღმწერები ამ ინვენტარიზაციაზე</h2>
+      <section className="grid gap-2 rounded-control border border-rule/70 p-3">
+        <h2 className="font-semibold">👷 აღმწერები</h2>
         {working.length > 0 && (
           <ul className="grid gap-1 text-sm">
             {working.map((uid) => (
@@ -358,33 +374,7 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
             .
           </p>
         ) : (
-          <form action={setStocktakeMembers.bind(null, id)} className="grid gap-2">
-            {counters.map((m) => (
-              <label key={m.id} className="flex items-center gap-3 text-sm">
-                <input
-                  type="checkbox"
-                  name="member"
-                  value={m.id}
-                  defaultChecked={ticked.has(m.id)}
-                  className="h-5 w-5"
-                />
-                <span>
-                  {m.full_name ?? m.email} <span className="text-ink-faint">· {m.email}</span>
-                </span>
-              </label>
-            ))}
-            <p className="text-xs text-ink-faint">
-              {ticked.size
-                ? `დანიშნულია ${ticked.size}. სხვა აღმწერები ამ ინვენტარიზაციას ვერ დაინახავენ.`
-                : 'არავინ არ არის მონიშნული — ხედავს ყველა აღმწერი.'}
-            </p>
-            <button
-              type="submit"
-              className="justify-self-start rounded-control border border-rule-strong px-4 py-2 text-sm font-semibold"
-            >
-              შენახვა
-            </button>
-          </form>
+          <MembersForm stocktakeId={id} counters={counters} ticked={[...ticked]} />
         )}
       </section>
 
@@ -394,7 +384,9 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
             type="submit"
             className="rounded-control border border-rule-strong px-4 py-3 text-sm"
           >
-            {st.status === 'open' ? '🔒 ინვენტარიზაციის დახურვა' : '↺ ხელახლა გახსნა'}
+            {st.status === 'open'
+              ? '🔒 დახურვა — დათვლა დასრულდა'
+              : '↺ ხელახლა გახსნა — დათვლის გაგრძელება'}
           </button>
         </form>
         <form action={setStocktakeArchived.bind(null, id, !st.archived_at)}>
@@ -402,7 +394,7 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
             type="submit"
             className="rounded-control border border-rule-strong px-4 py-3 text-sm text-ink-soft"
           >
-            {st.archived_at ? '↩ არქივიდან დაბრუნება' : '🗄 არქივში გადატანა'}
+            {st.archived_at ? '↩ არქივიდან დაბრუნება' : '🗄 არქივში — სიიდან მოშორება'}
           </button>
         </form>
       </div>

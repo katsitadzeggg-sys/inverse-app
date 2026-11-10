@@ -59,12 +59,16 @@ export default function ExportBox({
     }
   }
 
+  // Raised keys, blue: downloads (the orange ones open pages).
+  const key =
+    'rounded-lg border border-[#1e3a8a] border-b-4 bg-gradient-to-b from-[#3b82f6] to-[#1d4ed8] px-4 py-2 text-center text-sm font-semibold text-white shadow-md transition hover:brightness-110 active:translate-y-px active:border-b-2 disabled:opacity-60';
   return (
-    <div className="grid gap-2">
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="text-sm text-ink-soft">⬇ ჩამოტვირთვა:</span>
       <select
         value={shelf}
         onChange={(e) => setShelf(e.target.value)}
-        className="rounded-control border border-rule-strong bg-paper-sunk px-3 py-3 text-sm"
+        className="w-36 rounded-lg border border-rule-strong bg-paper-sunk px-2 py-2 text-sm"
         aria-label="თარო"
       >
         <option value="all">ყველა თარო</option>
@@ -74,22 +78,12 @@ export default function ExportBox({
           </option>
         ))}
       </select>
-      <div className="grid grid-cols-2 gap-2">
-        <a
-          href={`/count/${stocktakeId}/export?shelf=${shelf}`}
-          className="rounded-control border border-rule-strong px-3 py-3 text-center text-sm font-semibold"
-        >
-          ⬇ Excel
-        </a>
-        <button
-          type="button"
-          onClick={downloadMedia}
-          disabled={!!busy}
-          className="rounded-control border border-rule-strong px-3 py-3 text-sm font-semibold"
-        >
-          {busy ?? '⬇ ფოტო/ვიდეო (ZIP)'}
-        </button>
-      </div>
+      <a href={`/count/${stocktakeId}/export?shelf=${shelf}`} className={key}>
+        📊 Excel
+      </a>
+      <button type="button" onClick={downloadMedia} disabled={!!busy} className={key}>
+        {busy ?? '🖼 ფოტო/ვიდეო (ZIP)'}
+      </button>
     </div>
   );
 }
