@@ -284,6 +284,11 @@ export default function CountPanel({
         return;
       if (product && openedBy.current !== code && now - openedAt.current < 1500) return;
     }
+    // A web address (a menu, an advert QR) is neither a shelf nor a product.
+    if (/^(https?:\/\/|www\.)/i.test(code)) {
+      setMessage({ tone: 'error', text: 'ეს ვებ-ლინკის QR-ია, პროდუქტი არ არის.' });
+      return;
+    }
     // A shelf's own QR is not a product.
     if (scanned.current && shelfCodes.has(code.toUpperCase())) {
       setMessage({ tone: 'error', text: `„${code}“ თაროს კოდია, პროდუქტი არ არის.` });

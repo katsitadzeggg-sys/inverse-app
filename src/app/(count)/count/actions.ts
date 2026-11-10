@@ -139,6 +139,8 @@ export async function openZone(
       return { error: 'ამ ინვენტარიზაციაზე არ ხარ დანიშნული. მიმართე მენეჯერს.' };
   }
   const code = String(formData.get('code') ?? '').trim();
+  if (/^(https?:\/\/|www\.)/i.test(code))
+    return { error: 'ეს ვებ-ლინკის QR-ია, თაროს კოდი არ არის. დაასკანერე თაროს ეტიკეტი.' };
   const create = formData.get('create') === '1';
   // Where the phone was when the shelf was opened (if the person allowed it).
   const gLat = Number(formData.get('lat'));
@@ -1181,5 +1183,18 @@ export async function setShowBook(stocktakeId: string, show: boolean): Promise<v
   if (!isManager(session.profile.role)) return;
   const supabase = await createClient();
   await supabase.from('stocktakes').update({ show_book: show }).eq('id', stocktakeId);
+  revalidatePath(`/manage/${stocktakeId}`);
+}
+
+/** The counter's "I'm done with this stocktake" (or back to counting). */
+export async function setMyCountFinished(stocktakeId: string, finished: boolean): Promise<void> {
+  await requireSession();
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('set_my_count_finished', {
+    p_stocktake: stocktakeId,
+    p_finished: finished,
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath(`/count/${stocktakeId}`);
   revalidatePath(`/manage/${stocktakeId}`);
 }

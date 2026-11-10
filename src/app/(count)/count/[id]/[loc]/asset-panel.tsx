@@ -199,6 +199,11 @@ export default function AssetPanel({
       });
       return;
     }
+    // A web address QR (menu, advert) is not an inventory label.
+    if (/^(https?:\/\/|www\.)/i.test(text)) {
+      setMessage({ tone: 'error', text: 'ეს ვებ-ლინკის QR-ია, ინვენტარის ეტიკეტი არ არის.' });
+      return;
+    }
     setBrowse(false);
     setQuery(text);
     start(async () => {

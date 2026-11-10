@@ -93,6 +93,22 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
       .returns<{ user_id: string }[]>(),
   ]);
   const ticked = new Set((assigned ?? []).map((a) => a.user_id));
+  // Who pressed "🏁 I'm done" and who is still counting.
+  const { data: fin } = await supabase
+    .from('stocktake_finished')
+    .select('user_id, finished_at')
+    .eq('stocktake_id', id)
+    .not('finished_at', 'is', null)
+    .returns<{ user_id: string; finished_at: string }[]>();
+  const finished = new Map((fin ?? []).map((f) => [f.user_id, f.finished_at]));
+  const working = [...new Set(list.map((z) => z.counter_id).filter(Boolean))] as string[];
+  const nameOf = (uid: string) => {
+    const m = (team ?? []).find((t) => t.id === uid);
+    const z = list.find((x) => x.counter_id === uid)?.user_profiles;
+    return m?.full_name ?? m?.email ?? z?.full_name ?? z?.email ?? '—';
+  };
+  const when = (t: string) =>
+    new Date(t).toLocaleString('ka-GE', { dateStyle: 'short', timeStyle: 'short' });
   const counters = (team ?? []).filter(
     (m) => m.role !== 'owner' && m.role !== 'admin' && m.role !== 'viewer',
   );
@@ -331,6 +347,23 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
 
       <section className="grid gap-2 rounded-control border border-rule/70 p-4">
         <h2 className="font-semibold">👷 აღმწერები ამ ინვენტარიზაციაზე</h2>
+        {working.length > 0 && (
+          <ul className="grid gap-1 text-sm">
+            {working.map((uid) => (
+              <li key={uid} className="flex flex-wrap items-center justify-between gap-2">
+                <span>{nameOf(uid)}</span>
+                {finished.has(uid) ? (
+                  <span className="text-match">🏁 დაასრულა · {when(finished.get(uid)!)}</span>
+                ) : (
+                  <span className="text-review">ითვლის…</span>
+                )}
+              </li>
+            ))}
+            <li className="text-xs text-ink-faint">
+              დაასრულა {working.filter((u) => finished.has(u)).length} / {working.length}
+            </li>
+          </ul>
+        )}
         {counters.length === 0 ? (
           <p className="text-sm text-ink-soft">
             გუნდში აღმწერი ჯერ არ არის —{' '}
