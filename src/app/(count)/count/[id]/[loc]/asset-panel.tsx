@@ -270,7 +270,7 @@ export default function AssetPanel({
             tone: 'error',
             text: /cancel/i.test(why)
               ? 'პრინტერი არ აირჩიე. დააჭირე ისევ და სიიდან აირჩიე Zebra.'
-              : 'პრინტერთან კავშირი ვერ დამყარდა: ჩართე პრინტერი და Bluetooth, და სცადე ისევ.',
+              : `პრინტერთან კავშირი ვერ დამყარდა (${why}). ჩართე პრინტერი და Bluetooth, და სცადე ისევ.`,
           });
         });
       if (savedId && !editing) return;
@@ -524,9 +524,12 @@ export default function AssetPanel({
                     onClick={() =>
                       printZplBluetooth(testZpl())
                         .then(() => setMessage({ tone: 'info', text: '🧪 სატესტო გაიგზავნა' }))
-                        .catch(() => {
+                        .catch((e: unknown) => {
                           forgetPrinter();
-                          setMessage({ tone: 'error', text: 'პრინტერთან კავშირი ვერ დამყარდა.' });
+                          setMessage({
+                            tone: 'error',
+                            text: `პრინტერთან კავშირი ვერ დამყარდა: ${e instanceof Error ? e.message : String(e)}`,
+                          });
                         })
                     }
                     className="text-sm text-ink-faint underline"
