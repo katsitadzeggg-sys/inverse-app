@@ -224,12 +224,32 @@ export default function BookImport({
             disabled={pending || !valid.length}
             onClick={() =>
               start(async () => {
-                const res = await importBook(stocktakeId, valid);
-                setMsg(
-                  res.error
-                    ? { tone: 'error', text: res.error }
-                    : { tone: 'info', text: res.notice ?? 'ჩაიტვირთა' },
-                );
+                // Sent in parts of 1 000 rows: a big file does not fit in one request.
+                const PART = 1000;
+                let lines = 0;
+                let created = 0;
+                let shelves = 0;
+                for (let i = 0; i < valid.length; i += PART) {
+                  setMsg({
+                    tone: 'info',
+                    text: `იტვირთება… ${Math.min(i + PART, valid.length)} / ${valid.length}`,
+                  });
+                  const res = await importBook(stocktakeId, valid.slice(i, i + PART), i > 0);
+                  if (res.error) {
+                    setMsg({
+                      tone: 'error',
+                      text: `${res.error} (ჩაიტვირთა ${i} ხაზი ${valid.length}-დან — ფაილი თავიდან ატვირთე)`,
+                    });
+                    return;
+                  }
+                  lines += res.lines ?? 0;
+                  created += res.created ?? 0;
+                  shelves += res.shelves ?? 0;
+                }
+                setMsg({
+                  tone: 'info',
+                  text: `ჩაიტვირთა ${lines} ხაზი. ახალი პროდუქტი: ${created}, ახალი თარო: ${shelves}.`,
+                });
               })
             }
             className="rounded-control bg-ink px-4 py-4 text-base font-semibold text-paper disabled:opacity-50"

@@ -686,7 +686,15 @@ function normUnit(u: string): string {
  * that are not in the system yet are created from the file, so a client's
  * export can be used as it is. Loading again replaces the previous book.
  */
-export async function importBook(stocktakeId: string, rows: BookRow[]): Promise<FormState> {
+/**
+ * Loads a book file. Large files come in parts (the browser sends ~1 000 rows
+ * at a time): the first part replaces the old book, the rest are appended.
+ */
+export async function importBook(
+  stocktakeId: string,
+  rows: BookRow[],
+  append = false,
+): Promise<FormState & { lines?: number; created?: number; shelves?: number }> {
   const session = await requireSession();
   if (!isManager(session.profile.role)) return { error: 'ნაშთს მხოლოდ მენეჯერი ტვირთავს.' };
   // The barcode stands in for the code when the file has no article number.
@@ -800,12 +808,14 @@ export async function importBook(stocktakeId: string, rows: BookRow[]): Promise<
   const locations = new Map<string, string>();
   let newShelves = 0;
   if (locCodes.length) {
-    const { data } = await supabase
-      .from('locations')
-      .select('id, code')
-      .eq('company_id', company)
-      .in('code', locCodes);
-    for (const l of data ?? []) locations.set(l.code, l.id);
+    for (let i = 0; i < locCodes.length; i += 500) {
+      const { data } = await supabase
+        .from('locations')
+        .select('id, code')
+        .eq('company_id', company)
+        .in('code', locCodes.slice(i, i + 500));
+      for (const l of data ?? []) locations.set(l.code, l.id);
+    }
     const newLocs = locCodes
       .filter((c) => !locations.has(c))
       .map((code) => ({ company_id: company, code, name: code, kind: 'shelf' as const }));
@@ -842,11 +852,13 @@ export async function importBook(stocktakeId: string, rows: BookRow[]): Promise<
       merged.set(key, { product_id, location_id, book_qty: r.qty, unit_cost: r.cost, expiry_date });
   }
 
-  const { error: delError } = await supabase
-    .from('stocktake_book')
-    .delete()
-    .eq('stocktake_id', stocktakeId);
-  if (delError) return { error: delError.message };
+  if (!append) {
+    const { error: delError } = await supabase
+      .from('stocktake_book')
+      .delete()
+      .eq('stocktake_id', stocktakeId);
+    if (delError) return { error: delError.message };
+  }
   const lines = [...merged.values()].map((m) => ({
     ...m,
     company_id: company,
@@ -859,6 +871,9 @@ export async function importBook(stocktakeId: string, rows: BookRow[]): Promise<
   revalidatePath(`/count/${stocktakeId}`);
   return {
     notice: `ჩაიტვირთა ${lines.length} ხაზი. ახალი პროდუქტი: ${missing.length}, ახალი თარო: ${newShelves}.`,
+    lines: lines.length,
+    created: missing.length,
+    shelves: newShelves,
   };
 }
 
