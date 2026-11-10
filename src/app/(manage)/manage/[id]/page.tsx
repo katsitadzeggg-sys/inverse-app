@@ -202,11 +202,11 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
             href={`/count/${id}/labels`}
             className="rounded-control border border-rule-strong px-3 py-3 text-center"
           >
-            🏷 QR ეტიკეტები
+            🏷 ეტიკეტები
           </Link>
         </div>
       ) : (
-        <div className="grid grid-cols-3 gap-2 text-sm">
+        <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
           <Link
             href={`/count/${id}/book`}
             className="rounded-control border border-rule-strong px-3 py-3 text-center"
@@ -224,6 +224,12 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
             className="rounded-control border border-rule-strong px-3 py-3 text-center"
           >
             🖨 აქტი
+          </Link>
+          <Link
+            href={`/count/${id}/labels`}
+            className="rounded-control border border-rule-strong px-3 py-3 text-center"
+          >
+            🏷 ეტიკეტები
           </Link>
         </div>
       )}
