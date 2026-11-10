@@ -302,8 +302,16 @@ export default function AssetPanel({
       img.remove();
       page.remove();
     };
-    window.addEventListener('afterprint', cleanup, { once: true });
-    setTimeout(cleanup, 120_000);
+    // Android fires "afterprint" before the print service has drawn the page,
+    // so the label stays until the counter is back in the app (or 2 minutes).
+    const back = () => {
+      if (document.visibilityState === 'visible') setTimeout(cleanup, 1500);
+    };
+    document.addEventListener('visibilitychange', back);
+    setTimeout(() => {
+      cleanup();
+      document.removeEventListener('visibilitychange', back);
+    }, 120_000);
     setNeedsLabel(true);
     setLabelDone(true);
     img
