@@ -48,8 +48,18 @@ export default async function StocktakePage({ params }: PageProps<'/count/[id]'>
   // Stock: the company's shelves to pick from while typing (not the rooms of fixed-asset counts).
   let shelves: string[] = [];
   if (stocktake.kind !== 'assets') {
+    // Read in pages: the server hands out at most 1 000 rows per call.
+    const readShelves = async () => {
+      const all: { id: string; code: string }[] = [];
+      for (let from = 0; from < 20000; from += 1000) {
+        const { data } = await supabase.from('locations').select('id, code').eq('kind', 'shelf').order('code').range(from, from + 999);
+        all.push(...((data ?? []) as { id: string; code: string }[]));
+        if (!data || data.length < 1000) break;
+      }
+      return { data: all };
+    };
     const [{ data: locs }, { data: roomZones }] = await Promise.all([
-      supabase.from('locations').select('id, code').eq('kind', 'shelf').limit(3000),
+      readShelves(),
       supabase.from('stocktake_zones').select('location_id, stocktakes!inner(kind)').eq('stocktakes.kind', 'assets').limit(5000),
     ]);
     const roomIds = new Set((roomZones ?? []).map((z) => z.location_id as string));

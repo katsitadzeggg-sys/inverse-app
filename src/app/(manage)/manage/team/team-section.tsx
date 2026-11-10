@@ -39,7 +39,7 @@ export default async function TeamSection() {
     m.id !== userId && m.role !== 'owner' && !(profile.role === 'admin' && m.role === 'admin');
 
   return (
-    <section id="team" className="grid content-start gap-4">
+    <section id="team" className="grid min-w-0 content-start gap-4">
       <h2 className="text-xl font-semibold tracking-tight">👥 თანამშრომლები</h2>
       <InviteForm appUrl={appUrl} company={company.name} isOwner={profile.role === 'owner'} />
       {/* The list stays folded: opened only to change modules or remove someone. */}
@@ -52,7 +52,7 @@ export default async function TeamSection() {
             {active.map((m) => (
               <li
                 key={m.id}
-                className="flex items-center gap-3 rounded-control border border-rule/70 px-3 py-2 text-sm"
+                className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-control border border-rule/70 px-3 py-2 text-sm"
               >
                 {/* One line per person: name · email · role, modules, save, remove. */}
                 <span className="min-w-0 flex-1 truncate">

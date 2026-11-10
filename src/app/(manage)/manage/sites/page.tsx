@@ -32,7 +32,7 @@ export default async function SitesPage() {
     <div className="space-y-6">
       <div className="grid gap-8 lg:grid-cols-2">
         <TeamSection />
-        <section className="grid content-start gap-4">
+        <section className="grid min-w-0 content-start gap-4">
           <h2 className="text-xl font-semibold tracking-tight">🏬 საწყობები და ობიექტები</h2>
           <SiteForms />
           <details className="rounded-control border border-accent/50 bg-accent/5 p-4">

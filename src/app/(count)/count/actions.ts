@@ -786,6 +786,28 @@ export async function importBook(
     }
   }
 
+  // A product that so far has only its code as a name takes the file's name.
+  {
+    const named = new Map<string, string>();
+    for (const r of clean) {
+      const id = known(r);
+      if (id && r.name && r.name !== r.code && r.name !== r.barcode) named.set(id, r.name);
+    }
+    const ids = [...named.keys()];
+    for (let i = 0; i < ids.length; i += 300) {
+      const { data } = await supabase
+        .from('products')
+        .select('id, name, sku, barcode')
+        .in('id', ids.slice(i, i + 300));
+      for (const p of data ?? [])
+        if (p.name === p.sku || p.name === p.barcode || p.name.startsWith('ახალი · '))
+          await supabase
+            .from('products')
+            .update({ name: named.get(p.id)! })
+            .eq('id', p.id);
+    }
+  }
+
   // A unit given in the file updates existing products too.
   const unitUpdates = new Map<string, string>();
   for (const r of clean) {
@@ -1032,19 +1054,137 @@ export async function bookShelves(
 ): Promise<{ product_id: string; location_id: string; code: string; shelf_done: boolean }[]> {
   await requireSession();
   const supabase = await createClient();
-  const { data } = await supabase.rpc('book_shelves', { p_stocktake: stocktakeId });
-  return (data ?? []) as {
-    product_id: string;
-    location_id: string;
-    code: string;
-    shelf_done: boolean;
-  }[];
+  type Row = { product_id: string; location_id: string; code: string; shelf_done: boolean };
+  // The server hands out at most 1 000 rows per call: a big book is read in pages.
+  const out: Row[] = [];
+  for (let from = 0; from < 100000; from += 1000) {
+    const { data } = await supabase
+      .rpc('book_shelves', { p_stocktake: stocktakeId })
+      .range(from, from + 999);
+    out.push(...((data ?? []) as Row[]));
+    if (!data || data.length < 1000) break;
+  }
+  return out;
 }
 
 /** All shelf codes of the company (a shelf QR read as a product is ignored). */
 export async function shelfCodeList(): Promise<string[]> {
   await requireSession();
   const supabase = await createClient();
-  const { data } = await supabase.from('locations').select('code').eq('kind', 'shelf').limit(5000);
-  return (data ?? []).map((l) => l.code as string);
+  const out: string[] = [];
+  for (let from = 0; from < 50000; from += 1000) {
+    const { data } = await supabase
+      .from('locations')
+      .select('code')
+      .eq('kind', 'shelf')
+      .order('code')
+      .range(from, from + 999);
+    out.push(...(data ?? []).map((l) => l.code as string));
+    if (!data || data.length < 1000) break;
+  }
+  return out;
+}
+
+/** Book quantity per product on this shelf — empty when the stocktake hides the book. */
+export async function shelfBook(
+  stocktakeId: string,
+  locationId: string,
+): Promise<Record<string, number>> {
+  await requireSession();
+  const supabase = await createClient();
+  const { data } = await supabase.rpc('shelf_book', {
+    p_stocktake: stocktakeId,
+    p_location: locationId,
+  });
+  const out: Record<string, number> = {};
+  for (const r of (data ?? []) as { product_id: string; qty: number }[])
+    out[r.product_id] = Number(r.qty);
+  return out;
+}
+
+/**
+ * The counter corrects a product already counted on this shelf: its total
+ * here becomes `qty` (the counter's own lines are replaced by one line).
+ * Not possible once the shelf is closed.
+ */
+export async function setShelfQty(
+  stocktakeId: string,
+  locationId: string,
+  productId: string,
+  qty: number,
+): Promise<FormState> {
+  const session = await requireSession();
+  if (!session.canWrite) return { error: 'შენს როლს დათვლა არ შეუძლია.' };
+  if (!Number.isFinite(qty) || qty < 0) return { error: 'რაოდენობა არასწორია.' };
+  const supabase = await createClient();
+  const { data: zone } = await supabase
+    .from('stocktake_zones')
+    .select('status')
+    .eq('stocktake_id', stocktakeId)
+    .eq('location_id', locationId)
+    .maybeSingle<{ status: string }>();
+  if (zone?.status === 'done') return { error: 'თარო დახურულია — ჩასწორება აღარ შეიძლება.' };
+
+  const { data: rows } = await supabase
+    .from('stocktake_entries')
+    .select('id, quantity, counter_id')
+    .eq('stocktake_id', stocktakeId)
+    .eq('location_id', locationId)
+    .eq('product_id', productId);
+  const mine = (rows ?? []).filter((r) => r.counter_id === session.userId);
+  const others = (rows ?? [])
+    .filter((r) => r.counter_id !== session.userId)
+    .reduce((t, r) => t + Number(r.quantity), 0);
+  if (qty < others) return { error: `სხვა აღმწერს აქ უკვე ჩაწერილი აქვს ${others}.` };
+  if (mine.length) {
+    const { error } = await supabase
+      .from('stocktake_entries')
+      .delete()
+      .in(
+        'id',
+        mine.map((r) => r.id),
+      );
+    if (error) return { error: error.message };
+  }
+  if (qty - others > 0) {
+    const { error } = await supabase.from('stocktake_entries').insert({
+      company_id: session.company.id,
+      stocktake_id: stocktakeId,
+      location_id: locationId,
+      product_id: productId,
+      quantity: qty - others,
+      counter_id: session.userId,
+    });
+    if (error) return { error: error.message };
+  }
+  return { notice: 'ჩასწორდა' };
+}
+
+/** A product that came in with only a code gets its name from the counter. */
+export async function nameProduct(productId: string, name: string): Promise<FormState> {
+  const session = await requireSession();
+  const n = name.trim();
+  if (!n) return { error: 'ჩაწერე დასახელება.' };
+  const supabase = await createClient();
+  const { data: p } = await supabase
+    .from('products')
+    .select('name, sku, barcode')
+    .eq('id', productId)
+    .eq('company_id', session.company.id)
+    .maybeSingle<{ name: string; sku: string; barcode: string | null }>();
+  if (!p) return { error: 'პროდუქტი ვერ მოიძებნა.' };
+  // Only a name that is just the code (or "ახალი · code") is replaced.
+  const placeholder = p.name === p.sku || p.name === p.barcode || p.name.startsWith('ახალი · ');
+  if (!placeholder) return { notice: p.name };
+  const { error } = await supabase.from('products').update({ name: n }).eq('id', productId);
+  return error ? { error: error.message } : { notice: n };
+}
+
+/** Manager: counters see (or do not see) the book quantity of the shelf. */
+export async function setShowBook(stocktakeId: string, show: boolean): Promise<void> {
+  const session = await requireSession();
+  if (!isManager(session.profile.role)) return;
+  const supabase = await createClient();
+  await supabase.from('stocktakes').update({ show_book: show }).eq('id', stocktakeId);
+  revalidatePath(`/manage/${stocktakeId}`);
 }

@@ -190,6 +190,8 @@ export type Stocktake = {
   closed_at: string | null;
   kind: 'stock' | 'expiry' | 'assets';
   archived_at: string | null;
+  /** Counters see the book quantity of the shelf while counting. */
+  show_book: boolean;
 };
 
 export type StocktakeZone = {

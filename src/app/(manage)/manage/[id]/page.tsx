@@ -5,6 +5,7 @@ import { requireSession } from '@/lib/session';
 import type { Stocktake, StocktakeZone } from '@/types/database';
 import { mapsLink } from '@/lib/geo';
 import {
+  setShowBook,
   setStocktakeArchived,
   setStocktakeMembers,
   setStocktakeStatus,
@@ -225,6 +226,23 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
             🖨 აქტი
           </Link>
         </div>
+      )}
+      {st.kind !== 'assets' && (
+        // Counters see the book quantity while counting (on), or count blind (off).
+        <form
+          action={setShowBook.bind(null, id, !st.show_book)}
+          className="flex items-center justify-between gap-3 rounded-control border border-rule/70 px-4 py-3 text-sm"
+        >
+          <span>
+            👁 აღმწერს ნაშთი უჩანს:{' '}
+            <b className={st.show_book ? 'text-match' : 'text-ink-faint'}>
+              {st.show_book ? 'კი' : 'არა (ბრმა დათვლა)'}
+            </b>
+          </span>
+          <button type="submit" className="rounded-control border border-rule-strong px-3 py-1.5">
+            {st.show_book ? 'დამალვა' : 'ჩვენება'}
+          </button>
+        </form>
       )}
 
       <Link

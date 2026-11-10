@@ -10,6 +10,9 @@ import {
   findProducts,
   productCatalog,
   productGroups,
+  nameProduct,
+  setShelfQty,
+  shelfBook,
   shelfCounts,
   type ProductHit,
 } from '../../actions';
@@ -62,6 +65,10 @@ async function readExpiry(file: File): Promise<{ date: string | null; text: stri
 
 const unitLabel = (u?: string | null) => (!u || u === 'pcs' ? 'ცალი' : u);
 
+/** The product came in with only its code (no name in the book file). */
+const noName = (p: ProductHit) =>
+  p.name === p.sku || p.name === p.barcode || p.name.startsWith('ახალი · ');
+
 /**
  * Scan or search a product, enter how many, press Next. Quantities are in the
  * product's unit (pieces unless the book file said otherwise). A barcode that
@@ -99,7 +106,13 @@ export default function CountPanel({
   const [newGroup, setNewGroup] = useState('');
   const [newNote, setNewNote] = useState('');
   // New product's photo (required): taken with the camera, uploaded on Next.
-  const [newPhotos, setNewPhotos] = useState<{ file: File; url: string }[]>([]);
+  const [newPhotos, setNewPhotos] = useState<{ file: File; url: string; video?: boolean }[]>([]);
+  // Correcting a product already counted here: Next sets its total instead of adding.
+  const [editing, setEditing] = useState(false);
+  // A product that came with only its code: the counter may give it a name.
+  const [fixName, setFixName] = useState('');
+  // Book quantity per product on this shelf (empty when the manager hides it).
+  const [book, setBook] = useState<Record<string, number>>({});
   const [groups, setGroups] = useState<string[]>([]);
   useEffect(() => {
     productGroups()
@@ -110,7 +123,12 @@ export default function CountPanel({
   const [message, setMessage] = useState<{ tone: 'error' | 'info'; text: string } | null>(null);
   // Already counted on this shelf (product → qty), and the last line saved.
   const [counted, setCounted] = useState<Record<string, number>>({});
-  const [last, setLast] = useState<{ code: string; name: string; qty: number } | null>(null);
+  const [last, setLast] = useState<{
+    code: string;
+    name: string;
+    qty: number;
+    product?: ProductHit;
+  } | null>(null);
   // "Already counted on this shelf" — a notice on the screen until Next.
   const [dup, setDup] = useState<string | null>(null);
   // Lines saved here that are not a known product yet (new products), for the shelf total.
@@ -149,6 +167,9 @@ export default function CountPanel({
           ]);
         setHomes(m);
       })
+      .catch(() => {});
+    shelfBook(stocktakeId, locationId)
+      .then(setBook)
       .catch(() => {});
     productCatalog()
       .then((rows) => {
@@ -203,6 +224,8 @@ export default function CountPanel({
 
   // A scanned product starts at 1 piece; each repeat scan adds one.
   function choose(p: ProductHit, exp: string | null = null) {
+    setEditing(false);
+    setFixName('');
     setQty('1');
     setExpiryDate(exp ?? '');
     setExpiryUnknown(false);
@@ -329,7 +352,31 @@ export default function CountPanel({
     setNewOpen(true);
   }
 
+  /** Correct a product counted on this shelf: its total is shown and replaced on save. */
+  function startEdit(p: ProductHit) {
+    if (saving.current) return;
+    reset();
+    setProduct(p);
+    setEditing(true);
+    setDup(null);
+    setMessage(null);
+    setQty(String(counted[p.id] ?? 0));
+    openedBy.current = null;
+    focusQty();
+  }
+
+  /** Back out of the current product (or the new-product form) without saving. */
+  function cancel() {
+    pendingScan.current = null;
+    openedBy.current = null;
+    setDup(null);
+    setMessage(null);
+    reset();
+  }
+
   function reset() {
+    setEditing(false);
+    setFixName('');
     setNewOpen(false);
     setNewCode('');
     setNewVariant('');
@@ -356,7 +403,7 @@ export default function CountPanel({
     if (!product && newOpen && isOffline())
       return fail('ახალი პროდუქტი ინტერნეტის გარეშე ვერ ჩაიწერება. ჩაწერე, როცა ქსელი დაბრუნდება.');
     if (!product && newOpen && !newPhotos.length)
-      return fail('📷 ახალი პროდუქტის ფოტოს გადაღება სავალდებულოა.');
+      return fail('📷 ახალი პროდუქტის ფოტო ან ვიდეო სავალდებულოა.');
     if (!product && !newBarcode && !newOpen && !unknown?.trim()) return fail('აირჩიე პროდუქტი.');
     if (qty === '' || !Number.isFinite(total) || total < 0) return fail('ჩაწერე რაოდენობა.');
     if (expiry && !expiryDate && !expiryUnknown)
@@ -378,14 +425,18 @@ export default function CountPanel({
         try {
           const supabase = createClient();
           const { data: me } = await supabase.auth.getUser();
-          for (const [i, ph] of newPhotos.entries()) {
-            const jpeg = await shrinkPhoto(ph.file);
-            const path = `${companyId}/${stocktakeId}/${locationId}/product-${crypto.randomUUID()}.jpg`;
+          for (const ph of newPhotos) {
+            // Photos are made small; a video goes up as it was filmed.
+            const ext = ph.video ? (ph.file.name.split('.').pop() || 'mp4').toLowerCase() : 'jpg';
+            const body = ph.video ? ph.file : await shrinkPhoto(ph.file);
+            const path = `${companyId}/${stocktakeId}/${locationId}/product-${crypto.randomUUID()}.${ext}`;
             const { error: upErr } = await supabase.storage
               .from('stocktake-media')
-              .upload(path, jpeg, { contentType: 'image/jpeg' });
+              .upload(path, body, {
+                contentType: ph.video ? ph.file.type || 'video/mp4' : 'image/jpeg',
+              });
             if (upErr) throw upErr;
-            if (i === 0) photoPath = path;
+            if (!ph.video && !photoPath) photoPath = path;
             // created_by is required by the row's access rule.
             await supabase.from('stocktake_media').insert({
               created_by: me.user?.id,
@@ -393,7 +444,7 @@ export default function CountPanel({
               stocktake_id: stocktakeId,
               location_id: locationId,
               path,
-              kind: 'photo',
+              kind: ph.video ? 'video' : 'photo',
               caption: `ახალი პროდუქტი: ${newName.trim()}${newCode.trim() ? ` · ${newCode.trim()}` : ''}`,
               taken_at: new Date().toISOString(),
             });
@@ -404,6 +455,24 @@ export default function CountPanel({
             text: `ფოტო ვერ აიტვირთა: ${e instanceof Error ? e.message : String(e)}`,
           });
         }
+      }
+      // A correction: the product's total on this shelf is replaced.
+      if (editing && product) {
+        const r = await setShelfQty(stocktakeId, locationId, product.id, total).catch(() => ({
+          error: 'ვერ შეინახა. სცადე თავიდან.',
+        }));
+        if (r.error) return setMessage({ tone: 'error', text: r.error });
+        setCounted((c) => ({ ...c, [product.id]: total }));
+        setLast({ code: product.barcode ?? product.sku, name: product.name, qty: total, product });
+        setMessage({ tone: 'info', text: `✓ ჩასწორდა: ${product.name} — ${total}` });
+        reset();
+        return;
+      }
+      // A product known only by its code gets the name the counter wrote.
+      let shownName = product?.name;
+      if (product && fixName.trim()) {
+        const r = await nameProduct(product.id, fixName).catch(() => ({ notice: undefined }));
+        if (r.notice) shownName = r.notice;
       }
       const input = {
         newPhoto: photoPath,
@@ -446,7 +515,7 @@ export default function CountPanel({
           ? ` · ${exp ? fmtDate(exp) : 'ვადა უცნობია'}${status && status !== 'ok' ? ` (${EXPIRY_LABEL[status]})` : ''}`
           : '';
         const savedName =
-          product?.name ?? (newOpen ? newName : newBarcode ? newName || newBarcode : unknown) ?? '';
+          shownName ?? (newOpen ? newName : newBarcode ? newName || newBarcode : unknown) ?? '';
         const savedCode = product
           ? (product.barcode ?? product.sku)
           : newOpen
@@ -455,7 +524,7 @@ export default function CountPanel({
         const sum = (product ? (counted[product.id] ?? 0) : 0) + total;
         if (product) setCounted((c) => ({ ...c, [product.id]: sum }));
         else setExtra((x) => ({ sku: x.sku + 1, pcs: x.pcs + total }));
-        setLast({ code: savedCode, name: savedName, qty: sum });
+        setLast({ code: savedCode, name: savedName, qty: sum, product: product ?? undefined });
         setDup(null);
         setMessage(batch ? { tone: 'info', text: `✓ ${savedName} — ${total}${batch}` } : null);
         navigator.vibrate?.([40, 40, 40]);
@@ -485,9 +554,17 @@ export default function CountPanel({
   const overlay = product ? (
     <div className="grid gap-3">
       <div>
-        <p className="text-lg font-semibold leading-tight">{product.name}</p>
+        <p className="text-lg font-semibold leading-tight">
+          {noName(product) ? 'დასახელება არ აქვს' : product.name}
+        </p>
         <p className="text-sm leading-tight text-white/70">
           {product.barcode ?? product.sku} · {unitLabel(product.unit)}
+          {book[product.id] != null && (
+            <>
+              {' '}
+              · სიით: <b className="text-white">{book[product.id]}</b>
+            </>
+          )}
         </p>
         {expiry && expiryDate && (
           <p className="text-sm leading-tight text-white/90">ვადა {fmtDate(expiryDate)}</p>
@@ -558,11 +635,57 @@ export default function CountPanel({
           ) : null;
         })()}
         {last && (
-          // The last product saved on this shelf, small, at the top.
-          <p className="-mt-1 truncate text-sm text-ink-soft">
-            ბოლოს დასკანერდა: <span className="text-ink-faint">{last.code}</span> ·{' '}
-            <b className="text-ink">{last.name}</b> · <b className="text-match">{last.qty}</b>
-          </p>
+          // The last product saved on this shelf; a tap opens it to correct the quantity.
+          <button
+            type="button"
+            disabled={!last.product}
+            onClick={() => last.product && startEdit(last.product)}
+            className="-mt-1 flex items-center gap-2 text-left text-sm text-ink-soft"
+          >
+            <span className="min-w-0 flex-1 truncate">
+              ბოლოს: <b className="text-ink">{last.name}</b> ·{' '}
+              <b className="text-match">{last.qty}</b>
+            </span>
+            {last.product && (
+              <span className="shrink-0 rounded-control border border-rule-strong px-2 py-1 text-xs">
+                ✏ ჩასწორება
+              </span>
+            )}
+          </button>
+        )}
+        {Object.keys(counted).length > 0 && (
+          // Everything counted on this shelf, each line can be corrected.
+          <details className="rounded-control border border-accent/50 bg-accent/5 px-3 py-2">
+            <summary className="cursor-pointer text-sm font-semibold text-accent">
+              📋 დათვლილი ამ თაროზე — ჩასწორება
+            </summary>
+            <ul className="mt-2 grid gap-1">
+              {Object.entries(counted)
+                .filter(([, q]) => q > 0)
+                .map(([id, q]) => {
+                  const p = catalog.find((x) => x.id === id);
+                  return (
+                    <li key={id}>
+                      <button
+                        type="button"
+                        disabled={!p}
+                        onClick={() => p && startEdit(p)}
+                        className="flex w-full items-center gap-2 rounded-control border border-rule/70 px-3 py-2 text-left text-sm"
+                      >
+                        <span className="min-w-0 flex-1 truncate">
+                          {p ? (noName(p) ? (p.barcode ?? p.sku) : p.name) : '…'}
+                        </span>
+                        <b className="text-match tabular-nums">{q}</b>
+                        {book[id] != null && (
+                          <span className="text-xs text-ink-faint tabular-nums">/ {book[id]}</span>
+                        )}
+                        <span className="text-xs">✏</span>
+                      </button>
+                    </li>
+                  );
+                })}
+            </ul>
+          </details>
         )}
         <Scanner
           label="პროდუქტის სკანირება"
@@ -618,13 +741,27 @@ export default function CountPanel({
 
         {chosen && (
           <div className="grid gap-3">
+            {editing && product && (
+              <p className="rounded-control border-2 border-review/70 bg-review/10 px-3 py-2 text-sm font-semibold">
+                ✏ ჩასწორება: ჩაწერე სწორი რაოდენობა ამ თაროზე
+              </p>
+            )}
             {product && !cameraOn && (
               <p className="text-lg font-semibold">
-                {product.name}
+                {noName(product) ? 'დასახელება არ აქვს' : product.name}
                 <span className="block text-sm font-normal text-ink-faint">
                   {product.barcode ?? product.sku} · {unitLabel(product.unit)}
+                  {book[product.id] != null && <> · სიით: {book[product.id]}</>}
                 </span>
               </p>
+            )}
+            {product && noName(product) && !editing && (
+              <input
+                value={fixName}
+                onChange={(e) => setFixName(e.target.value)}
+                placeholder="დასახელება არ აქვს — ჩაწერე (არასავალდებულო)"
+                className={`${inputClass} text-base`}
+              />
             )}
             {newBarcode && !product && (
               <div className="grid gap-2">
@@ -656,18 +793,24 @@ export default function CountPanel({
                   />
                 </label>
                 <div className="grid gap-1 text-sm text-ink-soft">
-                  ფოტოები (მინიმუმ ერთი)
+                  ფოტო / ვიდეო (მინიმუმ ერთი)
                   <div className="flex flex-wrap gap-2">
                     {newPhotos.map((ph, i) => (
                       <button
                         key={ph.url}
                         type="button"
                         onClick={() => setNewPhotos((all) => all.filter((_, j) => j !== i))}
-                        aria-label="ფოტოს წაშლა"
+                        aria-label="წაშლა"
                         className="relative h-20 w-20 overflow-hidden rounded-md border border-rule-strong"
                       >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={ph.url} alt="" className="h-full w-full object-cover" />
+                        {ph.video ? (
+                          <span className="grid h-full w-full place-items-center bg-black text-3xl">
+                            🎥
+                          </span>
+                        ) : (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={ph.url} alt="" className="h-full w-full object-cover" />
+                        )}
                         <span className="absolute right-0.5 top-0.5 rounded-full bg-black/70 px-1.5 text-xs text-white">
                           ✕
                         </span>
@@ -675,7 +818,7 @@ export default function CountPanel({
                     ))}
                     {newPhotos.length < 6 && (
                       <label
-                        className={`grid h-20 cursor-pointer place-items-center rounded-md border-2 border-dashed px-3 text-center text-sm font-semibold text-ink ${newPhotos.length ? 'w-20 border-rule-strong' : 'w-full border-mismatch/70'}`}
+                        className={`grid h-20 cursor-pointer place-items-center rounded-md border-2 border-dashed px-3 text-center text-sm font-semibold text-ink ${newPhotos.length ? 'w-20 border-rule-strong' : 'flex-1 border-mismatch/70'}`}
                       >
                         <span>
                           <span className="block text-2xl">📷</span>
@@ -693,6 +836,35 @@ export default function CountPanel({
                             setNewPhotos((all) => [
                               ...all,
                               { file: f, url: URL.createObjectURL(f) },
+                            ]);
+                            setMessage(null);
+                          }}
+                        />
+                      </label>
+                    )}
+                    {newPhotos.length < 6 && (
+                      <label className="grid h-20 w-20 cursor-pointer place-items-center rounded-md border-2 border-dashed border-rule-strong text-center text-sm font-semibold text-ink">
+                        <span>
+                          <span className="block text-2xl">🎥</span>
+                          ვიდეო
+                        </span>
+                        <input
+                          type="file"
+                          accept="video/*"
+                          capture="environment"
+                          className="hidden"
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            e.target.value = '';
+                            if (!f) return;
+                            if (f.size > 45 * 1048576)
+                              return setMessage({
+                                tone: 'error',
+                                text: 'ვიდეო ძალიან დიდია (მაქს. 45 MB) — გადაიღე უფრო მოკლე.',
+                              });
+                            setNewPhotos((all) => [
+                              ...all,
+                              { file: f, url: URL.createObjectURL(f), video: true },
                             ]);
                             setMessage(null);
                           }}
@@ -850,14 +1022,24 @@ export default function CountPanel({
               </button>
             </div>
 
-            <button
-              type="button"
-              onClick={next}
-              disabled={pending}
-              className="rounded-control bg-ink px-4 py-4 text-lg font-semibold text-paper disabled:opacity-60"
-            >
-              {pending ? '…' : 'შემდეგი →'}
-            </button>
+            <div className="grid grid-cols-[auto_1fr] gap-2">
+              <button
+                type="button"
+                onClick={cancel}
+                disabled={pending}
+                className="rounded-control border-2 border-rule-strong px-4 py-4 text-lg font-semibold disabled:opacity-60"
+              >
+                ✕ გაუქმება
+              </button>
+              <button
+                type="button"
+                onClick={next}
+                disabled={pending}
+                className="rounded-control bg-ink px-4 py-4 text-lg font-semibold text-paper disabled:opacity-60"
+              >
+                {pending ? '…' : editing ? '✓ ჩასწორება' : 'შემდეგი →'}
+              </button>
+            </div>
           </div>
         )}
 
