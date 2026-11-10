@@ -809,3 +809,14 @@ select:focus {
   font-size: 30px;
   line-height: 32px;
 }
+
+/*
+ * A one-column grid sizes its column to the widest unbreakable line inside
+ * (a long product name, a nowrap button), so a page could get wider than the
+ * phone. One column that never exceeds the screen; grid-cols-* still wins.
+ */
+@layer base {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
