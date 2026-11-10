@@ -16,7 +16,13 @@ import {
   saveAssetCheck,
   type AssetHit,
 } from '../../assets-actions';
-import { drawLabel } from '@/lib/zebra';
+import {
+  canPrintBluetooth,
+  canvasToZpl,
+  drawLabel,
+  forgetPrinter,
+  printZplBluetooth,
+} from '@/lib/zebra';
 import {
   isOffline,
   keepRegister,
@@ -246,6 +252,30 @@ export default function AssetPanel({
     if (!card || !card.name.trim()) return;
     const invNo = card.invNo || `N-${Date.now().toString().slice(-6)}`;
     if (invNo !== card.invNo) setCard({ ...card, invNo });
+    // Android + Chrome: straight to the Zebra printer over Bluetooth, no dialog.
+    if (canPrintBluetooth()) {
+      const label = drawLabel(LABEL, { code: invNo, title: card.name, footer: company });
+      setMessage({ tone: 'info', text: '🖨 იბეჭდება…' });
+      printZplBluetooth(canvasToZpl(label))
+        .then(() => {
+          setMessage({ tone: 'info', text: '✓ სტიკერი დაიბეჭდა' });
+          setNeedsLabel(true);
+          setLabelDone(true);
+        })
+        .catch((e: unknown) => {
+          forgetPrinter();
+          const why = e instanceof Error ? e.message : String(e);
+          setMessage({
+            tone: 'error',
+            text: /cancel/i.test(why)
+              ? 'პრინტერი არ აირჩიე. დააჭირე ისევ და სიიდან აირჩიე Zebra.'
+              : 'პრინტერთან კავშირი ვერ დამყარდა: ჩართე პრინტერი და Bluetooth, და სცადე ისევ.',
+          });
+        });
+      if (savedId && !editing) return;
+      save(true);
+      return;
+    }
     document.getElementById('print-label')?.remove();
     const img = document.createElement('img');
     img.id = 'print-label';
