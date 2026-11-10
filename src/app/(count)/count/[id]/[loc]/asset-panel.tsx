@@ -37,6 +37,15 @@ const LABEL = { w: 38, h: 38 };
 import SerialField from './serial-field';
 import ComboInput from '@/components/combo-input';
 
+/** Bluetooth LE printing worked on this phone (the test label went through). */
+function bleWorks() {
+  try {
+    return localStorage.getItem('zebra-ble') === '1';
+  } catch {
+    return false;
+  }
+}
+
 type Condition = 'good' | 'damaged' | 'writeoff';
 const CONDITIONS: { value: Condition; label: string; tone: string }[] = [
   { value: 'good', label: 'კარგი', tone: 'border-match text-match' },
@@ -253,8 +262,9 @@ export default function AssetPanel({
     if (!card || !card.name.trim()) return;
     const invNo = card.invNo || `N-${Date.now().toString().slice(-6)}`;
     if (invNo !== card.invNo) setCard({ ...card, invNo });
-    // Android + Chrome: straight to the Zebra printer over Bluetooth, no dialog.
-    if (canPrintBluetooth()) {
+    // Straight to the Zebra over Bluetooth LE only once the test label has worked
+    // on this phone; otherwise the phone's print dialog (Zebra Print service).
+    if (canPrintBluetooth() && bleWorks()) {
       const label = drawLabel(LABEL, { code: invNo, title: card.name, footer: company });
       setMessage({ tone: 'info', text: '🖨 იბეჭდება…' });
       printZplBluetooth(canvasToZpl(label))
@@ -523,9 +533,17 @@ export default function AssetPanel({
                     type="button"
                     onClick={() =>
                       printZplBluetooth(testZpl())
-                        .then(() => setMessage({ tone: 'info', text: '🧪 სატესტო გაიგზავნა' }))
+                        .then(() => {
+                          try {
+                            localStorage.setItem('zebra-ble', '1');
+                          } catch {}
+                          setMessage({ tone: 'info', text: '🧪 სატესტო გაიგზავნა' });
+                        })
                         .catch((e: unknown) => {
                           forgetPrinter();
+                          try {
+                            localStorage.removeItem('zebra-ble');
+                          } catch {}
                           setMessage({
                             tone: 'error',
                             text: `პრინტერთან კავშირი ვერ დამყარდა: ${e instanceof Error ? e.message : String(e)}`,
@@ -534,7 +552,7 @@ export default function AssetPanel({
                     }
                     className="text-sm text-ink-faint underline"
                   >
-                    🧪 სატესტო ბეჭდვა
+                    ⚡ Bluetooth-ით პირდაპირ (ტესტი)
                   </button>
                 )}
                 <div className="grid grid-cols-[1fr_2fr] gap-2">
