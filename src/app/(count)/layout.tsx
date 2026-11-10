@@ -6,7 +6,12 @@ import SwRegister from '@/components/sw-register';
 
 export const metadata = { title: 'დათვლა' };
 
-export const viewport = { width: 'device-width', initialScale: 1, maximumScale: 1, themeColor: '#0f172a' };
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  themeColor: '#0f172a',
+};
 
 /** The counter's phone screen: one column, big targets, Georgian only. */
 export default async function CountLayout({ children }: LayoutProps<'/'>) {
@@ -21,21 +26,33 @@ export default async function CountLayout({ children }: LayoutProps<'/'>) {
       <header className="sticky top-0 z-10 border-b border-rule/70 bg-paper/90 backdrop-blur">
         <div className="mx-auto flex max-w-xl items-center gap-3 px-4 py-3">
           {manager ? (
-            <Link href="/manage" className="rounded-control border border-rule-strong bg-paper-sunk px-2.5 py-1.5 text-sm font-semibold">
-            🏠 მთავარი
-          </Link>
+            <Link
+              href="/manage"
+              className="rounded-control border border-rule-strong bg-paper-sunk px-2.5 py-1.5 text-sm font-semibold"
+            >
+              🏠 მთავარი
+            </Link>
           ) : (
-            <Link href={home} className="rounded-control border border-rule-strong bg-paper-sunk px-2.5 py-1.5 text-sm font-semibold">
+            <Link
+              href={home}
+              className="rounded-control border border-rule-strong bg-paper-sunk px-2.5 py-1.5 text-sm font-semibold"
+            >
               🏠 მთავარი
             </Link>
           )}
           <div className="ml-auto text-right">
-            <p className="text-sm font-medium leading-tight">{profile.full_name ?? profile.email}</p>
+            <p className="text-sm font-medium leading-tight">
+              {profile.full_name ?? profile.email}
+            </p>
             <p className="text-xs leading-tight text-ink-faint">{company.name}</p>
           </div>
 
           <form action="/auth/signout" method="post">
-            <button type="submit" className="rounded-control border border-rule-strong px-2.5 py-1.5 text-xs" title="გასვლა">
+            <button
+              type="submit"
+              className="rounded-control border border-rule-strong px-2.5 py-1.5 text-xs"
+              title="გასვლა"
+            >
               გასვლა
             </button>
           </form>
@@ -43,7 +60,9 @@ export default async function CountLayout({ children }: LayoutProps<'/'>) {
         <OutboxStatus />
         <SwRegister />
       </header>
-      <main className="mx-auto w-full max-w-xl flex-1 px-4 py-5">{children}</main>
+      <main className="mx-auto w-full min-w-0 max-w-xl flex-1 overflow-x-clip px-4 py-5">
+        {children}
+      </main>
     </div>
   );
 }

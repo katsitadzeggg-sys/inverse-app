@@ -109,6 +109,8 @@ export default function CountPanel({
   const [newPhotos, setNewPhotos] = useState<{ file: File; url: string; video?: boolean }[]>([]);
   // Correcting a product already counted here: Next sets its total instead of adding.
   const [editing, setEditing] = useState(false);
+  // Products saved on this shelf, oldest first: "← Back" opens them again, newest first.
+  const savedStack = useRef<ProductHit[]>([]);
   // A product that came with only its code: the counter may give it a name.
   const [fixName, setFixName] = useState('');
   // Book quantity per product on this shelf (empty when the manager hides it).
@@ -365,6 +367,43 @@ export default function CountPanel({
     focusQty();
   }
 
+  // "← Back" at the top of the page: one step back on the screen before leaving it.
+  const backRef = useRef<() => boolean>(() => false);
+  // Kept current after every render (it reads the latest screen state).
+  useEffect(() => {
+    backRef.current = () => {
+      if (saving.current) return true;
+      if (misplaced) {
+        setMisplaced(null);
+        return true;
+      }
+      if ((product && !editing) || newOpen) {
+        cancel();
+        return true;
+      }
+      // Step back to the product saved before the one on screen.
+      while (savedStack.current.length) {
+        const p = savedStack.current.pop()!;
+        if (editing && product && p.id === product.id) continue;
+        startEdit(p);
+        return true;
+      }
+      if (editing) {
+        cancel();
+        return true;
+      }
+      return false;
+    };
+  });
+  useEffect(() => {
+    const on = (e: Event) => {
+      const d = (e as CustomEvent<{ handled: boolean }>).detail;
+      if (backRef.current()) d.handled = true;
+    };
+    window.addEventListener('count-back', on);
+    return () => window.removeEventListener('count-back', on);
+  }, []);
+
   /** Back out of the current product (or the new-product form) without saving. */
   function cancel() {
     pendingScan.current = null;
@@ -525,6 +564,9 @@ export default function CountPanel({
         if (product) setCounted((c) => ({ ...c, [product.id]: sum }));
         else setExtra((x) => ({ sku: x.sku + 1, pcs: x.pcs + total }));
         setLast({ code: savedCode, name: savedName, qty: sum, product: product ?? undefined });
+        // Remember the order of saves, so "← Back" can step back through them.
+        if (product && savedStack.current.at(-1)?.id !== product.id)
+          savedStack.current.push(product);
         setDup(null);
         setMessage(batch ? { tone: 'info', text: `✓ ${savedName} — ${total}${batch}` } : null);
         navigator.vibrate?.([40, 40, 40]);
@@ -621,7 +663,7 @@ export default function CountPanel({
           ⚠ {dup}
         </button>
       )}
-      <section className="grid gap-3 rounded-control border border-rule/70 p-4">
+      <section className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 rounded-control border border-rule/70 p-4">
         {(() => {
           // Counted on this shelf so far: products (SKU) and pieces.
           const vals = Object.values(counted).filter((q) => q > 0);
@@ -640,7 +682,7 @@ export default function CountPanel({
             type="button"
             disabled={!last.product}
             onClick={() => last.product && startEdit(last.product)}
-            className="-mt-1 flex items-center gap-2 text-left text-sm text-ink-soft"
+            className="-mt-1 flex w-full min-w-0 items-center gap-2 text-left text-sm text-ink-soft"
           >
             <span className="min-w-0 flex-1 truncate">
               ბოლოს: <b className="text-ink">{last.name}</b> ·{' '}
@@ -655,7 +697,7 @@ export default function CountPanel({
         )}
         {Object.keys(counted).length > 0 && (
           // Everything counted on this shelf, each line can be corrected.
-          <details className="rounded-control border border-accent/50 bg-accent/5 px-3 py-2">
+          <details className="min-w-0 rounded-control border border-accent/50 bg-accent/5 px-3 py-2">
             <summary className="cursor-pointer text-sm font-semibold text-accent">
               📋 დათვლილი ამ თაროზე — ჩასწორება
             </summary>

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import BackButton from './back-button';
 import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
@@ -125,12 +126,7 @@ export default async function ZonePage({ params }: PageProps<'/count/[id]/[loc]'
   return (
     <div className="grid gap-5">
       <div>
-        <Link
-          href={`/count/${id}`}
-          className="inline-flex w-fit items-center gap-2 rounded-control border border-rule-strong px-4 py-2 text-base font-medium text-ink"
-        >
-          ← დაბრუნება
-        </Link>
+        <BackButton href={`/count/${id}`} />
         <h1 className="mt-1 text-2xl font-semibold">
           {location.code}{' '}
           {location.name !== location.code && !location.name.includes(location.code) && (

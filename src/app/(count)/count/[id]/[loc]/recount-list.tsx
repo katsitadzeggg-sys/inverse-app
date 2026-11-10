@@ -171,7 +171,7 @@ export default function RecountList({
           </li>
         ))}
       </ul>
-            {state.error && <p className="text-sm text-mismatch">{state.error}</p>}
+      {state.error && <p className="text-sm text-mismatch">{state.error}</p>}
       <button
         type="submit"
         disabled={pending}

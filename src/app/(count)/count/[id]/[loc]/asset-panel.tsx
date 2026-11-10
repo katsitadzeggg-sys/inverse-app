@@ -17,7 +17,14 @@ import {
   type AssetHit,
 } from '../../assets-actions';
 import { drawLabel } from '@/lib/zebra';
-import { isOffline, keepRegister, onOutbox, pendingInRoom, queueCheck, storedRegister } from '@/lib/outbox';
+import {
+  isOffline,
+  keepRegister,
+  onOutbox,
+  pendingInRoom,
+  queueCheck,
+  storedRegister,
+} from '@/lib/outbox';
 
 const LABEL = { w: 38, h: 38 };
 import SerialField from './serial-field';
@@ -113,7 +120,9 @@ export default function AssetPanel({
   /** Lookup in the register kept on the phone (no connection). */
   function localFind(text: string): AssetHit[] {
     const code = upperLatin(mkhedruli(text.replace(/\s+/g, '')));
-    const exact = reg.filter((h) => h.invNo === code || (h.serial && upperLatin(h.serial) === code));
+    const exact = reg.filter(
+      (h) => h.invNo === code || (h.serial && upperLatin(h.serial) === code),
+    );
     if (exact.length) return exact;
     const t = text.toLowerCase();
     return reg.filter((h) => h.name.toLowerCase().includes(t)).slice(0, 30);
@@ -211,9 +220,12 @@ export default function AssetPanel({
     start(async () => {
       let res: { error?: string | null; id?: string };
       try {
-        res = isOffline() ? { id: await queueCheck(stocktakeId, locationId, input) } : await saveAssetCheck(stocktakeId, locationId, input);
+        res = isOffline()
+          ? { id: await queueCheck(stocktakeId, locationId, input) }
+          : await saveAssetCheck(stocktakeId, locationId, input);
       } catch (e) {
-        if (!isOffline(e)) return setMessage({ tone: 'error', text: 'ვერ შეინახა. სცადე თავიდან.' });
+        if (!isOffline(e))
+          return setMessage({ tone: 'error', text: 'ვერ შეინახა. სცადე თავიდან.' });
         // No connection: kept on the phone, sent when the signal is back.
         res = { id: await queueCheck(stocktakeId, locationId, input) };
       }

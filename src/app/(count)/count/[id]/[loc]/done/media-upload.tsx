@@ -8,7 +8,13 @@ import { captionLines, captionPhoto, videoPoster } from '@/lib/caption';
 import { MAX_UPLOAD_MB, resumableUpload } from '@/lib/resumable-upload';
 import { isOffline, queueMedia } from '@/lib/outbox';
 
-type Item = { id: string; path: string; kind: 'photo' | 'video'; url: string; poster: string | null };
+type Item = {
+  id: string;
+  path: string;
+  kind: 'photo' | 'video';
+  url: string;
+  poster: string | null;
+};
 
 /**
  * Photos and videos of the shelf, captured live with the phone camera only
@@ -64,7 +70,15 @@ export default function MediaUpload({
       setBusy('ვიღებ მდებარეობას…');
       const pos = await currentPosition(6000);
       const when = new Date();
-      const lines = captionLines({ when, author, company, branch, shelf: assetCheckId ? `ოთახი ${shelf}` : `თარო ${shelf}`, pos, extra });
+      const lines = captionLines({
+        when,
+        author,
+        company,
+        branch,
+        shelf: assetCheckId ? `ოთახი ${shelf}` : `თარო ${shelf}`,
+        pos,
+        extra,
+      });
       const base = `${companyId}/${stocktakeId}/${locationId}/${crypto.randomUUID()}`;
       let blob: Blob = file;
       let preview: Blob = file;
@@ -106,8 +120,19 @@ export default function MediaUpload({
       };
       const keep = async () => {
         // No connection (or the asset itself is still waiting): keep it on the phone.
-        await queueMedia({ checkId: assetCheckId ?? '', path, posterPath, blob, poster, contentType, row });
-        setAdded((a) => [...a, { id: path, path, kind, url: URL.createObjectURL(preview), poster: null }]);
+        await queueMedia({
+          checkId: assetCheckId ?? '',
+          path,
+          posterPath,
+          blob,
+          poster,
+          contentType,
+          row,
+        });
+        setAdded((a) => [
+          ...a,
+          { id: path, path, kind, url: URL.createObjectURL(preview), poster: null },
+        ]);
         onUploaded?.();
       };
 
@@ -119,20 +144,31 @@ export default function MediaUpload({
           const mb = Math.round(blob.size / 1048576);
           if (kind === 'video' && blob.size > 6 * 1048576) {
             // Large video: in parts, resumes after a dropped connection.
-            await resumableUpload(supabase, 'stocktake-media', path, file, (p) => setBusy(`ვიდეო იტვირთება: ${p}% (${mb} MB)`));
+            await resumableUpload(supabase, 'stocktake-media', path, file, (p) =>
+              setBusy(`ვიდეო იტვირთება: ${p}% (${mb} MB)`),
+            );
           } else {
             setBusy(kind === 'video' ? `ვიდეო იტვირთება (${mb} MB)…` : 'იტვირთება…');
-            const { error: e } = await supabase.storage.from('stocktake-media').upload(path, blob, { contentType });
+            const { error: e } = await supabase.storage
+              .from('stocktake-media')
+              .upload(path, blob, { contentType });
             if (e) throw e;
           }
           let savedPoster = posterPath;
           if (poster && posterPath) {
-            const { error: pe } = await supabase.storage.from('stocktake-media').upload(posterPath, poster, { contentType: 'image/jpeg' });
+            const { error: pe } = await supabase.storage
+              .from('stocktake-media')
+              .upload(posterPath, poster, { contentType: 'image/jpeg' });
             if (pe) savedPoster = null;
           }
-          const { error: rowErr } = await supabase.from('stocktake_media').insert({ ...row, poster_path: savedPoster, asset_check_id: assetCheckId });
+          const { error: rowErr } = await supabase
+            .from('stocktake_media')
+            .insert({ ...row, poster_path: savedPoster, asset_check_id: assetCheckId });
           if (rowErr) throw rowErr;
-          setAdded((a) => [...a, { id: path, path, kind, url: URL.createObjectURL(preview), poster: null }]);
+          setAdded((a) => [
+            ...a,
+            { id: path, path, kind, url: URL.createObjectURL(preview), poster: null },
+          ]);
           onUploaded?.();
         } catch (e) {
           if (!isOffline(e)) throw e;
@@ -140,7 +176,8 @@ export default function MediaUpload({
         }
       }
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e);
+      const msg =
+        e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e);
       setError(
         msg.includes('size') || msg.includes('large') || msg.includes('413')
           ? `ვიდეო ძალიან დიდია (მაქს. ${MAX_UPLOAD_MB} MB). გადაიღე უფრო მოკლე, 20–30 წამი, ან კამერაში დააყენე 1080p.`
@@ -151,7 +188,8 @@ export default function MediaUpload({
     if (!isOffline()) router.refresh();
   }
 
-  const button = 'cursor-pointer rounded-control border border-rule-strong bg-paper-sunk px-4 py-3 text-center text-base font-semibold';
+  const button =
+    'cursor-pointer rounded-control border border-rule-strong bg-paper-sunk px-4 py-3 text-center text-base font-semibold';
 
   return (
     <section className="grid gap-2">
@@ -190,7 +228,10 @@ export default function MediaUpload({
       {busy && <p className="text-center text-sm text-ink-soft">{busy}</p>}
       {error && <p className="text-sm text-mismatch">{error}</p>}
       {!showItems && compact && items.length + added.length > 0 && (
-        <p className="text-center text-sm text-match">✓ ატვირთულია: {items.length + added.filter((a) => !items.some((i) => i.path === a.path)).length}</p>
+        <p className="text-center text-sm text-match">
+          ✓ ატვირთულია:{' '}
+          {items.length + added.filter((a) => !items.some((i) => i.path === a.path)).length}
+        </p>
       )}
       {showItems && items.length + added.length > 0 && (
         <div className="grid grid-cols-3 gap-2">
@@ -208,7 +249,11 @@ export default function MediaUpload({
             ) : (
               <a key={m.id} href={m.url} target="_blank" rel="noreferrer">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={m.url} alt="" className="aspect-square w-full rounded-control object-cover" />
+                <img
+                  src={m.url}
+                  alt=""
+                  className="aspect-square w-full rounded-control object-cover"
+                />
               </a>
             ),
           )}

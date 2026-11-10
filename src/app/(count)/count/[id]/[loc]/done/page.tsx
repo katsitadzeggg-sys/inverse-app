@@ -12,6 +12,15 @@ import { distanceM, mapsLink } from '@/lib/geo';
  * which shelf, how many differences remain) plus a free comment, photos and
  * videos of the shelf, then Close or open the next shelf.
  */
+/** A product booked on many shelves: the first two, then "+N". */
+function shortHome(home: string) {
+  const all = home
+    .split(',')
+    .map((x) => x.trim())
+    .filter(Boolean);
+  return all.length > 2 ? `${all.slice(0, 2).join(', ')} +${all.length - 2}` : all.join(', ');
+}
+
 export default async function ShelfDonePage({ params }: PageProps<'/count/[id]/[loc]/done'>) {
   const { id, loc } = await params;
   const { userId, profile, company } = await requireSession();
@@ -189,11 +198,15 @@ export default async function ShelfDonePage({ params }: PageProps<'/count/[id]/[
                   <p className="text-xs text-ink-faint">{d.code}</p>
                 </div>
                 <p
-                  className={`shrink-0 text-right text-xl font-semibold tabular-nums ${d.diff > 0 ? 'text-review' : 'text-mismatch'}`}
+                  className={`max-w-[45%] shrink-0 text-right text-xl font-semibold tabular-nums ${d.diff > 0 ? 'text-review' : 'text-mismatch'}`}
                 >
                   {d.diff > 0 ? `+${d.diff}` : d.diff}
-                  <span className="block text-xs font-normal">
-                    {d.diff > 0 ? (d.home ? `${d.home}-დან გადმოსატანი` : 'მეტობა') : 'დანაკლისი'}
+                  <span className="block break-words text-xs font-normal">
+                    {d.diff > 0
+                      ? d.home
+                        ? `${shortHome(d.home)}-დან გადმოსატანი`
+                        : 'მეტობა'
+                      : 'დანაკლისი'}
                   </span>
                 </p>
               </li>
