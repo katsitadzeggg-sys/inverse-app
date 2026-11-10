@@ -114,12 +114,13 @@ export default async function StockAct({ params, searchParams }: PageProps<'/man
         </div>
 
         <div className="overflow-x-auto border-y border-[#c5ccd6] bg-white">
-          <table className="w-full min-w-[900px] border-collapse">
+          <table className="w-full min-w-[1100px] border-collapse">
             <thead className="bg-[#eef1f5] text-left">
               <tr>
                 <th className={`${th} w-10 text-center`}>N</th>
                 <th className={th}>არტიკული</th>
                 <th className={th}>ნომენკლატურა</th>
+                <th className={th}>ჯგუფი</th>
                 <th className={th}>ძირითადი შტრიხკოდი</th>
                 <th className={th}>ერთ.</th>
                 <th className={`${th} text-right`}>აღრიცხვით</th>
@@ -127,6 +128,7 @@ export default async function StockAct({ params, searchParams }: PageProps<'/man
                 <th className={`${th} text-right`}>ფაქტ. რაოდენობა</th>
                 {hasCost && <th className={`${th} text-right`}>ფასი</th>}
                 {hasCost && <th className={`${th} text-right`}>სხვაობის თანხა</th>}
+                <th className={th}>თარო · ფოტო/ვიდეო</th>
                 <th className={th}>კომენტარები</th>
               </tr>
             </thead>
@@ -136,6 +138,7 @@ export default async function StockAct({ params, searchParams }: PageProps<'/man
                   <td className={`${td} text-center text-[#718096]`}>{l.n}</td>
                   <td className={`${td} tabular-nums`}>{l.sku}</td>
                   <td className={td}>{l.name}</td>
+                  <td className={`${td} text-[#4a5568]`}>{l.group}</td>
                   <td className={`${td} tabular-nums`}>{l.barcode}</td>
                   <td className={td}>{l.unit}</td>
                   <td className={`${td} text-right tabular-nums`}>{q4(l.book)}</td>
@@ -155,13 +158,30 @@ export default async function StockAct({ params, searchParams }: PageProps<'/man
                       {l.diff && l.cost != null ? money(l.diff * l.cost) : ''}
                     </td>
                   )}
+                  <td className={td}>
+                    <span className="flex flex-wrap gap-x-2 gap-y-0.5">
+                      {l.shelves.map((sh) => (
+                        <a
+                          key={sh.id}
+                          href={`/count/${id}/${sh.id}/done`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="whitespace-nowrap text-[#2b6cb0] underline print:text-black print:no-underline"
+                          title={sh.media ? `${sh.media} ფოტო/ვიდეო — გახსნა` : 'თაროს გახსნა'}
+                        >
+                          {sh.code}
+                          {sh.media > 0 && ` 📷${sh.media}`}
+                        </a>
+                      ))}
+                    </span>
+                  </td>
                   <td className={`${td} text-[#4a5568]`}>{l.comment}</td>
                 </tr>
               ))}
             </tbody>
             <tfoot className="bg-[#eef1f5] font-semibold">
               <tr>
-                <td className={td} colSpan={5}>
+                <td className={td} colSpan={6}>
                   სულ
                 </td>
                 <td className={`${td} text-right tabular-nums`}>{q4(t.book)}</td>
@@ -173,6 +193,7 @@ export default async function StockAct({ params, searchParams }: PageProps<'/man
                     {money(t.plusSum - t.minusSum)}
                   </td>
                 )}
+                <td className={td} />
                 <td className={td} />
               </tr>
             </tfoot>

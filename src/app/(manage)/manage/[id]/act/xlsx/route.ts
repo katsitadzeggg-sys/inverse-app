@@ -33,22 +33,39 @@ export async function GET(request: Request, { params }: RouteContext<'/manage/[i
     'N',
     'არტიკული',
     'ნომენკლატურა',
+    'ჯგუფი',
     'ძირითადი შტრიხკოდი',
     'ერთ.',
     'აღრიცხვით',
     'სხვაობა (რაოდ.)',
     'ფაქტ. რაოდენობა',
     ...(hasCost ? ['ფასი', 'სხვაობის თანხა'] : []),
+    'თარო',
+    'ფოტო/ვიდეო',
     'კომენტარები',
   ];
   const num = (v: number, format = '0.0000') => ({ type: Number, value: v, format });
   const txt = (v: string) => ({ type: String, value: v });
+  // A clickable link to the shelf page with its photos/videos (sign-in needed).
+  const origin = new URL(request.url).origin;
+  const mediaCell = (shelves: { id: string; code: string; media: number }[]) => {
+    const withMedia = shelves.filter((s) => s.media > 0);
+    if (!withMedia.length) return null;
+    const s = withMedia[0];
+    const more = withMedia.length > 1 ? ` (+${withMedia.length - 1} თარო)` : '';
+    return {
+      type: 'Formula' as const,
+      value: `HYPERLINK("${origin}/count/${id}/${s.id}/done","📷 ${s.code} · ${s.media}${more}")`,
+      color: '#2B6CB0',
+    };
+  };
   const data = [
     headers.map(head),
     ...lines.map((l) => [
       num(l.n, '0'),
       txt(l.sku),
       txt(l.name),
+      txt(l.group),
       txt(l.barcode),
       txt(l.unit),
       num(l.book),
@@ -60,6 +77,8 @@ export async function GET(request: Request, { params }: RouteContext<'/manage/[i
             l.cost != null && l.diff ? num(l.diff * l.cost, '0.00') : null,
           ]
         : []),
+      txt(l.shelves.map((s) => s.code).join(', ')),
+      mediaCell(l.shelves),
       txt(l.comment),
     ]),
   ];
@@ -70,13 +89,16 @@ export async function GET(request: Request, { params }: RouteContext<'/manage/[i
       { width: 5 },
       { width: 16 },
       { width: 40 },
+      { width: 18 },
       { width: 16 },
       { width: 7 },
       { width: 12 },
       { width: 14 },
       { width: 15 },
       ...(hasCost ? [{ width: 10 }, { width: 14 }] : []),
-      { width: 30 },
+      { width: 14 },
+      { width: 22 },
+      { width: 18 },
     ],
   });
   const name = `${st.number}_ინვენტარიზაცია${onlyDiff ? '_სხვაობები' : ''}.xlsx`;

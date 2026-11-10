@@ -17,6 +17,10 @@ export type ActLine = {
   diff: number;
   cost: number | null;
   comment: string;
+  /** The product's group (category). */
+  group: string;
+  /** Shelves it was counted on; media = photos/videos of that shelf. */
+  shelves: { id: string; code: string; media: number }[];
 };
 
 export type ActData = {
@@ -89,6 +93,18 @@ export async function stockActData(supabase: SupabaseClient, id: string): Promis
       >(),
   ]);
   const shelfCode = new Map((zones ?? []).map((z) => [z.location_id, z.locations?.code ?? '']));
+  const { data: media } = await supabase
+    .from('stocktake_media')
+    .select('location_id')
+    .eq('stocktake_id', id)
+    .returns<{ location_id: string }[]>();
+  const mediaCount = new Map<string, number>();
+  for (const m of media ?? [])
+    mediaCount.set(m.location_id, (mediaCount.get(m.location_id) ?? 0) + 1);
+  const shelfList = (ids: Set<string>) =>
+    [...ids]
+      .map((lid) => ({ id: lid, code: shelfCode.get(lid) ?? '', media: mediaCount.get(lid) ?? 0 }))
+      .sort((a, b) => a.code.localeCompare(b.code, 'ka', { numeric: true }));
 
   const rows = new Map<
     string,
@@ -106,7 +122,7 @@ export async function stockActData(supabase: SupabaseClient, id: string): Promis
   }
   const unknown = new Map<string, { qty: number; shelves: Set<string> }>();
   for (const e of entries) {
-    const code = shelfCode.get(e.location_id);
+    const code = e.location_id;
     if (!e.product_id) {
       const k = e.unknown_label ?? '?';
       const u = unknown.get(k) ?? { qty: 0, shelves: new Set<string>() };
@@ -123,22 +139,18 @@ export async function stockActData(supabase: SupabaseClient, id: string): Promis
   const ids = [...rows.keys()];
   const info = new Map<
     string,
-    { name: string; sku: string; barcode: string | null; unit: string }
+    { name: string; sku: string; barcode: string | null; unit: string; category_id: string | null }
   >();
   for (let i = 0; i < ids.length; i += 300) {
     const { data } = await supabase
       .from('products')
-      .select('id, name, sku, barcode, unit')
+      .select('id, name, sku, barcode, unit, category_id')
       .in('id', ids.slice(i, i + 300));
     for (const p of data ?? []) info.set(p.id, p);
   }
+  const { data: cats } = await supabase.from('categories').select('id, name');
+  const catName = new Map((cats ?? []).map((c) => [c.id as string, c.name as string]));
 
-  const shelvesText = (s: Set<string>) => {
-    const list = [...s].sort((a, b) => a.localeCompare(b, 'ka', { numeric: true }));
-    return list.length
-      ? `თარო: ${list.slice(0, 6).join(', ')}${list.length > 6 ? ` +${list.length - 6}` : ''}`
-      : '';
-  };
   const lines: ActLine[] = [...rows.entries()]
     .map(([pid, r]) => {
       const p = info.get(pid);
@@ -152,7 +164,9 @@ export async function stockActData(supabase: SupabaseClient, id: string): Promis
         counted: r.counted,
         diff: r.counted - r.book,
         cost: r.cost,
-        comment: shelvesText(r.shelves),
+        comment: '',
+        group: p?.category_id ? (catName.get(p.category_id) ?? '') : '',
+        shelves: shelfList(r.shelves),
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name, 'ka'));
@@ -167,7 +181,9 @@ export async function stockActData(supabase: SupabaseClient, id: string): Promis
       counted: u.qty,
       diff: u.qty,
       cost: null,
-      comment: ['უცნობი პროდუქტი', shelvesText(u.shelves)].filter(Boolean).join(' · '),
+      comment: 'უცნობი პროდუქტი',
+      group: '',
+      shelves: shelfList(u.shelves),
     });
   lines.forEach((l, i) => (l.n = i + 1));
 

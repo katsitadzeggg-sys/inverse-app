@@ -127,59 +127,68 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
       : [{ count: 0 }, { count: 0 }];
   const done = list.filter((z) => z.status === 'done').length;
 
+  // Action buttons stand out from the info tiles: solid orange.
+  const btn =
+    'rounded-control bg-[#f97316] px-3 py-3 text-center font-semibold text-white shadow-sm hover:bg-[#ea580c]';
+  const tile = 'rounded-control border border-white/10 bg-white/[0.04] p-2 opacity-80';
+
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-4">
       <div className="grid gap-1">
-        <Link
-          href={`/manage/stocktakes?kind=${st.kind}`}
-          className="inline-flex w-fit items-center gap-2 rounded-control border border-rule-strong px-4 py-2 text-base font-medium text-ink"
-        >
-          ← დაბრუნება
-        </Link>
-        <p className="text-sm text-ink-faint">
-          {st.number} · {new Date(st.count_date).toLocaleDateString('ka-GE')} ·{' '}
-          {st.kind === 'expiry'
-            ? '⏳ ვადიანი პროდუქცია'
-            : st.kind === 'assets'
-              ? '🏷 ძირითადი საშუალებები'
-              : '📦 მარაგები'}
-        </p>
-        <h1 className="text-2xl font-semibold">{st.client_name ?? st.name}</h1>
-        {st.branch && <p className="text-ink-soft">{st.branch}</p>}
-        {(st.address || st.lat != null) && (
-          <p className="text-sm text-ink-soft">
-            📍 {st.address ?? ''}{' '}
-            {st.lat != null && st.lng != null && (
-              <a
-                href={mapsLink(st.lat, st.lng)}
-                target="_blank"
-                rel="noreferrer"
-                className="underline"
-              >
-                რუკაზე
-              </a>
-            )}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <Link
+            href={`/manage/stocktakes?kind=${st.kind}`}
+            className="inline-flex w-fit items-center gap-2 rounded-control border border-rule-strong px-3 py-1.5 text-sm font-medium text-ink"
+          >
+            ← დაბრუნება
+          </Link>
+          <p className="text-sm text-ink-faint">
+            {st.number} · {new Date(st.count_date).toLocaleDateString('ka-GE')} ·{' '}
+            {st.kind === 'expiry'
+              ? '⏳ ვადიანი პროდუქცია'
+              : st.kind === 'assets'
+                ? '🏷 ძირითადი საშუალებები'
+                : '📦 მარაგები'}
           </p>
-        )}
+        </div>
+        <h1 className="text-2xl font-semibold">
+          {st.client_name ?? st.name}
+          {st.branch && <span className="font-normal text-ink-soft"> · {st.branch}</span>}
+          {(st.address || st.lat != null) && (
+            <span className="ml-2 text-sm font-normal text-ink-soft">
+              📍 {st.address ?? ''}{' '}
+              {st.lat != null && st.lng != null && (
+                <a
+                  href={mapsLink(st.lat, st.lng)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline"
+                >
+                  რუკაზე
+                </a>
+              )}
+            </span>
+          )}
+        </h1>
       </div>
 
       <div className="grid grid-cols-2 gap-2 text-center text-sm sm:grid-cols-4">
-        <div className="rounded-control border border-rule/70 p-3">
-          <p className="text-2xl font-semibold">
+        <div className={tile}>
+          <p className="text-xl font-semibold">
             {done}/{list.length}
           </p>
           თარო დასრულდა
         </div>
         {st.kind === 'assets' ? (
           <>
-            <div className="rounded-control border border-rule/70 p-3">
-              <p className="text-2xl font-semibold">{foundCount ?? 0}</p>ჩაწერილი
+            <div className={tile}>
+              <p className="text-xl font-semibold">{foundCount ?? 0}</p>ჩაწერილი
             </div>
-            <div className="rounded-control border border-rule/70 p-3">
-              <p className="text-2xl font-semibold">{regCount ?? 0}</p>რეესტრში
+            <div className={tile}>
+              <p className="text-xl font-semibold">{regCount ?? 0}</p>რეესტრში
             </div>
-            <div className="rounded-control border border-rule/70 p-3">
-              <p className="text-2xl font-semibold text-review">
+            <div className={tile}>
+              <p className="text-xl font-semibold text-review">
                 {Math.max(0, (regCount ?? 0) - (foundCount ?? 0))}
               </p>
               ჯერ ვერ ნაპოვნი
@@ -187,14 +196,14 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
           </>
         ) : (
           <>
-            <div className="rounded-control border border-rule/70 p-3">
-              <p className="text-2xl font-semibold">{entries?.length ?? 0}</p>ჩანაწერი
+            <div className={tile}>
+              <p className="text-xl font-semibold">{entries?.length ?? 0}</p>ჩანაწერი
             </div>
-            <div className="rounded-control border border-rule/70 p-3">
-              <p className="text-2xl font-semibold text-mismatch">{checks?.length ?? 0}</p>სხვაობა
+            <div className={tile}>
+              <p className="text-xl font-semibold text-mismatch">{checks?.length ?? 0}</p>სხვაობა
             </div>
-            <div className="rounded-control border border-rule/70 p-3">
-              <p className="text-2xl font-semibold">{bookLines ?? 0}</p>ხაზი ნაშთში
+            <div className={tile}>
+              <p className="text-xl font-semibold">{bookLines ?? 0}</p>ხაზი ნაშთში
             </div>
           </>
         )}
@@ -202,49 +211,28 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
 
       {st.kind === 'assets' ? (
         <div className="grid grid-cols-3 gap-2 text-sm">
-          <Link
-            href={`/count/${id}/register`}
-            className="rounded-control border border-rule-strong px-3 py-3 text-center"
-          >
+          <Link href={`/count/${id}/register`} className={btn}>
             📄 რეესტრი
           </Link>
-          <Link
-            href={`/count/${id}/report`}
-            className="rounded-control border border-rule-strong px-3 py-3 text-center"
-          >
+          <Link href={`/count/${id}/report`} className={btn}>
             📊 შედეგი
           </Link>
-          <Link
-            href={`/count/${id}/labels`}
-            className="rounded-control border border-rule-strong px-3 py-3 text-center"
-          >
+          <Link href={`/count/${id}/labels`} className={btn}>
             🏷 ეტიკეტები
           </Link>
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
-          <Link
-            href={`/count/${id}/book`}
-            className="rounded-control border border-rule-strong px-3 py-3 text-center"
-          >
+          <Link href={`/count/${id}/book`} className={btn}>
             📄 ნაშთის ჩატვირთვა
           </Link>
-          <Link
-            href={`/count/${id}/report`}
-            className="rounded-control border border-rule-strong px-3 py-3 text-center"
-          >
+          <Link href={`/count/${id}/report`} className={btn}>
             {st.kind === 'expiry' ? '📊 სხვაობები და ვადები' : '📊 სხვაობები'}
           </Link>
-          <Link
-            href={`/manage/${id}/act`}
-            className="rounded-control border border-rule-strong px-3 py-3 text-center"
-          >
+          <Link href={`/manage/${id}/act`} className={btn}>
             🖨 აქტი
           </Link>
-          <Link
-            href={`/count/${id}/labels`}
-            className="rounded-control border border-rule-strong px-3 py-3 text-center"
-          >
+          <Link href={`/count/${id}/labels`} className={btn}>
             🏷 ეტიკეტები
           </Link>
         </div>
@@ -267,10 +255,7 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
         </form>
       )}
 
-      <Link
-        href={`/manage/${id}/map`}
-        className="rounded-control border-2 border-rule-strong px-3 py-3 text-center text-sm font-semibold"
-      >
+      <Link href={`/manage/${id}/map`} className={`${btn} text-sm`}>
         🗺 რუკა — რომელი თარო დაითვალა, სად არის სხვაობა
       </Link>
 

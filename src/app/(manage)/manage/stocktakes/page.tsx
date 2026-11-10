@@ -87,30 +87,34 @@ export default async function ManageHome({ searchParams }: PageProps<'/manage/st
           </Link>
         </div>
         {list.length === 0 && <p className="text-ink-soft">ჯერ არცერთი არ არის.</p>}
-        <ul className="grid gap-2">
+        <ul className="grid gap-1">
           {list.map((s) => {
             const p = progress.get(s.id) ?? { all: 0, done: 0 };
             return (
               <li key={s.id}>
+                {/* One compact line per stocktake. */}
                 <Link
                   href={`/manage/${s.id}`}
-                  className="grid gap-1 rounded-control border border-rule-strong px-4 py-3 hover:bg-paper-sunk"
+                  className="flex min-w-0 items-center gap-x-3 rounded-control border border-rule/60 px-3 py-1.5 text-sm hover:bg-white/10"
                 >
-                  <span className="flex justify-between text-sm text-ink-faint">
-                    <span>
-                      {KIND_LABEL[s.kind]} · {s.number} ·{' '}
-                      {new Date(s.count_date).toLocaleDateString('ka-GE')}
-                    </span>
-                    <span className={s.status === 'open' ? 'text-review' : 'text-match'}>
-                      {s.status === 'open' ? 'მიმდინარე' : 'დახურული'}
-                    </span>
+                  <span className="shrink-0" title={KIND_LABEL[s.kind]}>
+                    {KIND_LABEL[s.kind].split(' ')[0]}
                   </span>
-                  <span className="text-lg font-semibold">{s.client_name ?? s.name}</span>
-                  <span className="flex justify-between text-sm text-ink-soft">
-                    <span>{s.branch}</span>
-                    <span>
-                      თაროები: {p.done}/{p.all}
-                    </span>
+                  <span className="shrink-0 tabular-nums text-ink-faint">{s.number}</span>
+                  <span className="hidden shrink-0 tabular-nums text-ink-faint sm:inline">
+                    {new Date(s.count_date).toLocaleDateString('ka-GE')}
+                  </span>
+                  <span className="min-w-0 truncate font-semibold">
+                    {s.client_name ?? s.name}
+                    {s.branch && <span className="font-normal text-ink-soft"> · {s.branch}</span>}
+                  </span>
+                  <span className="ml-auto shrink-0 tabular-nums text-ink-soft">
+                    {p.done}/{p.all}
+                  </span>
+                  <span
+                    className={`shrink-0 text-xs ${s.status === 'open' ? 'text-review' : 'text-match'}`}
+                  >
+                    {s.status === 'open' ? '● მიმდინარე' : '✓ დახურული'}
                   </span>
                 </Link>
               </li>
