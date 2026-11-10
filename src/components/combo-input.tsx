@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { inputClass } from '@/components/ui';
+import { fixDashes, normKey } from '@/lib/text';
 
 /**
  * A text field with its own drop-down below it: the list opens on tap and
@@ -24,14 +25,17 @@ export default function ComboInput({
 }) {
   const [open, setOpen] = useState(false);
   const q = value.trim().toLowerCase();
-  const shown = options.filter((o) => o.toLowerCase().includes(q) && o !== value).slice(0, 50);
+  const k = normKey(value);
+  const shown = options
+    .filter((o) => (o.toLowerCase().includes(q) || (k && normKey(o).includes(k))) && o !== value)
+    .slice(0, 50);
 
   return (
     <div className="relative">
       <input
         value={value}
         onChange={(e) => {
-          onChange(e.target.value);
+          onChange(fixDashes(e.target.value));
           setOpen(true);
         }}
         onFocus={() => setOpen(true)}
@@ -39,10 +43,17 @@ export default function ComboInput({
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         placeholder={placeholder}
         autoComplete="off"
+        autoCorrect="off"
+        spellCheck={false}
         className={`${className} ${options.length ? 'pr-10' : ''}`}
       />
       {options.length > 0 && (
-        <span aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">▾</span>
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-500"
+        >
+          ▾
+        </span>
       )}
       {open && shown.length > 0 && (
         <ul className="absolute inset-x-0 top-full z-20 mt-1 max-h-60 overflow-y-auto rounded-control border border-rule-strong bg-white py-1 text-black shadow-lg">

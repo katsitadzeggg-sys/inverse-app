@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
-import { mkhedruli, upperLatin } from '@/lib/text';
+import { fixDashes, mkhedruli, upperLatin } from '@/lib/text';
 import type { Product } from '@/types/database';
 
 export type FormState = { error?: string; notice?: string };
@@ -112,6 +112,7 @@ async function findShelf(companyId: string, text: string): Promise<Loc | null> {
  */
 export async function matchShelf(text: string): Promise<Loc | null> {
   const session = await requireSession();
+  text = fixDashes(text);
   const words = [text, ...text.split(/\s+/)].map((w) => w.trim()).filter((w) => w.length >= 2);
   for (const w of words) {
     const hit = await findShelf(session.company.id, w);
@@ -138,7 +139,7 @@ export async function openZone(
     if (allowed === false)
       return { error: 'ამ ინვენტარიზაციაზე არ ხარ დანიშნული. მიმართე მენეჯერს.' };
   }
-  const code = String(formData.get('code') ?? '').trim();
+  const code = fixDashes(String(formData.get('code') ?? '').trim());
   if (/^(https?:\/\/|www\.)/i.test(code))
     return { error: 'ეს ვებ-ლინკის QR-ია, თაროს კოდი არ არის. დაასკანერე თაროს ეტიკეტი.' };
   const create = formData.get('create') === '1';
@@ -708,7 +709,8 @@ export async function importBook(
         barcode,
         code: r.code.trim() || barcode,
         name: r.name.trim(),
-        location: r.location.trim(),
+        // "0" or a bare dash in the file means the item has no shelf.
+        location: /^(0+|[-–—]+)$/.test(r.location.trim()) ? '' : r.location.trim(),
         unit: normUnit(r.unit),
         unitGiven: r.unit.trim() !== '',
       };

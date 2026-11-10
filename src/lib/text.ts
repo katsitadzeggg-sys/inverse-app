@@ -6,7 +6,16 @@
 export const upperLatin = (s: string) => s.replace(/[a-z]/g, (c) => c.toUpperCase());
 
 /** Mtavruli capitals back to ordinary Georgian letters. */
-export const mkhedruli = (s: string) => s.replace(/[Ა-Ჿ]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0x1c90 + 0x10d0));
+export const mkhedruli = (s: string) =>
+  s.replace(/[Ა-Ჿ]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0x1c90 + 0x10d0));
 
 /** Compare codes and room names: case of Latin letters, spaces and dashes do not matter. */
-export const normKey = (s: string | null | undefined) => upperLatin(mkhedruli(s ?? '')).replace(/[^A-Z0-9ა-ჿ]+/g, '');
+export const normKey = (s: string | null | undefined) =>
+  upperLatin(mkhedruli(s ?? '')).replace(/[^A-Z0-9ა-ჿ]+/g, '');
+
+/**
+ * Phones turn a typed "--" into a long dash (—) and "-" sometimes into "–".
+ * Shelf codes like "A--01" must stay as written.
+ */
+export const fixDashes = (s: string) =>
+  s.replace(/\u2014/g, '--').replace(/[\u2013\u2012\u2212]/g, '-');
