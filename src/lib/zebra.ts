@@ -176,7 +176,11 @@ async function connect(): Promise<BleChar> {
         bluetooth: { requestDevice: (o: unknown) => Promise<BleDevice> };
       }
     ).bluetooth;
-    device = await bt.requestDevice({ acceptAllDevices: true, optionalServices: [PARSER] });
+    // Only Zebra printers in the list: they advertise as "XX…" (serial) or "ZQ…".
+    device = await bt.requestDevice({
+      filters: [{ namePrefix: 'XX' }, { namePrefix: 'ZQ' }, { services: [PARSER] }],
+      optionalServices: [PARSER],
+    });
   }
   const server = await device.gatt!.connect();
   const service = await server.getPrimaryService(PARSER);
