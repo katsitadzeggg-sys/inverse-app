@@ -22,6 +22,7 @@ import {
   drawLabel,
   forgetPrinter,
   printZplBluetooth,
+  testZpl,
 } from '@/lib/zebra';
 import {
   isOffline,
@@ -516,6 +517,23 @@ export default function AssetPanel({
                 >
                   🖨 სტიკერის ბეჭდვა{labelDone ? ' ✓' : ''}
                 </button>
+                {canPrintBluetooth() && (
+                  // Checks the printer with a plain text label (no QR, no save).
+                  <button
+                    type="button"
+                    onClick={() =>
+                      printZplBluetooth(testZpl())
+                        .then(() => setMessage({ tone: 'info', text: '🧪 სატესტო გაიგზავნა' }))
+                        .catch(() => {
+                          forgetPrinter();
+                          setMessage({ tone: 'error', text: 'პრინტერთან კავშირი ვერ დამყარდა.' });
+                        })
+                    }
+                    className="text-sm text-ink-faint underline"
+                  >
+                    🧪 სატესტო ბეჭდვა
+                  </button>
+                )}
                 <div className="grid grid-cols-[1fr_2fr] gap-2">
                   <button
                     type="button"

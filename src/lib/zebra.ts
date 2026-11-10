@@ -146,6 +146,7 @@ const PARSER = '38eb4a80-c570-11e3-9507-0002a5d5c51b';
 const TO_PRINTER = '38eb4a82-c570-11e3-9507-0002a5d5c51b';
 
 type BleChar = {
+  writeValueWithResponse?: (d: BufferSource) => Promise<void>;
   writeValueWithoutResponse?: (d: BufferSource) => Promise<void>;
   writeValue: (d: BufferSource) => Promise<void>;
 };
@@ -183,19 +184,26 @@ async function connect(): Promise<BleChar> {
   return channel;
 }
 
-/** Sends ZPL to the printer in small pieces (BLE packets are short). */
+/**
+ * Sends ZPL to the printer in small pieces (BLE packets are short). Each piece
+ * waits for the printer's acknowledgement, so nothing is lost on the way.
+ * The printer is first switched to ZPL: a ZQ511 set to its line-print
+ * language would otherwise ignore the label.
+ */
 export async function printZplBluetooth(zpl: string): Promise<void> {
   const ch = await connect();
-  const bytes = new TextEncoder().encode(zpl);
+  const bytes = new TextEncoder().encode(`! U1 setvar "device.languages" "zpl"\r\n${zpl}`);
   const PART = 180;
   for (let i = 0; i < bytes.length; i += PART) {
     const piece = bytes.slice(i, i + PART);
-    if (ch.writeValueWithoutResponse) {
-      await ch.writeValueWithoutResponse(piece);
-      // A short breath every few packets so the printer's buffer keeps up.
-      if ((i / PART) % 8 === 7) await new Promise((r) => setTimeout(r, 20));
-    } else await ch.writeValue(piece);
+    if (ch.writeValueWithResponse) await ch.writeValueWithResponse(piece);
+    else await ch.writeValue(piece);
   }
+}
+
+/** A plain test label (text only), to check the printer and its language. */
+export function testZpl(): string {
+  return '^XA^PW576^FO30,30^A0N,40,40^FDInverse TEST^FS^FO30,90^A0N,28,28^FDZQ511 OK^FS^XZ\n';
 }
 
 /** Forget the printer (e.g. to pick another one). */
