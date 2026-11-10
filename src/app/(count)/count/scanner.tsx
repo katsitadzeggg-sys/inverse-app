@@ -54,6 +54,7 @@ export default function Scanner({
   closeOnCode = false,
   closeKey = 0,
   shape = 'wide',
+  compact = false,
 }: {
   onCode: (code: string) => void;
   label?: string;
@@ -70,6 +71,8 @@ export default function Scanner({
   closeKey?: number;
   /** Aiming marks: 'square' for a shelf QR, 'wide' for a product barcode. */
   shape?: 'square' | 'wide';
+  /** A low picture (a product is open below it): the buttons stay on screen. */
+  compact?: boolean;
 }) {
   const [on, setOn] = useState(false);
   const onOpenRef = useRef(onOpenChange);
@@ -242,7 +245,9 @@ export default function Scanner({
       {on && fullscreen && (
         // iPhone code-scanner look, inside the page: corner marks, ✕, torch.
         <div className="grid gap-2">
-          <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-black">
+          <div
+            className={`relative overflow-hidden rounded-2xl bg-black transition-[aspect-ratio] ${compact ? 'aspect-[5/2]' : 'aspect-[4/3]'}`}
+          >
             <video
               ref={videoRef}
               muted
@@ -268,7 +273,7 @@ export default function Scanner({
             ) : (
               <svg
                 viewBox="0 0 200 100"
-                className="pointer-events-none absolute left-1/2 top-1/2 w-[86%] -translate-x-1/2 -translate-y-1/2"
+                className={`pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 ${compact ? 'h-[80%]' : 'w-[86%]'}`}
                 fill="none"
                 stroke="white"
                 strokeWidth="3.2"

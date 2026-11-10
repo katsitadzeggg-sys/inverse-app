@@ -190,6 +190,8 @@ export default function CountPanel({
   }
   const [pending, start] = useTransition();
   const qtyRef = useRef<HTMLInputElement>(null);
+  // ✕ / Next: brought on screen whenever a product opens under the camera.
+  const actionsRef = useRef<HTMLDivElement>(null);
   // The last lookup came from the camera: whatever was read is a code, never a name.
   const scanned = useRef(false);
   // A code read while the previous product was still open; looked up once that one is saved.
@@ -595,6 +597,16 @@ export default function CountPanel({
   }, [queuedScan]);
 
   const chosen = product || newBarcode || newOpen || unknown !== null;
+  const openedKey =
+    product?.id ?? newBarcode ?? (newOpen ? 'new' : unknown !== null ? 'unknown' : '');
+  useEffect(() => {
+    if (!openedKey) return;
+    const t = setTimeout(
+      () => actionsRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }),
+      120,
+    );
+    return () => clearTimeout(t);
+  }, [openedKey]);
 
   // What was just read, on the camera picture itself; in the stock app with
   // the quantity and Next, so a whole shelf is counted without leaving the camera.
@@ -746,6 +758,7 @@ export default function CountPanel({
           fullscreen={!expiry}
           shape="wide"
           closeKey={closeCamera}
+          compact={!!chosen}
         />
         <form
           onSubmit={(e) => {
@@ -1069,7 +1082,7 @@ export default function CountPanel({
               </button>
             </div>
 
-            <div className="grid grid-cols-[auto_1fr] gap-2">
+            <div ref={actionsRef} className="grid scroll-mb-4 grid-cols-[auto_1fr] gap-2">
               <button
                 type="button"
                 onClick={cancel}
