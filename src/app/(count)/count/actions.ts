@@ -1162,22 +1162,17 @@ export async function setShelfQty(
 
 /** A product that came in with only a code gets its name from the counter. */
 export async function nameProduct(productId: string, name: string): Promise<FormState> {
-  const session = await requireSession();
+  await requireSession();
   const n = name.trim();
   if (!n) return { error: 'ჩაწერე დასახელება.' };
+  // Counters cannot edit products; the database names only a code-only product.
   const supabase = await createClient();
-  const { data: p } = await supabase
-    .from('products')
-    .select('name, sku, barcode')
-    .eq('id', productId)
-    .eq('company_id', session.company.id)
-    .maybeSingle<{ name: string; sku: string; barcode: string | null }>();
-  if (!p) return { error: 'პროდუქტი ვერ მოიძებნა.' };
-  // Only a name that is just the code (or "ახალი · code") is replaced.
-  const placeholder = p.name === p.sku || p.name === p.barcode || p.name.startsWith('ახალი · ');
-  if (!placeholder) return { notice: p.name };
-  const { error } = await supabase.from('products').update({ name: n }).eq('id', productId);
-  return error ? { error: error.message } : { notice: n };
+  const { data, error } = await supabase.rpc('name_product', {
+    p_product: productId,
+    p_name: n,
+  });
+  if (error) return { error: error.message };
+  return data ? { notice: data as string } : { error: 'პროდუქტი ვერ მოიძებნა.' };
 }
 
 /** Manager: counters see (or do not see) the book quantity of the shelf. */
