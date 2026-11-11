@@ -1250,3 +1250,38 @@ export async function setMyCountFinished(stocktakeId: string, finished: boolean)
   revalidatePath(`/count/${stocktakeId}`);
   revalidatePath(`/manage/${stocktakeId}`);
 }
+
+export type MediaItem = {
+  url: string;
+  kind: 'photo' | 'video';
+  poster: string | null;
+  caption: string | null;
+};
+
+/** A shelf's own photos/videos (not single-line product photos), for the viewer. */
+export async function shelfMedia(stocktakeId: string, locationId: string): Promise<MediaItem[]> {
+  await requireSession();
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('stocktake_media')
+    .select('path, kind, poster_path, caption')
+    .eq('stocktake_id', stocktakeId)
+    .eq('location_id', locationId)
+    .order('created_at')
+    .returns<
+      { path: string; kind: string; poster_path: string | null; caption: string | null }[]
+    >();
+  const rows = (data ?? []).filter((m) => !/\/product-[^/]+$/.test(m.path));
+  const paths = rows.flatMap((m) => [m.path, ...(m.poster_path ? [m.poster_path] : [])]);
+  if (!paths.length) return [];
+  const { data: signed } = await supabase.storage
+    .from('stocktake-media')
+    .createSignedUrls(paths, 60 * 60);
+  const url = new Map((signed ?? []).map((s) => [s.path, s.signedUrl]));
+  return rows.map((m) => ({
+    url: url.get(m.path) ?? '',
+    kind: m.kind === 'video' ? 'video' : 'photo',
+    poster: m.poster_path ? (url.get(m.poster_path) ?? null) : null,
+    caption: m.caption,
+  }));
+}

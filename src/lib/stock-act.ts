@@ -20,7 +20,7 @@ export type ActLine = {
   /** The product's group (category). */
   group: string;
   /** Shelves it was counted on; media = the shelf's own photos/videos. */
-  shelves: { id: string; code: string; media: number }[];
+  shelves: { id: string; code: string; media: number; photos: number; videos: number }[];
   /** Link to the photo taken of this very product (new products), if any. */
   photo: string | null;
 };
@@ -97,16 +97,23 @@ export async function stockActData(supabase: SupabaseClient, id: string): Promis
   const shelfCode = new Map((zones ?? []).map((z) => [z.location_id, z.locations?.code ?? '']));
   const { data: media } = await supabase
     .from('stocktake_media')
-    .select('location_id, path')
+    .select('location_id, path, kind')
     .eq('stocktake_id', id)
-    .returns<{ location_id: string; path: string }[]>();
-  const mediaCount = new Map<string, number>();
+    .returns<{ location_id: string; path: string; kind: string }[]>();
+  const mediaCount = new Map<string, { photos: number; videos: number }>();
   // Photos of single lines (new products) are not the shelf's photos.
-  for (const m of (media ?? []).filter((x) => !/\/product-[^/]+$/.test(x.path)))
-    mediaCount.set(m.location_id, (mediaCount.get(m.location_id) ?? 0) + 1);
+  for (const m of (media ?? []).filter((x) => !/\/product-[^/]+$/.test(x.path))) {
+    const c = mediaCount.get(m.location_id) ?? { photos: 0, videos: 0 };
+    if (m.kind === 'video') c.videos += 1;
+    else c.photos += 1;
+    mediaCount.set(m.location_id, c);
+  }
   const shelfList = (ids: Set<string>) =>
     [...ids]
-      .map((lid) => ({ id: lid, code: shelfCode.get(lid) ?? '', media: mediaCount.get(lid) ?? 0 }))
+      .map((lid) => {
+        const c = mediaCount.get(lid) ?? { photos: 0, videos: 0 };
+        return { id: lid, code: shelfCode.get(lid) ?? '', media: c.photos + c.videos, ...c };
+      })
       .sort((a, b) => a.code.localeCompare(b.code, 'ka', { numeric: true }));
 
   const rows = new Map<

@@ -54,14 +54,16 @@ export async function GET(request: Request, { params }: RouteContext<'/manage/[i
   const txt = (v: string) => ({ type: String, value: v });
   // A clickable link to the shelf page with its photos/videos (sign-in needed).
   const origin = new URL(request.url).origin;
-  const mediaCell = (shelves: { id: string; code: string; media: number }[]) => {
+  const mediaCell = (
+    shelves: { id: string; code: string; media: number; photos: number; videos: number }[],
+  ) => {
     const withMedia = shelves.filter((s) => s.media > 0);
     if (!withMedia.length) return null;
     const s = withMedia[0];
     const more = withMedia.length > 1 ? ` (+${withMedia.length - 1} თარო)` : '';
     return {
       type: 'Formula' as const,
-      value: `HYPERLINK("${origin}/count/${id}/${s.id}/done","📷 ${s.code} · ${s.media}${more}")`,
+      value: `HYPERLINK("${origin}/count/${id}/${s.id}/done","📷 ${s.code} · ${[s.photos ? `${s.photos} ფოტო` : '', s.videos ? `${s.videos} ვიდეო` : ''].filter(Boolean).join(' · ')}${more}")`,
       color: '#2B6CB0',
     };
   };
@@ -87,7 +89,10 @@ export async function GET(request: Request, { params }: RouteContext<'/manage/[i
     ]),
   ];
   // Under the table: every shelf with its photos/videos, one link each.
-  const seenShelf = new Map<string, { id: string; code: string; media: number }>();
+  const seenShelf = new Map<
+    string,
+    { id: string; code: string; media: number; photos: number; videos: number }
+  >();
   for (const l of lines) for (const sh of l.shelves) if (sh.media) seenShelf.set(sh.id, sh);
   if (seenShelf.size) {
     data.push([], [txt('თაროების ფოტო/ვიდეო:')]);

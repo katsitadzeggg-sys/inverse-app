@@ -1,3 +1,4 @@
+import { LinePhoto, ShelfMediaLinks } from './media-links';
 import type { ActLine } from '@/lib/stock-act';
 
 // Quantities without Balance's trailing zeros: 3, 2.5, -10.
@@ -31,7 +32,10 @@ export default function BalanceTable({
     t.sum += l.diff * (l.cost ?? 0);
   }
   // Every shelf with photos/videos, once, for the line under the totals.
-  const seen = new Map<string, { id: string; code: string; media: number }>();
+  const seen = new Map<
+    string,
+    { id: string; code: string; media: number; photos: number; videos: number }
+  >();
   for (const l of lines) for (const sh of l.shelves) if (sh.media) seen.set(sh.id, sh);
   const shelves = [...seen.values()].sort((a, b) =>
     a.code.localeCompare(b.code, 'ka', { numeric: true }),
@@ -93,17 +97,7 @@ export default function BalanceTable({
               )}
               {/* The photo taken of this very product (separate from the shelf's photos). */}
               <td className={`${td} text-center`}>
-                {l.photo && (
-                  <a
-                    href={l.photo}
-                    target="_blank"
-                    rel="noreferrer"
-                    title="პოზიციის ფოტო — გახსნა"
-                    className="text-[#2b6cb0]"
-                  >
-                    🖼
-                  </a>
-                )}
+                {l.photo && <LinePhoto url={l.photo} name={l.name} />}
               </td>
               <td className={`${td} text-[#4a5568]`}>{l.comment}</td>
             </tr>
@@ -126,18 +120,8 @@ export default function BalanceTable({
             <tr>
               <td className={`${td} font-normal`} colSpan={99}>
                 <span className="mr-2 text-[#4a5568]">თაროების ფოტო/ვიდეო:</span>
-                <span className="inline-flex flex-wrap gap-x-3 gap-y-0.5">
-                  {shelves.map((sh) => (
-                    <a
-                      key={sh.id}
-                      href={`/count/${id}/${sh.id}/done`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="whitespace-nowrap text-[#2b6cb0] underline print:text-black print:no-underline"
-                    >
-                      {sh.code} 📷{sh.media}
-                    </a>
-                  ))}
+                <span className="inline-flex flex-wrap gap-x-4 gap-y-0.5">
+                  <ShelfMediaLinks stocktakeId={id} shelves={shelves} />
                 </span>
               </td>
             </tr>
