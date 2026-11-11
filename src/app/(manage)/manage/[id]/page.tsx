@@ -242,10 +242,12 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
         <section className="grid gap-2">
           {!balance.final && balance.left.qty > 0 && (
             <p className="rounded-control border border-[#a78bfa]/60 bg-[#7c3aed]/15 px-3 py-1.5 text-sm text-[#ddd6fe]">
-              ⏳ <b>დარჩენილი</b> — {balance.left.shelves} თარო ჯერ არ დახურულა ·{' '}
+              ⏳ <b>დარჩენილი</b> —{' '}
+              {balance.left.shelves > 0 && <>{balance.left.shelves} თარო ჯერ არ დახურულა · </>}
+              {balance.left.skus} SKU ·{' '}
               {balance.left.qty.toLocaleString('ka-GE', { maximumFractionDigits: 2 })} ერთ. ·{' '}
               {balance.left.sum.toLocaleString('ka-GE', { maximumFractionDigits: 0 })} ₾. ცხრილში
-              მხოლოდ დახურული თაროებია.
+              მხოლოდ დახურული თაროები და უკვე ნაპოვნი პროდუქციაა.
             </p>
           )}
           {balance.lines.length ? (

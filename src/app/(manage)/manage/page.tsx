@@ -104,7 +104,7 @@ export default async function ManageDashboard() {
   // Money: surplus / shortage over the stock stocktakes in the list.
   const stockIds = all.filter((s) => s.kind !== 'assets').map((s) => s.id);
   const { data: statRows } = stockIds.length
-    ? await supabase.rpc('stocktake_stats3', { p_ids: stockIds })
+    ? await supabase.rpc('stocktake_stats4', { p_ids: stockIds })
     : { data: [] };
   type St = {
     stocktake_id: string;

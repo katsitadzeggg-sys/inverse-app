@@ -121,10 +121,10 @@ export default async function StockAct({ params, searchParams }: PageProps<'/man
 
         {!final && left.qty > 0 && (
           <p className="mx-4 mt-3 rounded-[4px] border border-[#a78bfa] bg-[#f5f3ff] px-3 py-1.5 text-[#5b21b6] print:hidden">
-            ⏳ <b>დარჩენილი</b> — {left.shelves} თარო ჯერ არ დახურულა ·{' '}
-            {left.qty.toLocaleString('ka-GE', { maximumFractionDigits: 2 })} ერთ. ·{' '}
-            {money(left.sum)} ₾. აქტში მხოლოდ დახურული თაროებია; ინვენტარიზაციის დახურვისას ყველა
-            ხაზი ჩაითვლება.
+            ⏳ <b>დარჩენილი</b> — {left.shelves > 0 && <>{left.shelves} თარო ჯერ არ დახურულა · </>}
+            {left.skus} SKU · {left.qty.toLocaleString('ka-GE', { maximumFractionDigits: 2 })} ერთ.
+            · {money(left.sum)} ₾. აქტში მხოლოდ დახურული თაროები და უკვე ნაპოვნი პროდუქციაა;
+            ინვენტარიზაციის დახურვისას ყველა ხაზი ჩაითვლება.
           </p>
         )}
         {/* Amounts at the bottom, as in Balance */}

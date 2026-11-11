@@ -859,7 +859,18 @@ export default function CountPanel({
             )}
             {newOpen && !product && (
               <div className="grid gap-3 rounded-control border-2 border-review/70 p-3">
-                <p className="text-lg font-semibold text-mismatch">ახალი პროდუქტი</p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-lg font-semibold text-mismatch">ახალი პროდუქტი</p>
+                  {/* Opened by a wrong scan: close it right here, back to the scanner. */}
+                  <button
+                    type="button"
+                    onClick={cancel}
+                    disabled={pending}
+                    className="rounded-control border-2 border-rule-strong px-3 py-2 text-base font-semibold disabled:opacity-60"
+                  >
+                    ✕ დახურვა
+                  </button>
+                </div>
                 <label className="grid gap-1 text-sm text-ink-soft">
                   დასახელება
                   <input

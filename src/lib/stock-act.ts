@@ -44,7 +44,7 @@ export type ActData = {
    * Open stocktake: only closed shelves are compared; the book on shelves
    * not closed yet is "remaining". Closed stocktake: everything (left = 0).
    */
-  left: { qty: number; sum: number; shelves: number };
+  left: { qty: number; sum: number; shelves: number; skus: number };
   final: boolean;
 };
 
@@ -117,16 +117,50 @@ export async function stockActData(supabase: SupabaseClient, id: string): Promis
     (zones ?? []).filter((z) => z.status === 'done').map((z) => z.location_id),
   );
   const onClosed = (lid: string | null) => final || (!!lid && doneShelves.has(lid));
-  const left = { qty: 0, sum: 0, shelves: 0 };
+  // Book lines with no shelf are matched at warehouse level: what was counted
+  // of such a product on closed shelves (beyond its shelved book) is matched
+  // against it; only a count above the book is surplus, the rest stays
+  // "remaining" until it is found or the stocktake is closed.
+  const shelvedDone = new Map<string, number>();
+  const unshelved = new Map<string, number>();
+  for (const b of book) {
+    const m = b.location_id ? (onClosed(b.location_id) ? shelvedDone : null) : unshelved;
+    if (m) m.set(b.product_id, (m.get(b.product_id) ?? 0) + Number(b.book_qty));
+  }
+  const countedDone = new Map<string, number>();
+  for (const e of entries)
+    if (e.product_id && onClosed(e.location_id))
+      countedDone.set(e.product_id, (countedDone.get(e.product_id) ?? 0) + Number(e.quantity));
+  const matched = new Map<string, number>();
+  for (const [pid, q] of unshelved)
+    matched.set(
+      pid,
+      final
+        ? q
+        : Math.min(q, Math.max((countedDone.get(pid) ?? 0) - (shelvedDone.get(pid) ?? 0), 0)),
+    );
+  const left = { qty: 0, sum: 0, shelves: 0, skus: 0 };
   {
     const leftShelves = new Set<string>();
-    for (const b of book)
-      if (!onClosed(b.location_id)) {
-        left.qty += Number(b.book_qty);
-        left.sum += Number(b.book_qty) * Number(b.unit_cost ?? 0);
-        if (b.location_id) leftShelves.add(b.location_id);
-      }
+    const leftSkus = new Set<string>();
+    const cost = new Map<string, number>();
+    for (const b of book) if (b.unit_cost != null) cost.set(b.product_id, Number(b.unit_cost));
+    const add = (pid: string, q: number) => {
+      if (!q) return;
+      left.qty += q;
+      left.sum += q * (cost.get(pid) ?? 0);
+      leftSkus.add(pid);
+    };
+    if (!final) {
+      for (const b of book)
+        if (b.location_id && !onClosed(b.location_id)) {
+          add(b.product_id, Number(b.book_qty));
+          leftShelves.add(b.location_id);
+        }
+      for (const [pid, q] of unshelved) add(pid, q - (matched.get(pid) ?? 0));
+    }
     left.shelves = leftShelves.size;
+    left.skus = leftSkus.size;
   }
   const { data: media } = await supabase
     .from('stocktake_media')
@@ -163,10 +197,16 @@ export async function stockActData(supabase: SupabaseClient, id: string): Promis
   const price = new Map<string, number>();
   for (const b of book) if (b.unit_cost != null) price.set(b.product_id, Number(b.unit_cost));
   for (const b of book) {
-    if (!onClosed(b.location_id)) continue;
+    if (!b.location_id || !onClosed(b.location_id)) continue;
     const r = row(b.product_id);
     r.book += Number(b.book_qty);
     r.cost = b.unit_cost ?? r.cost;
+  }
+  for (const [pid, q] of matched) {
+    if (!q) continue;
+    const r = row(pid);
+    r.book += q;
+    r.cost = r.cost ?? price.get(pid) ?? null;
   }
   const unknown = new Map<string, { qty: number; shelves: Set<string> }>();
   for (const e of entries) {

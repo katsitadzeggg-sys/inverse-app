@@ -44,13 +44,14 @@ export default async function ManageHome({ searchParams }: PageProps<'/manage/st
     left_qty: number;
     left_sum: number;
     left_shelves: number;
+    left_skus: number;
     plus_qty: number;
     plus_sum: number;
     minus_qty: number;
     minus_sum: number;
   };
   const { data: statRows } = list.length
-    ? await supabase.rpc('stocktake_stats3', { p_ids: list.map((s) => s.id) })
+    ? await supabase.rpc('stocktake_stats4', { p_ids: list.map((s) => s.id) })
     : { data: [] };
   const stats = new Map(((statRows ?? []) as Stats[]).map((r) => [r.stocktake_id, r]));
   const n = (v: number) => Number(v).toLocaleString('ka-GE', { maximumFractionDigits: 2 });
@@ -147,7 +148,7 @@ export default async function ManageHome({ searchParams }: PageProps<'/manage/st
                       <span className="text-right" title="თაროები, რომლებიც ჯერ არ დახურულა">
                         {t.left_shelves}
                       </span>
-                      <span className="text-right">—</span>
+                      <span className="text-right">{t.left_skus}</span>
                       <span className="text-right">{n(t.left_qty)}</span>
                       <span className="text-right">—</span>
                       <span className="text-right">—</span>
