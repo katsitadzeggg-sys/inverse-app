@@ -236,7 +236,7 @@ export default async function ManageDashboard() {
             href="/manage/sites"
             className="rounded-full border border-[#1f7a4d] px-5 py-2.5 text-sm font-semibold text-[#155c39] hover:bg-[#eef7f1]"
           >
-            ობიექტები და ნაშთი
+            ობიექტები
           </Link>
         </div>
       </div>

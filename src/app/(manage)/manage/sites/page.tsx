@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
 import { mapsLink } from '@/lib/geo';
@@ -35,7 +36,7 @@ export default async function SitesPage() {
         <section className="grid min-w-0 content-start gap-4">
           <h2 className="text-xl font-semibold tracking-tight">🏬 საწყობები და ობიექტები</h2>
           <SiteForms />
-          <details className="rounded-control border border-accent/50 bg-accent/5 p-4">
+          <details open className="rounded-control border border-accent/50 bg-accent/5 p-4">
             <summary className="cursor-pointer text-sm font-semibold text-accent">
               სია და ცვლილებები ({list.length})
             </summary>
@@ -49,7 +50,13 @@ export default async function SitesPage() {
                   {list.map((s) => (
                     <li key={s.id} className="flex items-center justify-between gap-3 py-2.5">
                       <div className="min-w-0">
-                        <p className="font-medium">{s.name}</p>
+                        {/* The object opens its stocktakes and their book (listing). */}
+                        <Link
+                          href={`/manage/stocktakes?kind=all&q=${encodeURIComponent(s.name)}`}
+                          className="font-medium text-ink underline-offset-2 hover:text-accent hover:underline"
+                        >
+                          {s.name} →
+                        </Link>
                         <p className="truncate text-xs text-ink-faint">
                           {s.address ?? 'მისამართი არ არის'}
                           {s.lat != null && s.lng != null && (
