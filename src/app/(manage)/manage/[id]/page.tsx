@@ -7,6 +7,8 @@ import { mapsLink } from '@/lib/geo';
 import { setShowBook, setStocktakeArchived, setStocktakeStatus } from '@/app/(count)/count/actions';
 import ExportBox from './export-box';
 import MembersForm from './members-form';
+import BalanceTable from './balance-table';
+import { stockActData } from '@/lib/stock-act';
 
 type ZoneRow = StocktakeZone & {
   locations: { code: string } | null;
@@ -122,6 +124,17 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
         ])
       : [{ count: 0 }, { count: 0 }];
   const done = list.filter((z) => z.status === 'done').length;
+  // Stock: what was counted, in Balance's table layout (counted lines only;
+  // the act page has every line of the book).
+  const balance =
+    st.kind === 'assets'
+      ? null
+      : await stockActData(supabase, id).then((d) => ({
+          hasCost: d.hasCost,
+          lines: d.lines
+            .filter((l) => l.shelves.length > 0 || l.counted !== 0)
+            .map((l, i) => ({ ...l, n: i + 1 })),
+        }));
 
   // Action buttons: raised orange keys, clearly different from the faded info tiles.
   const btn =
@@ -227,7 +240,7 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
       </div>
 
       {st.kind === 'assets' ? (
-        <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+        <div className="grid grid-cols-3 gap-2 text-sm">
           <Link href={`/count/${id}/register`} className={btn}>
             📄 რეესტრი
           </Link>
@@ -237,16 +250,9 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
           <Link href={`/count/${id}/labels`} className={btn}>
             🏷 ეტიკეტები
           </Link>
-          <Link
-            href={`/manage/${id}/map`}
-            className={btn}
-            title="რომელი ოთახი დაითვალა, სად არის სხვაობა"
-          >
-            🗺 რუკა
-          </Link>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-5">
+        <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
           <Link href={`/count/${id}/book`} className={btn}>
             📄 ნაშთი
           </Link>
@@ -258,13 +264,6 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
           </Link>
           <Link href={`/count/${id}/labels`} className={btn}>
             🏷 ეტიკეტები
-          </Link>
-          <Link
-            href={`/manage/${id}/map`}
-            className={btn}
-            title="რომელი თარო დაითვალა, სად არის სხვაობა"
-          >
-            🗺 რუკა
           </Link>
         </div>
       )}
@@ -282,9 +281,9 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
         {list.length === 0 ? (
           <p className="text-sm text-ink-soft">ჯერ არცერთი თარო არ გახსნილა.</p>
         ) : (
-          <div className="overflow-x-auto rounded-control border border-rule/70">
+          <div className="max-h-[45vh] overflow-auto rounded-control border border-rule/70">
             <table className="w-full text-sm">
-              <thead className="bg-paper-sunk text-left text-xs text-ink-faint">
+              <thead className="sticky top-0 z-10 bg-paper-sunk text-left text-xs text-ink-faint">
                 <tr>
                   <th className="px-2 py-1">თარო</th>
                   <th className="px-2 py-1">აღმწერი</th>
@@ -345,6 +344,27 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
           </div>
         )}
       </section>
+
+      {balance && (
+        <section className="grid gap-2">
+          <div className="flex flex-wrap items-center gap-x-3">
+            <h2 className="font-semibold">📒 დათვლილი — ბალანსის ფორმით</h2>
+            <span className="text-sm text-ink-faint">
+              {balance.lines.length} პოზიცია · სრული აქტი ნაშთის ყველა ხაზით —{' '}
+              <Link href={`/manage/${id}/act`} className="underline">
+                🖨 აქტი
+              </Link>
+            </span>
+          </div>
+          {balance.lines.length ? (
+            <div className="overflow-hidden rounded-md border border-[#c5ccd6]">
+              <BalanceTable id={id} lines={balance.lines} hasCost={balance.hasCost} scroll />
+            </div>
+          ) : (
+            <p className="text-sm text-ink-soft">ჯერ არაფერი დათვლილა.</p>
+          )}
+        </section>
+      )}
 
       <section className="grid gap-2 rounded-control border border-rule/70 p-3">
         <h2 className="font-semibold">👷 აღმწერები</h2>

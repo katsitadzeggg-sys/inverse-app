@@ -1,0 +1,125 @@
+import type { ActLine } from '@/lib/stock-act';
+
+const q4 = (n: number) =>
+  Number(n).toLocaleString('en-US', {
+    minimumFractionDigits: 4,
+    maximumFractionDigits: 4,
+    useGrouping: false,
+  });
+const money = (n: number) =>
+  n.toLocaleString('ka-GE', { maximumFractionDigits: 2, minimumFractionDigits: 2 });
+
+/**
+ * The count in Balance's table layout (article, name, group, barcode, unit,
+ * book, difference, counted, price, shelf with photo links, comment) and a
+ * totals row. Used on the act page and, opened, on the stocktake page.
+ */
+export default function BalanceTable({
+  id,
+  lines,
+  hasCost,
+  scroll = false,
+}: {
+  id: string;
+  lines: ActLine[];
+  hasCost: boolean;
+  /** In a box of its own height with the header row kept on top. */
+  scroll?: boolean;
+}) {
+  const t = { book: 0, diff: 0, counted: 0, sum: 0 };
+  for (const l of lines) {
+    t.book += l.book;
+    t.diff += l.diff;
+    t.counted += l.counted;
+    t.sum += l.diff * (l.cost ?? 0);
+  }
+  const th =
+    'border-b border-r border-[#c5ccd6] px-2 py-1.5 font-normal text-[#4a5568] last:border-r-0';
+  const td = 'border-b border-r border-[#e2e6ec] px-2 py-1 last:border-r-0';
+  return (
+    <div
+      className={`border-y border-[#c5ccd6] bg-white text-[13px] text-[#1a202c] ${scroll ? 'max-h-[70vh] overflow-auto' : 'overflow-x-auto'}`}
+    >
+      <table className="w-full min-w-[1100px] border-collapse">
+        <thead className="sticky top-0 z-10 bg-[#eef1f5] text-left">
+          <tr>
+            <th className={`${th} w-10 text-center`}>N</th>
+            <th className={th}>არტიკული</th>
+            <th className={th}>ნომენკლატურა</th>
+            <th className={th}>ჯგუფი</th>
+            <th className={th}>ძირითადი შტრიხკოდი</th>
+            <th className={th}>ერთ.</th>
+            <th className={`${th} text-right`}>აღრიცხვით</th>
+            <th className={`${th} text-right`}>სხვაობა (რაოდ.)</th>
+            <th className={`${th} text-right`}>ფაქტ. რაოდენობა</th>
+            {hasCost && <th className={`${th} text-right`}>ფასი</th>}
+            {hasCost && <th className={`${th} text-right`}>სხვაობის თანხა</th>}
+            <th className={th}>თარო · ფოტო/ვიდეო</th>
+            <th className={th}>კომენტარები</th>
+          </tr>
+        </thead>
+        <tbody>
+          {lines.map((l) => (
+            <tr key={l.n} className="break-inside-avoid even:bg-[#fafbfc]">
+              <td className={`${td} text-center text-[#718096]`}>{l.n}</td>
+              <td className={`${td} tabular-nums`}>{l.sku}</td>
+              <td className={td}>{l.name}</td>
+              <td className={`${td} text-[#4a5568]`}>{l.group}</td>
+              <td className={`${td} tabular-nums`}>{l.barcode}</td>
+              <td className={td}>{l.unit}</td>
+              <td className={`${td} text-right tabular-nums`}>{q4(l.book)}</td>
+              <td
+                className={`${td} text-right tabular-nums ${l.diff < 0 ? 'text-[#c53030]' : l.diff > 0 ? 'text-[#2b6cb0]' : 'text-[#a0aec0]'}`}
+              >
+                {q4(l.diff)}
+              </td>
+              <td className={`${td} text-right font-semibold tabular-nums`}>{q4(l.counted)}</td>
+              {hasCost && (
+                <td className={`${td} text-right tabular-nums`}>
+                  {l.cost != null ? money(l.cost) : ''}
+                </td>
+              )}
+              {hasCost && (
+                <td className={`${td} text-right tabular-nums`}>
+                  {l.diff && l.cost != null ? money(l.diff * l.cost) : ''}
+                </td>
+              )}
+              <td className={td}>
+                <span className="flex flex-wrap gap-x-2 gap-y-0.5">
+                  {l.shelves.map((sh) => (
+                    <a
+                      key={sh.id}
+                      href={`/count/${id}/${sh.id}/done`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="whitespace-nowrap text-[#2b6cb0] underline print:text-black print:no-underline"
+                      title={sh.media ? `${sh.media} ფოტო/ვიდეო — გახსნა` : 'თაროს გახსნა'}
+                    >
+                      {sh.code}
+                      {sh.media > 0 && ` 📷${sh.media}`}
+                    </a>
+                  ))}
+                </span>
+              </td>
+              <td className={`${td} text-[#4a5568]`}>{l.comment}</td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot className="bg-[#eef1f5] font-semibold">
+          <tr>
+            <td className={td} colSpan={6}>
+              სულ
+            </td>
+            <td className={`${td} text-right tabular-nums`}>{q4(t.book)}</td>
+            <td className={`${td} text-right tabular-nums`}>{q4(t.diff)}</td>
+            <td className={`${td} text-right tabular-nums`}>{q4(t.counted)}</td>
+            {hasCost && <td className={td} />}
+            {hasCost && <td className={`${td} text-right tabular-nums`}>{money(t.sum)}</td>}
+            <td className={td} />
+            <td className={td} />
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  );
+}
