@@ -42,8 +42,6 @@ export async function GET(request: Request, { params }: RouteContext<'/manage/[i
     'სხვაობა (რაოდ.)',
     ...(hasCost ? ['სხვაობის თანხა'] : []),
     'ფოტო (პოზიცია)',
-    'თარო',
-    'თაროს ფოტო/ვიდეო',
     'კომენტარები',
   ];
   // Quantities as plain numbers (no Balance-style 0.0000).
@@ -83,11 +81,16 @@ export async function GET(request: Request, { params }: RouteContext<'/manage/[i
       l.photo
         ? { type: 'Formula' as const, value: `HYPERLINK("${l.photo}","🖼 ფოტო")`, color: '#2B6CB0' }
         : null,
-      txt(l.shelves.map((s) => s.code).join(', ')),
-      mediaCell(l.shelves),
       txt(l.comment),
     ]),
   ];
+  // Under the table: every shelf with its photos/videos, one link each.
+  const seenShelf = new Map<string, { id: string; code: string; media: number }>();
+  for (const l of lines) for (const sh of l.shelves) if (sh.media) seenShelf.set(sh.id, sh);
+  if (seenShelf.size) {
+    data.push([], [txt('თაროების ფოტო/ვიდეო:')]);
+    for (const sh of seenShelf.values()) data.push([mediaCell([sh])] as never);
+  }
   const buffer = await writeXlsxFile(data as never, {
     buffer: true,
     sheet: 'ინვენტარიზაცია',
@@ -104,8 +107,6 @@ export async function GET(request: Request, { params }: RouteContext<'/manage/[i
       { width: 15 },
       ...(hasCost ? [{ width: 14 }] : []),
       { width: 12 },
-      { width: 14 },
-      { width: 22 },
       { width: 18 },
     ],
   });

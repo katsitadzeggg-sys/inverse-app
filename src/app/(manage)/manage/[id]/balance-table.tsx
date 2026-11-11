@@ -30,6 +30,12 @@ export default function BalanceTable({
     t.counted += l.counted;
     t.sum += l.diff * (l.cost ?? 0);
   }
+  // Every shelf with photos/videos, once, for the line under the totals.
+  const seen = new Map<string, { id: string; code: string; media: number }>();
+  for (const l of lines) for (const sh of l.shelves) if (sh.media) seen.set(sh.id, sh);
+  const shelves = [...seen.values()].sort((a, b) =>
+    a.code.localeCompare(b.code, 'ka', { numeric: true }),
+  );
   const th =
     'border-b border-r border-[#c5ccd6] px-2 py-1.5 font-normal text-[#4a5568] last:border-r-0';
   const td = 'border-b border-r border-[#e2e6ec] px-2 py-1 last:border-r-0';
@@ -52,7 +58,6 @@ export default function BalanceTable({
             <th className={`${th} text-right`}>სხვაობა (რაოდ.)</th>
             {hasCost && <th className={`${th} text-right`}>სხვაობის თანხა</th>}
             <th className={th}>ფოტო</th>
-            <th className={th}>თარო · თაროს ფოტო</th>
             <th className={th}>კომენტარები</th>
           </tr>
         </thead>
@@ -96,23 +101,6 @@ export default function BalanceTable({
                   </a>
                 )}
               </td>
-              <td className={td}>
-                <span className="flex flex-wrap gap-x-2 gap-y-0.5">
-                  {l.shelves.map((sh) => (
-                    <a
-                      key={sh.id}
-                      href={`/count/${id}/${sh.id}/done`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="whitespace-nowrap text-[#2b6cb0] underline print:text-black print:no-underline"
-                      title={sh.media ? `${sh.media} ფოტო/ვიდეო — გახსნა` : 'თაროს გახსნა'}
-                    >
-                      {sh.code}
-                      {sh.media > 0 && ` 📷${sh.media}`}
-                    </a>
-                  ))}
-                </span>
-              </td>
               <td className={`${td} text-[#4a5568]`}>{l.comment}</td>
             </tr>
           ))}
@@ -130,6 +118,26 @@ export default function BalanceTable({
             <td className={td} />
             <td className={td} />
           </tr>
+          {shelves.length > 0 && (
+            <tr>
+              <td className={`${td} font-normal`} colSpan={99}>
+                <span className="mr-2 text-[#4a5568]">თაროების ფოტო/ვიდეო:</span>
+                <span className="inline-flex flex-wrap gap-x-3 gap-y-0.5">
+                  {shelves.map((sh) => (
+                    <a
+                      key={sh.id}
+                      href={`/count/${id}/${sh.id}/done`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="whitespace-nowrap text-[#2b6cb0] underline print:text-black print:no-underline"
+                    >
+                      {sh.code} 📷{sh.media}
+                    </a>
+                  ))}
+                </span>
+              </td>
+            </tr>
+          )}
         </tfoot>
       </table>
     </div>

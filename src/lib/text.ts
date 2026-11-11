@@ -19,3 +19,21 @@ export const normKey = (s: string | null | undefined) =>
  */
 export const fixDashes = (s: string) =>
   s.replace(/\u2014/g, '--').replace(/[\u2013\u2012\u2212]/g, '-');
+
+/**
+ * Phone cameras read a 12-digit UPC-A barcode as EAN-13 with a leading 0
+ * (095866005108 → 0095866005108). Both spellings mean the same product.
+ */
+export const barcodeKey = (c: string | null | undefined) => {
+  const t = (c ?? '').trim();
+  return /^0\d{12}$/.test(t) ? t.slice(1) : t;
+};
+export const sameBarcode = (a: string | null | undefined, b: string | null | undefined) =>
+  !!a && !!b && barcodeKey(a) === barcodeKey(b);
+/** The spellings to look a scanned code up by. */
+export const barcodeVariants = (c: string) => {
+  const t = c.trim();
+  if (/^0\d{12}$/.test(t)) return [t, t.slice(1)];
+  if (/^\d{12}$/.test(t)) return [t, `0${t}`];
+  return [t];
+};

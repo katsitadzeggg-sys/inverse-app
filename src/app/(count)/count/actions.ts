@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
-import { fixDashes, mkhedruli, upperLatin } from '@/lib/text';
+import { barcodeVariants, fixDashes, mkhedruli, upperLatin } from '@/lib/text';
 import type { Product } from '@/types/database';
 
 export type FormState = { error?: string; notice?: string };
@@ -337,7 +337,11 @@ export async function findProducts(query: string): Promise<ProductHit[]> {
     .select(cols)
     .eq('company_id', session.company.id)
     .eq('active', true)
-    .or(`barcode.eq.${q.replace(/[,()]/g, '')},sku.ilike.${q.replace(/[,()%]/g, '')}`)
+    .or(
+      barcodeVariants(q.replace(/[,()%]/g, ''))
+        .flatMap((v) => [`barcode.eq.${v}`, `sku.ilike.${v}`])
+        .join(','),
+    )
     .limit(5);
   if (exact && exact.length) return exact as ProductHit[];
   const { data } = await supabase
@@ -449,7 +453,11 @@ export async function addEntry(
       .from('products')
       .select('id')
       .eq('company_id', session.company.id)
-      .or(`barcode.eq.${barcode.replace(/[,()]/g, '')},sku.eq.${barcode.replace(/[,()]/g, '')}`)
+      .or(
+        barcodeVariants(barcode.replace(/[,()%]/g, ''))
+          .flatMap((v) => [`barcode.eq.${v}`, `sku.eq.${v}`])
+          .join(','),
+      )
       .limit(1)
       .maybeSingle<{ id: string }>();
     if (existing) input.productId = existing.id;

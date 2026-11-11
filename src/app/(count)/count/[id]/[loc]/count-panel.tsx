@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { Alert, inputClass } from '@/components/ui';
+import { sameBarcode } from '@/lib/text';
 import ProductPhoto from './product-photo';
 import Scanner from '../../scanner';
 import {
@@ -185,7 +186,7 @@ export default function CountPanel({
   /** Lookup in the products kept on the phone (no connection). */
   function localFind(q: string): ProductHit[] {
     const t = q.trim().toLowerCase();
-    const exact = catalog.filter((p) => p.barcode === q.trim() || p.sku.toLowerCase() === t);
+    const exact = catalog.filter((p) => sameBarcode(p.barcode, q) || p.sku.toLowerCase() === t);
     if (exact.length) return exact;
     return catalog.filter((p) => p.name.toLowerCase().includes(t)).slice(0, 8);
   }
@@ -263,7 +264,7 @@ export default function CountPanel({
       gs1 &&
       expiry &&
       product &&
-      product.barcode === code &&
+      sameBarcode(product.barcode, code) &&
       gs1.expiry &&
       gs1.expiry !== expiryDate
     ) {
@@ -302,13 +303,13 @@ export default function CountPanel({
       scanned.current &&
       product &&
       (code === openedBy.current ||
-        product.barcode === code ||
+        sameBarcode(product.barcode, code) ||
         product.sku.toLowerCase() === code.toLowerCase())
     ) {
       setQty((v) => String((Number(v) || 0) + 1));
       return;
     }
-    if (scanned.current && newBarcode && newBarcode === code) {
+    if (scanned.current && newBarcode && sameBarcode(newBarcode, code)) {
       setQty((v) => String((Number(v) || 0) + 1));
       return;
     }
@@ -325,7 +326,7 @@ export default function CountPanel({
     start(async () => {
       const found = isOffline() ? localFind(q) : await findProducts(q).catch(() => localFind(q));
       const exact = found.find(
-        (p) => p.barcode === q.trim() || p.sku.toLowerCase() === q.trim().toLowerCase(),
+        (p) => sameBarcode(p.barcode, q) || p.sku.toLowerCase() === q.trim().toLowerCase(),
       );
       if (exact) {
         openedBy.current = code;
