@@ -61,7 +61,7 @@ export default function ExportBox({
 
   // Outlined green: downloads (the solid green ones open pages).
   const key =
-    'rounded-xl border border-[#1f7a4d] bg-white px-4 py-2 text-center text-sm font-semibold text-[#155c39] shadow-sm transition hover:bg-[#eef7f1] active:translate-y-px disabled:opacity-60';
+    'rounded-xl border border-accent bg-paper-sunk px-4 py-2 text-center text-sm font-semibold text-accent shadow-sm transition hover:bg-accent/10 active:translate-y-px disabled:opacity-60';
   return (
     <div className="flex flex-wrap items-center gap-2">
       <span className="text-sm text-ink-soft">⬇ ჩამოტვირთვა:</span>

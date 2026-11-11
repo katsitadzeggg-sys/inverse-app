@@ -1,6 +1,6 @@
 import TeamSection from './team-section';
 
-export const metadata = { title: 'გუნდი' };
+export const metadata = { title: 'გუნდი და როლები' };
 
 /** Staff: its own page in the menu (invite, modules, book permission, remove). */
 export default function TeamPage() {

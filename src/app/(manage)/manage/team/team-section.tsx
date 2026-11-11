@@ -5,7 +5,7 @@ import { requireSession } from '@/lib/session';
 import type { CompanyInvite, UserProfile } from '@/types/database';
 import InviteForm from './invite-form';
 import AddDrawer from '@/components/add-drawer';
-import { cancelInvite, removeMember, restoreMember, setModules } from './actions';
+import { cancelInvite, removeMember, restoreMember, setModules, setRole } from './actions';
 
 const ROLE: Record<string, string> = {
   owner: 'მფლობელი',
@@ -43,7 +43,7 @@ export default async function TeamSection() {
   return (
     <section id="team" className="grid min-w-0 content-start gap-4">
       <div className="flex flex-wrap items-center gap-3">
-        <h2 className="text-xl font-semibold tracking-tight">თანამშრომლები</h2>
+        <h2 className="text-xl font-semibold tracking-tight">გუნდი და როლები</h2>
         {/* "+" on the right above the list: invite someone, in a drawer. */}
         <div className="ml-auto">
           <AddDrawer title="თანამშრომლის მოწვევა" label="მოწვევა">
@@ -68,9 +68,38 @@ export default async function TeamSection() {
                   {m.id === userId && <span className="text-ink-faint"> (შენ)</span>}
                   <span className="text-ink-faint">
                     {' '}
-                    · {m.email} · {ROLE[m.role]}
+                    · {m.email}
+                    {!canRemove(m) && ` · ${ROLE[m.role]}`}
                   </span>
                 </span>
+                {/* Role: changed here by the owner / a manager (not their own, not the owner's). */}
+                {canRemove(m) && (
+                  <form
+                    action={setRole.bind(null, m.id)}
+                    className="flex shrink-0 items-center gap-1"
+                  >
+                    <select
+                      name="role"
+                      defaultValue={m.role}
+                      className="rounded-control border border-rule-strong bg-paper px-2 py-1 text-xs"
+                    >
+                      {(profile.role === 'owner'
+                        ? ['admin', 'member', 'viewer']
+                        : ['member', 'viewer']
+                      ).map((r) => (
+                        <option key={r} value={r}>
+                          {ROLE[r]}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="submit"
+                      className="rounded-control border border-rule-strong px-2 py-1 text-xs"
+                    >
+                      ✓
+                    </button>
+                  </form>
+                )}
                 {m.role === 'member' && (
                   <form
                     action={setModules.bind(null, m.id)}

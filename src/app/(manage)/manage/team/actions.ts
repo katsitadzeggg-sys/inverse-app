@@ -111,3 +111,13 @@ export async function setModules(id: string, formData: FormData): Promise<void> 
     .eq('role', 'member');
   revalidatePath('/manage/team');
 }
+
+/** A member's role (owner: manager / counter / viewer; manager: counter / viewer). */
+export async function setRole(id: string, formData: FormData): Promise<void> {
+  await requireSession();
+  const role = String(formData.get('role') ?? '');
+  if (!['admin', 'member', 'viewer'].includes(role)) return;
+  const supabase = await createClient();
+  await supabase.rpc('set_member_role', { p_user: id, p_role: role });
+  revalidatePath('/manage/team');
+}

@@ -51,7 +51,9 @@ export default function OutboxStatus() {
 
   if (online && waiting === 0) return null;
   return (
-    <div className={`px-4 py-2 text-center text-sm font-semibold ${online ? 'bg-review/20 text-ink' : 'bg-mismatch text-white'}`}>
+    <div
+      className={`px-4 py-2 text-center text-sm font-semibold ${online ? 'bg-review/20 text-ink' : 'bg-mismatch text-white'}`}
+    >
       {!online
         ? `📴 ინტერნეტი არ არის — ვინახავ ტელეფონში${waiting ? ` (${waiting})` : ''}`
         : sending

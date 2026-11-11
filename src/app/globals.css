@@ -987,8 +987,32 @@ select:focus {
   --color-match: #1f9d5c;
   --color-review: #c98a06;
   --color-mismatch: #d64545;
+  --grid-odd: #f5f8f6;
+  --grid-hover: #e8f3ed;
+  --grid-selected: #dcefe4;
   background-color: var(--color-paper);
   color: var(--color-ink);
+}
+/* The same dashboard in the dark (profile menu → theme). */
+.theme-light.theme-dark {
+  color-scheme: dark;
+  --color-paper: #0f1714;
+  --color-paper-sunk: #17221d;
+  --color-rule: #24332c;
+  --color-rule-strong: #34463d;
+  --color-ink: #e4ece7;
+  --color-ink-soft: #a9b8b0;
+  --color-ink-faint: #7f9088;
+  --color-accent: #3fae75;
+  --color-accent-deep: #2f8d5d;
+  --color-accent-text: #5cc58f;
+  --color-paper-dim: #a9b8b0;
+  --color-match: #4ade80;
+  --color-review: #fbbf24;
+  --color-mismatch: #f87171;
+  --grid-odd: #1b2822;
+  --grid-hover: #22352b;
+  --grid-selected: #22402f;
 }
 .theme-light ::selection {
   background-color: #cde8d9;

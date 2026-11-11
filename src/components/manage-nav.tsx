@@ -18,7 +18,6 @@ const I = {
   phone: (
     <path d="M8 2h8a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zM11 18h2" />
   ),
-  logout: <path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 16l-4-4 4-4M6 12h10" />,
 };
 export function Icon({ name }: { name: keyof typeof I }) {
   return (
@@ -71,9 +70,12 @@ export default function ManageNav({ platform, open }: { platform: boolean; open:
       icon: 'box',
       active: pathname.startsWith('/manage/sites'),
     },
+  ];
+  // Administration: people, their roles, the platform — at the bottom left.
+  const admin: Item[] = [
     {
       href: '/manage/team',
-      label: 'გუნდი',
+      label: 'გუნდი და როლები',
       icon: 'users',
       active: pathname.startsWith('/manage/team') || pathname.startsWith('/manage/users'),
     },
@@ -111,35 +113,21 @@ export default function ManageNav({ platform, open }: { platform: boolean; open:
       )}
     </Link>
   );
+  const heading = (t: string) => (
+    <p className="mb-1 px-3 text-xs font-medium uppercase tracking-wider text-ink-faint">{t}</p>
+  );
   return (
     <>
       {/* Phone / tablet: one row of tabs. */}
-      <nav className="flex gap-1 overflow-x-auto lg:hidden">{menu.map(link)}</nav>
-      {/* Desktop sidebar. */}
+      <nav className="flex gap-1 overflow-x-auto lg:hidden">{[...menu, ...admin].map(link)}</nav>
+      {/* Desktop sidebar: the menu on top, administration at the bottom. */}
       <nav className="hidden lg:grid lg:gap-1">
-        <p className="mb-1 px-3 text-xs font-medium uppercase tracking-wider text-ink-faint">
-          მენიუ
-        </p>
+        {heading('მენიუ')}
         {menu.map(link)}
-        <p className="mb-1 mt-6 px-3 text-xs font-medium uppercase tracking-wider text-ink-faint">
-          ზოგადი
-        </p>
-        <Link
-          href="/count"
-          className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] text-ink-faint hover:bg-paper hover:text-ink"
-        >
-          <Icon name="phone" />
-          დათვლის აპი
-        </Link>
-        <form action="/auth/signout" method="post">
-          <button
-            type="submit"
-            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] text-ink-faint hover:bg-paper hover:text-ink"
-          >
-            <Icon name="logout" />
-            გასვლა
-          </button>
-        </form>
+      </nav>
+      <nav className="mt-auto hidden border-t border-rule pt-4 lg:grid lg:gap-1">
+        {heading('ადმინისტრაცია')}
+        {admin.map(link)}
       </nav>
     </>
   );
