@@ -63,7 +63,7 @@ export async function inviteMember(_prev: InviteState, formData: FormData): Prom
 <p style="color:#64748b;font-size:13px">Inverse · inverse.ge</p></div>`;
   const mailed = await sendMail(email, `მოწვევა — ${company.name}`, text, html);
 
-  revalidatePath('/manage/sites');
+  revalidatePath('/manage/team');
   return { notice: email, mailed };
 }
 
@@ -71,14 +71,14 @@ export async function cancelInvite(id: string): Promise<void> {
   await requireSession();
   const supabase = await createClient();
   await supabase.from('company_invites').delete().eq('id', id).is('accepted_at', null);
-  revalidatePath('/manage/sites');
+  revalidatePath('/manage/team');
 }
 
 export async function removeMember(id: string): Promise<void> {
   await requireSession();
   const supabase = await createClient();
   await supabase.rpc('remove_team_member', { p_user: id });
-  revalidatePath('/manage/sites');
+  revalidatePath('/manage/team');
 }
 
 /** A deactivated employee back on (no new invite needed). */
@@ -86,7 +86,7 @@ export async function restoreMember(id: string): Promise<void> {
   await requireSession();
   const supabase = await createClient();
   await supabase.rpc('restore_team_member', { p_user: id });
-  revalidatePath('/manage/sites');
+  revalidatePath('/manage/team');
 }
 
 /** Which modules a counter may count in. */
@@ -109,5 +109,5 @@ export async function setModules(id: string, formData: FormData): Promise<void> 
     })
     .eq('id', id)
     .eq('role', 'member');
-  revalidatePath('/manage/sites');
+  revalidatePath('/manage/team');
 }

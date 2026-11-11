@@ -2,11 +2,10 @@ import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
 import { mapsLink } from '@/lib/geo';
 import SiteForms from './site-forms';
-import TeamSection from '../team/team-section';
 import DeleteSite from './delete-site';
 import { setSiteModel } from './actions';
 
-export const metadata = { title: 'მართვის პანელი' };
+export const metadata = { title: 'ობიექტები' };
 
 type Site = {
   id: string;
@@ -18,8 +17,8 @@ type Site = {
 };
 
 /**
- * Control panel: the company's warehouses and objects (counters pick from this
- * list when they open a stocktake) and its staff (invite, modules, remove).
+ * The company's warehouses and objects: counters pick from this list when they
+ * open a stocktake. (Staff have their own page, /manage/team.)
  */
 export default async function SitesPage() {
   await requireSession();
@@ -31,9 +30,8 @@ export default async function SitesPage() {
     .returns<Site[]>();
   const list = data ?? [];
   return (
-    <div className="space-y-6">
-      <div className="grid gap-8 lg:grid-cols-2">
-        <TeamSection />
+    <div className="rounded-2xl bg-paper-sunk p-5">
+      <div className="mx-auto max-w-3xl">
         <section className="grid min-w-0 content-start gap-4">
           <h2 className="text-xl font-semibold tracking-tight">🏬 საწყობები და ობიექტები</h2>
           <SiteForms />
@@ -44,7 +42,7 @@ export default async function SitesPage() {
             <div className="mt-3">
               {list.length === 0 ? (
                 <p className="text-sm text-ink-faint">
-                  ჯერ ცარიელია. დაამატე მარჯვნივ ან ჩატვირთე Excel-იდან.
+                  ჯერ ცარიელია. დაამატე ზემოთ ან ჩატვირთე Excel-იდან.
                 </p>
               ) : (
                 <ul className="divide-y divide-rule/70">

@@ -1,6 +1,12 @@
-import { redirect } from 'next/navigation';
+import TeamSection from './team-section';
 
-/** Staff now live in the control panel. */
+export const metadata = { title: 'გუნდი' };
+
+/** Staff: its own page in the menu (invite, modules, book permission, remove). */
 export default function TeamPage() {
-  redirect('/manage/sites#team');
+  return (
+    <div className="rounded-2xl bg-paper-sunk p-5">
+      <TeamSection />
+    </div>
+  );
 }
