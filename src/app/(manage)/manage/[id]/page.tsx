@@ -32,41 +32,33 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
     .maybeSingle<Stocktake>();
   if (!st) notFound();
 
-  const [
-    { data: zones },
-    { data: entries },
-    { data: checks },
-    { data: media },
-    { count: bookLines },
-  ] = await Promise.all([
-    supabase
-      .from('stocktake_zones')
-      .select('*, locations (code), user_profiles (full_name, email)')
-      .eq('stocktake_id', id)
-      .order('started_at')
-      .returns<ZoneRow[]>(),
-    supabase
-      .from('stocktake_entries')
-      .select('location_id')
-      .eq('stocktake_id', id)
-      .limit(20000)
-      .returns<{ location_id: string }[]>(),
-    supabase
-      .from('stocktake_checks')
-      .select('location_id, status')
-      .eq('stocktake_id', id)
-      .neq('status', 'ok')
-      .returns<{ location_id: string; status: string }[]>(),
-    supabase
-      .from('stocktake_media')
-      .select('location_id')
-      .eq('stocktake_id', id)
-      .returns<{ location_id: string }[]>(),
-    supabase
-      .from('stocktake_book')
-      .select('id', { count: 'exact', head: true })
-      .eq('stocktake_id', id),
-  ]);
+  const [{ data: zones }, { data: entries }, { data: checks }, { data: media }] = await Promise.all(
+    [
+      supabase
+        .from('stocktake_zones')
+        .select('*, locations (code), user_profiles (full_name, email)')
+        .eq('stocktake_id', id)
+        .order('started_at')
+        .returns<ZoneRow[]>(),
+      supabase
+        .from('stocktake_entries')
+        .select('location_id')
+        .eq('stocktake_id', id)
+        .limit(20000)
+        .returns<{ location_id: string }[]>(),
+      supabase
+        .from('stocktake_checks')
+        .select('location_id, status')
+        .eq('stocktake_id', id)
+        .neq('status', 'ok')
+        .returns<{ location_id: string; status: string }[]>(),
+      supabase
+        .from('stocktake_media')
+        .select('location_id')
+        .eq('stocktake_id', id)
+        .returns<{ location_id: string }[]>(),
+    ],
+  );
   const count = (rows: { location_id: string }[] | null) => {
     const m = new Map<string, number>();
     for (const r of rows ?? []) m.set(r.location_id, (m.get(r.location_id) ?? 0) + 1);
@@ -202,42 +194,29 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-2 text-center text-sm sm:grid-cols-4">
-        <div className={tile}>
-          <p className="text-xl font-semibold">
-            {done}/{list.length}
-          </p>
-          თარო დასრულდა
+      {st.kind === 'assets' && (
+        // Fixed assets: the register figures (the list's figures are for stock).
+        <div className="grid grid-cols-2 gap-2 text-center text-sm sm:grid-cols-4">
+          <div className={tile}>
+            <p className="text-xl font-semibold">
+              {done}/{list.length}
+            </p>
+            ოთახი დასრულდა
+          </div>
+          <div className={tile}>
+            <p className="text-xl font-semibold">{foundCount ?? 0}</p>ჩაწერილი
+          </div>
+          <div className={tile}>
+            <p className="text-xl font-semibold">{regCount ?? 0}</p>რეესტრში
+          </div>
+          <div className={tile}>
+            <p className="text-xl font-semibold text-review">
+              {Math.max(0, (regCount ?? 0) - (foundCount ?? 0))}
+            </p>
+            ჯერ ვერ ნაპოვნი
+          </div>
         </div>
-        {st.kind === 'assets' ? (
-          <>
-            <div className={tile}>
-              <p className="text-xl font-semibold">{foundCount ?? 0}</p>ჩაწერილი
-            </div>
-            <div className={tile}>
-              <p className="text-xl font-semibold">{regCount ?? 0}</p>რეესტრში
-            </div>
-            <div className={tile}>
-              <p className="text-xl font-semibold text-review">
-                {Math.max(0, (regCount ?? 0) - (foundCount ?? 0))}
-              </p>
-              ჯერ ვერ ნაპოვნი
-            </div>
-          </>
-        ) : (
-          <>
-            <div className={tile}>
-              <p className="text-xl font-semibold">{entries?.length ?? 0}</p>ჩანაწერი
-            </div>
-            <div className={tile}>
-              <p className="text-xl font-semibold text-mismatch">{checks?.length ?? 0}</p>სხვაობა
-            </div>
-            <div className={tile}>
-              <p className="text-xl font-semibold">{bookLines ?? 0}</p>ხაზი ნაშთში
-            </div>
-          </>
-        )}
-      </div>
+      )}
 
       {st.kind === 'assets' ? (
         <div className="grid grid-cols-3 gap-2 text-sm">

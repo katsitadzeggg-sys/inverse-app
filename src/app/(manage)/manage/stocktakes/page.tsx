@@ -34,23 +34,27 @@ export default async function ManageHome({ searchParams }: PageProps<'/manage/st
     .limit(100)
     .returns<Stocktake[]>();
   const list = data ?? [];
-  const { data: zones } = list.length
-    ? await supabase
-        .from('stocktake_zones')
-        .select('stocktake_id, status')
-        .in(
-          'stocktake_id',
-          list.map((s) => s.id),
-        )
-        .returns<{ stocktake_id: string; status: string }[]>()
-    : { data: [] as { stocktake_id: string; status: string }[] };
-  const progress = new Map<string, { all: number; done: number }>();
-  for (const z of zones ?? []) {
-    const p = progress.get(z.stocktake_id) ?? { all: 0, done: 0 };
-    p.all += 1;
-    if (z.status === 'done') p.done += 1;
-    progress.set(z.stocktake_id, p);
-  }
+  type Stats = {
+    stocktake_id: string;
+    shelves: number;
+    shelves_done: number;
+    entries: number;
+    book_lines: number;
+    products: number;
+    plus_qty: number;
+    plus_sum: number;
+    minus_qty: number;
+    minus_sum: number;
+  };
+  const { data: statRows } = list.length
+    ? await supabase.rpc('stocktake_stats', { p_ids: list.map((s) => s.id) })
+    : { data: [] };
+  const stats = new Map(((statRows ?? []) as Stats[]).map((r) => [r.stocktake_id, r]));
+  const n = (v: number) => Number(v).toLocaleString('ka-GE', { maximumFractionDigits: 2 });
+  const gel = (v: number) => `${Number(v).toLocaleString('ka-GE', { maximumFractionDigits: 0 })} ₾`;
+  // Same columns for the header and every row.
+  const cols =
+    'grid grid-cols-[1.5rem_7.5rem_5.5rem_minmax(9rem,1fr)_3.5rem_4.5rem_4rem_4.5rem_8rem_8rem_6.5rem_6.5rem] items-center gap-x-2';
 
   return (
     <div className="grid gap-6">
@@ -87,40 +91,69 @@ export default async function ManageHome({ searchParams }: PageProps<'/manage/st
           </Link>
         </div>
         {list.length === 0 && <p className="text-ink-soft">ჯერ არცერთი არ არის.</p>}
-        <ul className="grid gap-1">
-          {list.map((s) => {
-            const p = progress.get(s.id) ?? { all: 0, done: 0 };
-            return (
-              <li key={s.id}>
-                {/* One compact line per stocktake. */}
-                <Link
-                  href={`/manage/${s.id}`}
-                  className="flex min-w-0 items-center gap-x-3 rounded-control border border-rule/60 px-3 py-1.5 text-sm hover:bg-white/10"
-                >
-                  <span className="shrink-0" title={KIND_LABEL[s.kind]}>
-                    {KIND_LABEL[s.kind].split(' ')[0]}
-                  </span>
-                  <span className="shrink-0 tabular-nums text-ink-faint">{s.number}</span>
-                  <span className="hidden shrink-0 tabular-nums text-ink-faint sm:inline">
-                    {new Date(s.count_date).toLocaleDateString('ka-GE')}
-                  </span>
-                  <span className="min-w-0 truncate font-semibold">
-                    {s.client_name ?? s.name}
-                    {s.branch && <span className="font-normal text-ink-soft"> · {s.branch}</span>}
-                  </span>
-                  <span className="ml-auto shrink-0 tabular-nums text-ink-soft">
-                    {p.done}/{p.all}
-                  </span>
-                  <span
-                    className={`shrink-0 text-xs ${s.status === 'open' ? 'text-review' : 'text-match'}`}
+        {list.length > 0 && (
+          <div className="overflow-x-auto">
+            <div className="grid min-w-[1150px] gap-1">
+              <div className={`${cols} px-3 text-xs text-ink-faint`}>
+                <span />
+                <span>ნომერი</span>
+                <span>თარიღი</span>
+                <span>კლიენტი · ობიექტი</span>
+                <span className="text-right">თარო</span>
+                <span className="text-right">პროდუქტი</span>
+                <span className="text-right">ჩანაწ.</span>
+                <span className="text-right">ნაშთის ხაზი</span>
+                <span className="text-right">მეტობა რაოდ. / ₾</span>
+                <span className="text-right">დანაკლისი რაოდ. / ₾</span>
+                <span className="text-right">სხვაობა ₾</span>
+                <span className="text-right">სტატუსი</span>
+              </div>
+              {list.map((s) => {
+                const t = stats.get(s.id);
+                const diffSum = (t?.plus_sum ?? 0) - (t?.minus_sum ?? 0);
+                return (
+                  <Link
+                    key={s.id}
+                    href={`/manage/${s.id}`}
+                    className={`${cols} rounded-control border border-rule/60 px-3 py-1.5 text-sm tabular-nums hover:bg-white/10`}
                   >
-                    {s.status === 'open' ? '● მიმდინარე' : '✓ დახურული'}
-                  </span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+                    <span title={KIND_LABEL[s.kind]}>{KIND_LABEL[s.kind].split(' ')[0]}</span>
+                    <span className="text-ink-faint">{s.number}</span>
+                    <span className="text-ink-faint">
+                      {new Date(s.count_date).toLocaleDateString('ka-GE')}
+                    </span>
+                    <span className="min-w-0 truncate font-semibold">
+                      {s.client_name ?? s.name}
+                      {s.branch && <span className="font-normal text-ink-soft"> · {s.branch}</span>}
+                    </span>
+                    <span className="text-right">
+                      {t?.shelves_done ?? 0}/{t?.shelves ?? 0}
+                    </span>
+                    <span className="text-right">{t?.products ?? 0}</span>
+                    <span className="text-right">{t?.entries ?? 0}</span>
+                    <span className="text-right text-ink-soft">{t?.book_lines ?? 0}</span>
+                    <span className="text-right text-[#60a5fa]">
+                      {t?.plus_qty ? `+${n(t.plus_qty)} / ${gel(t.plus_sum)}` : '—'}
+                    </span>
+                    <span className="text-right text-[#f87171]">
+                      {t?.minus_qty ? `−${n(t.minus_qty)} / ${gel(t.minus_sum)}` : '—'}
+                    </span>
+                    <span
+                      className={`text-right font-semibold ${diffSum < 0 ? 'text-[#f87171]' : diffSum > 0 ? 'text-[#60a5fa]' : 'text-ink-faint'}`}
+                    >
+                      {t?.book_lines || t?.entries ? gel(diffSum) : '—'}
+                    </span>
+                    <span
+                      className={`text-right text-xs ${s.status === 'open' ? 'text-review' : 'text-match'}`}
+                    >
+                      {s.status === 'open' ? '● მიმდინარე' : '✓ დახურული'}
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </section>
     </div>
   );
