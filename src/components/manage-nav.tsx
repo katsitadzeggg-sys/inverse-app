@@ -12,6 +12,7 @@ const I = {
   users: (
     <path d="M16 19v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1M9.5 10a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM21 19v-1a4 4 0 0 0-3-3.87M16 3.13a3.5 3.5 0 0 1 0 6.75" />
   ),
+  archive: <path d="M3 4h18v4H3zM5 8v12h14V8M10 12h4" />,
   building: (
     <path d="M4 21V5l8-3v19M12 8h8v13M4 21h16M8 7h.01M8 11h.01M8 15h.01M16 12h.01M16 16h.01" />
   ),
@@ -69,6 +70,12 @@ export default function ManageNav({ platform, open }: { platform: boolean; open:
       label: 'ობიექტები',
       icon: 'box',
       active: pathname.startsWith('/manage/sites'),
+    },
+    {
+      href: '/manage/archive',
+      label: 'არქივი',
+      icon: 'archive',
+      active: pathname.startsWith('/manage/archive'),
     },
   ];
   // Administration: people, their roles, the platform — at the bottom left.

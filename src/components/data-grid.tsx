@@ -94,6 +94,7 @@ export default function DataGrid<T extends object>({
   rowClass,
   search = true,
   toolbar,
+  context,
 }: {
   rows: T[];
   columns: ColDef<T>[];
@@ -107,6 +108,8 @@ export default function DataGrid<T extends object>({
   rowClass?: (p: RowClassParams<T>) => string | undefined;
   search?: boolean;
   toolbar?: React.ReactNode;
+  /** Passed to cell components (e.g. what the viewer may change). */
+  context?: unknown;
 }) {
   const grid = useRef<AgGridReact<T>>(null);
   const [q, setQ] = useState('');
@@ -184,6 +187,7 @@ export default function DataGrid<T extends object>({
           animateRows={false}
           enableCellTextSelection
           ensureDomOrder
+          context={context}
           onModelUpdated={(e) => setShown(e.api.getDisplayedRowCount())}
         />
       </div>

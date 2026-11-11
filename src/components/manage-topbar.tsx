@@ -112,7 +112,7 @@ export function Bell({ notes }: { notes: Note[] }) {
   );
 }
 
-/** The person: avatar and name; the menu holds profile, theme, the counting app and sign-out. */
+/** The person: avatar and name; the menu holds profile, theme and sign-out. */
 export function ProfileMenu({
   name,
   sub,
@@ -167,9 +167,6 @@ export function ProfileMenu({
           >
             {theme === 'light' ? '🌙 მუქი თემა' : '☀️ ღია თემა'}
           </button>
-          <Link href="/count" onClick={() => setOpen(false)} className={item}>
-            📱 დათვლის აპი
-          </Link>
           <form action="/auth/signout" method="post" className="mt-1 border-t border-rule pt-1">
             <button type="submit" className={`${item} text-mismatch`}>
               ↪ გასვლა
