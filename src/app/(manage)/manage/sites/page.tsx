@@ -1,120 +1,41 @@
-import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
-import { mapsLink } from '@/lib/geo';
+import AddDrawer from '@/components/add-drawer';
 import SiteForms from './site-forms';
-import DeleteSite from './delete-site';
-import { setSiteModel } from './actions';
+import SitesGrid, { type SiteRow } from './sites-grid';
 
 export const metadata = { title: 'ობიექტები' };
 
-type Site = {
-  id: string;
-  name: string;
-  address: string | null;
-  lat: number | null;
-  lng: number | null;
-  model_url: string | null;
-};
-
 /**
- * The company's warehouses and objects: counters pick from this list when they
- * open a stocktake. (Staff have their own page, /manage/team.)
+ * The company's warehouses and objects in a table (counters pick from this
+ * list when they open a stocktake); "+" adds one or loads a list from Excel in
+ * a drawer. Staff have their own page, /manage/team.
  */
-export default async function SitesPage() {
+export default async function SitesPage({ searchParams }: PageProps<'/manage/sites'>) {
   await requireSession();
+  const sp = await searchParams;
   const supabase = await createClient();
   const { data } = await supabase
     .from('sites')
     .select('id, name, address, lat, lng, model_url')
     .order('name')
-    .returns<Site[]>();
+    .returns<SiteRow[]>();
   const list = data ?? [];
   return (
-    <div className="rounded-2xl bg-paper-sunk p-5">
-      <div className="mx-auto max-w-3xl">
-        <section className="grid min-w-0 content-start gap-4">
-          <h2 className="text-xl font-semibold tracking-tight">🏬 საწყობები და ობიექტები</h2>
+    <div className="grid gap-4 rounded-2xl bg-paper-sunk p-5">
+      <div className="flex flex-wrap items-center gap-3">
+        <AddDrawer title="საწყობი / ობიექტი" label="ახალი" startOpen={sp.add === '1'}>
           <SiteForms />
-          <details open className="rounded-control border border-accent/50 bg-accent/5 p-4">
-            <summary className="cursor-pointer text-sm font-semibold text-accent">
-              სია და ცვლილებები ({list.length})
-            </summary>
-            <div className="mt-3">
-              {list.length === 0 ? (
-                <p className="text-sm text-ink-faint">
-                  ჯერ ცარიელია. დაამატე ზემოთ ან ჩატვირთე Excel-იდან.
-                </p>
-              ) : (
-                <ul className="divide-y divide-rule/70">
-                  {list.map((s) => (
-                    <li key={s.id} className="flex items-center justify-between gap-3 py-2.5">
-                      <div className="min-w-0">
-                        {/* The object opens its stocktakes and their book (listing). */}
-                        <Link
-                          href={`/manage/stocktakes?kind=all&q=${encodeURIComponent(s.name)}`}
-                          className="font-medium text-ink underline-offset-2 hover:text-accent hover:underline"
-                        >
-                          {s.name} →
-                        </Link>
-                        <p className="truncate text-xs text-ink-faint">
-                          {s.address ?? 'მისამართი არ არის'}
-                          {s.lat != null && s.lng != null && (
-                            <>
-                              {' '}
-                              ·{' '}
-                              <a
-                                href={mapsLink(s.lat, s.lng)}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="underline"
-                              >
-                                რუკა
-                              </a>
-                            </>
-                          )}
-                        </p>
-                      </div>
-                      <div className="flex shrink-0 items-start gap-2">
-                        {/* 🏗 the warehouse in 3D: open it, or set its link. */}
-                        {s.model_url && (
-                          <a
-                            href={s.model_url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="rounded-control border border-accent/60 px-2 py-0.5 text-xs font-semibold text-accent"
-                          >
-                            🏗 3D
-                          </a>
-                        )}
-                        <details className="text-xs">
-                          <summary className="text-ink-faint underline">3D ბმული</summary>
-                          <form action={setSiteModel.bind(null, s.id)} className="mt-1 flex gap-1">
-                            <input
-                              name="model_url"
-                              type="url"
-                              defaultValue={s.model_url ?? ''}
-                              placeholder="https://…"
-                              className="w-44 rounded-control border border-rule-strong bg-paper-sunk px-2 py-1"
-                            />
-                            <button
-                              type="submit"
-                              className="rounded-control border border-rule-strong px-2 py-1"
-                            >
-                              ✓
-                            </button>
-                          </form>
-                        </details>
-                        <DeleteSite id={s.id} />
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </details>
-        </section>
+        </AddDrawer>
+        <h1 className="text-xl font-semibold tracking-tight">საწყობები და ობიექტები</h1>
       </div>
+      {list.length === 0 ? (
+        <p className="text-sm text-ink-faint">
+          ჯერ ცარიელია. „+“-ით დაამატე ან ჩატვირთე Excel-იდან.
+        </p>
+      ) : (
+        <SitesGrid rows={list} />
+      )}
     </div>
   );
 }

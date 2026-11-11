@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
 import type { CompanyInvite, UserProfile } from '@/types/database';
 import InviteForm from './invite-form';
+import AddDrawer from '@/components/add-drawer';
 import { cancelInvite, removeMember, restoreMember, setModules } from './actions';
 
 const ROLE: Record<string, string> = {
@@ -41,10 +42,14 @@ export default async function TeamSection() {
 
   return (
     <section id="team" className="grid min-w-0 content-start gap-4">
-      <h2 className="text-xl font-semibold tracking-tight">👥 თანამშრომლები</h2>
-      <InviteForm appUrl={appUrl} company={company.name} isOwner={profile.role === 'owner'} />
-      {/* The list stays folded: opened only to change modules or remove someone. */}
-      <details className="rounded-control border border-accent/50 bg-accent/5 p-4">
+      <div className="flex flex-wrap items-center gap-3">
+        {/* "+": invite someone, in a drawer. */}
+        <AddDrawer title="თანამშრომლის მოწვევა" label="მოწვევა">
+          <InviteForm appUrl={appUrl} company={company.name} isOwner={profile.role === 'owner'} />
+        </AddDrawer>
+        <h2 className="text-xl font-semibold tracking-tight">თანამშრომლები</h2>
+      </div>
+      <details open className="rounded-control border border-rule p-4">
         <summary className="cursor-pointer text-sm font-semibold text-accent">
           სია და ცვლილებები ({active.length})
         </summary>

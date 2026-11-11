@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
 import type { Stocktake } from '@/types/database';
 import StocktakesGrid, { type StRow } from './stocktakes-grid';
+import AddDrawer from '@/components/add-drawer';
+import NewStocktakeForm from '../new-stocktake-form';
 
 const KINDS = [
   { kind: 'all', label: 'ყველა' },
@@ -13,7 +15,7 @@ const KINDS = [
 
 /** Every stocktake — stock, expiry, fixed assets — on one page, with a filter and "+ new". */
 export default async function ManageHome({ searchParams }: PageProps<'/manage/stocktakes'>) {
-  await requireSession();
+  const { company } = await requireSession();
   const sp = await searchParams;
   // The top bar's search: number, client, branch or name, across every kind.
   const q =
@@ -65,6 +67,13 @@ export default async function ManageHome({ searchParams }: PageProps<'/manage/st
     ? await supabase.rpc('stocktake_stats4', { p_ids: list.map((s) => s.id) })
     : { data: [] };
   const stats = new Map(((statRows ?? []) as Stats[]).map((r) => [r.stocktake_id, r]));
+  const { data: sites } = await supabase
+    .from('sites')
+    .select('id, name, address, lat, lng')
+    .order('name')
+    .returns<
+      { id: string; name: string; address: string | null; lat: number | null; lng: number | null }[]
+    >();
   const rows: StRow[] = list.map((s) => {
     const t = stats.get(s.id);
     return {
@@ -110,6 +119,14 @@ export default async function ManageHome({ searchParams }: PageProps<'/manage/st
     <div className="grid gap-6 rounded-2xl bg-paper-sunk p-5">
       <section className="grid content-start gap-3">
         <div className="flex flex-wrap items-center gap-2">
+          {/* "+": a new stocktake in a drawer, over the table. */}
+          <AddDrawer title="ახალი ინვენტარიზაცია" label="ახალი" startOpen={sp.add === '1'}>
+            <NewStocktakeForm
+              kind={kind === 'all' ? 'stock' : kind}
+              companyName={company.name}
+              sites={sites ?? []}
+            />
+          </AddDrawer>
           {KINDS.map((t) => (
             <Link
               key={t.kind}
@@ -132,12 +149,6 @@ export default async function ManageHome({ searchParams }: PageProps<'/manage/st
             className={`rounded-control border px-3 py-2 text-sm ${archived ? 'border-ink bg-ink text-paper' : 'border-rule-strong text-ink-soft hover:bg-ink/5'}`}
           >
             🗄 არქივი
-          </Link>
-          <Link
-            href={`/manage/new${kind !== 'all' ? `?kind=${kind}` : ''}`}
-            className="ml-auto rounded-control bg-accent px-4 py-2 text-sm font-semibold text-paper"
-          >
-            + ახალი ინვენტარიზაცია
           </Link>
         </div>
         {list.length === 0 && <p className="text-ink-soft">ჯერ არცერთი არ არის.</p>}
