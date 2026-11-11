@@ -6,7 +6,6 @@ import type { Stocktake, StocktakeZone } from '@/types/database';
 import { mapsLink } from '@/lib/geo';
 import { setShowBook, setStocktakeArchived, setStocktakeStatus } from '@/app/(count)/count/actions';
 import ExportBox from './export-box';
-import MembersForm from './members-form';
 import BalanceTable from './balance-table';
 import { stockActData } from '@/lib/stock-act';
 
@@ -68,40 +67,6 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
   const diffs = count(checks);
   const shots = count(media);
   const list = zones ?? [];
-  // Who may count here: the team (without the disabled) and who is ticked.
-  const [{ data: team }, { data: assigned }] = await Promise.all([
-    supabase
-      .from('user_profiles')
-      .select('id, full_name, email, role')
-      .is('disabled_at', null)
-      .order('created_at')
-      .returns<{ id: string; full_name: string | null; email: string; role: string }[]>(),
-    supabase
-      .from('stocktake_members')
-      .select('user_id')
-      .eq('stocktake_id', id)
-      .returns<{ user_id: string }[]>(),
-  ]);
-  const ticked = new Set((assigned ?? []).map((a) => a.user_id));
-  // Who pressed "🏁 I'm done" and who is still counting.
-  const { data: fin } = await supabase
-    .from('stocktake_finished')
-    .select('user_id, finished_at')
-    .eq('stocktake_id', id)
-    .not('finished_at', 'is', null)
-    .returns<{ user_id: string; finished_at: string }[]>();
-  const finished = new Map((fin ?? []).map((f) => [f.user_id, f.finished_at]));
-  const working = [...new Set(list.map((z) => z.counter_id).filter(Boolean))] as string[];
-  const nameOf = (uid: string) => {
-    const m = (team ?? []).find((t) => t.id === uid);
-    const z = list.find((x) => x.counter_id === uid)?.user_profiles;
-    return m?.full_name ?? m?.email ?? z?.full_name ?? z?.email ?? '—';
-  };
-  const when = (t: string) =>
-    new Date(t).toLocaleString('ka-GE', { dateStyle: 'short', timeStyle: 'short' });
-  const counters = (team ?? []).filter(
-    (m) => m.role !== 'owner' && m.role !== 'admin' && m.role !== 'viewer',
-  );
   const [{ count: regCount }, { count: foundCount }] =
     st.kind === 'assets'
       ? await Promise.all([
@@ -348,38 +313,6 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
           )}
         </section>
       )}
-
-      <section className="grid gap-2 rounded-control border border-rule/70 p-3">
-        <h2 className="font-semibold">👷 აღწერის თანამშრომლები</h2>
-        {working.length > 0 && (
-          <ul className="grid gap-1 text-sm">
-            {working.map((uid) => (
-              <li key={uid} className="flex flex-wrap items-center justify-between gap-2">
-                <span>{nameOf(uid)}</span>
-                {finished.has(uid) ? (
-                  <span className="text-match">🏁 დაასრულა · {when(finished.get(uid)!)}</span>
-                ) : (
-                  <span className="text-review">ითვლის…</span>
-                )}
-              </li>
-            ))}
-            <li className="text-xs text-ink-faint">
-              დაასრულა {working.filter((u) => finished.has(u)).length} / {working.length}
-            </li>
-          </ul>
-        )}
-        {counters.length === 0 ? (
-          <p className="text-sm text-ink-soft">
-            გუნდში აღწერის თანამშრომელი ჯერ არ არის —{' '}
-            <Link href="/manage/sites#team" className="underline">
-              მოიწვიე
-            </Link>
-            .
-          </p>
-        ) : (
-          <MembersForm stocktakeId={id} counters={counters} ticked={[...ticked]} />
-        )}
-      </section>
 
       <div className="flex flex-wrap gap-2">
         <form action={setStocktakeStatus.bind(null, id, st.status === 'open' ? 'closed' : 'open')}>

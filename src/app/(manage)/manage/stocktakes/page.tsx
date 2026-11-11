@@ -57,7 +57,7 @@ export default async function ManageHome({ searchParams }: PageProps<'/manage/st
   const gel = (v: number) => `${Number(v).toLocaleString('ka-GE', { maximumFractionDigits: 0 })} ₾`;
   // Same columns for the header and every row.
   const cols =
-    'grid grid-cols-[1.5rem_7.5rem_7.5rem_minmax(7rem,1fr)_9.5rem_3rem_3.5rem_4.5rem_8rem_8rem_6.5rem_6.5rem] items-center gap-x-2';
+    'grid grid-cols-[1.5rem_7.5rem_7.5rem_minmax(7rem,1fr)_3rem_3.5rem_4.5rem_8rem_8rem_6.5rem_6.5rem] items-center gap-x-2';
 
   return (
     <div className="grid gap-6">
@@ -96,13 +96,12 @@ export default async function ManageHome({ searchParams }: PageProps<'/manage/st
         {list.length === 0 && <p className="text-ink-soft">ჯერ არცერთი არ არის.</p>}
         {list.length > 0 && (
           <div className="overflow-x-auto">
-            <div className="grid min-w-[1150px] gap-1">
+            <div className="grid min-w-[1050px] gap-1">
               <div className={`${cols} px-3 text-xs text-ink-faint`}>
                 <span />
                 <span>ინვენტარიზაციის N</span>
                 <span>თარიღი · დაიხურა</span>
                 <span>საწყობი</span>
-                <span className="text-right text-[#c4b5fd]">დარჩენილი რაოდ. / ₾</span>
                 <span className="text-right">თარო</span>
                 <span className="text-right">SKU</span>
                 <span className="text-right">პროდუქტი</span>
@@ -111,6 +110,36 @@ export default async function ManageHome({ searchParams }: PageProps<'/manage/st
                 <span className="text-right">სხვაობა ₾</span>
                 <span className="text-right">სტატუსი</span>
               </div>
+              {/* On top, in violet: what is still to count — the book on shelves
+                  not closed yet, per open stocktake. Shrinks as shelves close. */}
+              {list
+                .filter((s) => s.status === 'open' && (stats.get(s.id)?.left_qty ?? 0) > 0)
+                .map((s) => {
+                  const t = stats.get(s.id)!;
+                  return (
+                    <Link
+                      key={`left-${s.id}`}
+                      href={`/manage/${s.id}`}
+                      className={`${cols} rounded-control border border-[#a78bfa]/60 bg-[#7c3aed]/15 px-3 py-1.5 text-sm tabular-nums text-[#ddd6fe] hover:bg-[#7c3aed]/25`}
+                    >
+                      <span>⏳</span>
+                      <span className="font-semibold">დარჩენილი</span>
+                      <span className="text-[#c4b5fd]">{s.number}</span>
+                      <span className="min-w-0 truncate font-semibold">
+                        {s.branch || s.client_name || s.name}
+                      </span>
+                      <span className="text-right" title="თაროები, რომლებიც ჯერ არ დახურულა">
+                        {t.left_shelves}
+                      </span>
+                      <span className="text-right">—</span>
+                      <span className="text-right">{n(t.left_qty)}</span>
+                      <span className="text-right">—</span>
+                      <span className="text-right">—</span>
+                      <span className="text-right font-semibold">{gel(t.left_sum)}</span>
+                      <span className="text-right text-xs">დასათვლელი</span>
+                    </Link>
+                  );
+                })}
               {list.map((s) => {
                 const t = stats.get(s.id);
                 const diffSum = (t?.plus_sum ?? 0) - (t?.minus_sum ?? 0);
@@ -135,13 +164,6 @@ export default async function ManageHome({ searchParams }: PageProps<'/manage/st
                     </span>
                     <span className="min-w-0 truncate font-semibold">
                       {s.branch || s.client_name || s.name}
-                    </span>
-                    {/* Book on shelves not closed yet: still to count. */}
-                    <span
-                      className="text-right text-[#c4b5fd]"
-                      title={t?.left_shelves ? `${t.left_shelves} თარო ჯერ არ დახურულა` : undefined}
-                    >
-                      {t?.left_qty ? `${n(t.left_qty)} / ${gel(t.left_sum)}` : '—'}
                     </span>
                     <span
                       className="text-right"
