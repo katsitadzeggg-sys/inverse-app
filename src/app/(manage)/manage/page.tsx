@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
 import { Card, Stat } from '@/components/ui';
 import type { Stocktake } from '@/types/database';
+import { stockActData } from '@/lib/stock-act';
 
 export const metadata = { title: 'მთავარი' };
 
@@ -99,6 +100,87 @@ export default async function ManageDashboard() {
   const byKind = (k: string) => all.filter((s) => s.kind === k);
   const name = new Map(all.map((s) => [s.id, s]));
 
+  // ---- Analytics (stock) ----
+  // Money: surplus / shortage over the stock stocktakes in the list.
+  const stockIds = all.filter((s) => s.kind !== 'assets').map((s) => s.id);
+  const { data: statRows } = stockIds.length
+    ? await supabase.rpc('stocktake_stats3', { p_ids: stockIds })
+    : { data: [] };
+  type St = {
+    stocktake_id: string;
+    plus_sum: number;
+    minus_sum: number;
+    plus_qty: number;
+    minus_qty: number;
+  };
+  const money = { plus: 0, minus: 0 };
+  for (const r of (statRows ?? []) as St[]) {
+    money.plus += Number(r.plus_sum);
+    money.minus += Number(r.minus_sum);
+  }
+  const worst = ((statRows ?? []) as St[])
+    .filter((r) => Number(r.minus_sum) > 0)
+    .sort((a, b) => Number(b.minus_sum) - Number(a.minus_sum))
+    .slice(0, 5);
+  // Biggest shortages (by money) in the latest stock stocktake.
+  const latest = all.find((s) => s.kind !== 'assets');
+  const top = latest
+    ? (await stockActData(supabase, latest.id)).lines
+        .filter((l) => l.diff < 0)
+        .map((l) => ({ ...l, loss: -l.diff * (l.cost ?? 0) }))
+        .sort((a, b) => b.loss - a.loss || a.diff - b.diff)
+        .slice(0, 8)
+    : [];
+  // Speed: lines per hour per counting employee over the last 7 days
+  // (time between the first and last line of each day).
+  const weekAgo = new Date();
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  const since = weekAgo.toISOString();
+  const { data: recentEntries } = await supabase
+    .from('stocktake_entries')
+    .select('counter_id, created_at')
+    .gte('created_at', since)
+    .limit(20000)
+    .returns<
+      {
+        counter_id: string | null;
+        created_at: string;
+      }[]
+    >();
+  const { data: profs } = await supabase
+    .from('user_profiles')
+    .select('id, full_name, email')
+    .returns<{ id: string; full_name: string | null; email: string }[]>();
+  const people = new Map((profs ?? []).map((p) => [p.id, p.full_name ?? p.email]));
+  const speedMap = new Map<
+    string,
+    { name: string; lines: number; days: Map<string, [number, number]> }
+  >();
+  for (const e of recentEntries ?? []) {
+    if (!e.counter_id) continue;
+    const t = new Date(e.created_at).getTime();
+    const day = new Date(t + 4 * 3600 * 1000).toISOString().slice(0, 10); // Tbilisi day
+    const v = speedMap.get(e.counter_id) ?? {
+      name: people.get(e.counter_id) ?? '—',
+      lines: 0,
+      days: new Map(),
+    };
+    v.lines += 1;
+    const d = v.days.get(day);
+    v.days.set(day, d ? [Math.min(d[0], t), Math.max(d[1], t)] : [t, t]);
+    speedMap.set(e.counter_id, v);
+  }
+  const speed = [...speedMap.values()]
+    .map((v) => {
+      const hours = [...v.days.values()].reduce(
+        (h, [a, b]) => h + Math.max(0.25, (b - a) / 3.6e6),
+        0,
+      );
+      return { name: v.name, lines: v.lines, perHour: Math.round(v.lines / hours) };
+    })
+    .sort((a, b) => b.perHour - a.perHour);
+  const gel = (v: number) => `${Math.round(v).toLocaleString('ka-GE')} ₾`;
+
   return (
     <div className="dash-glass space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -129,6 +211,88 @@ export default async function ManageDashboard() {
           value={(team ?? []).length}
           hint={`აღწერის თანამშრომელი: ${counters}`}
         />
+      </div>
+
+      {/* Analytics: money, biggest shortages, counting speed. */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card title="💰 სხვაობა თანხით">
+          <dl className="grid grid-cols-[1fr_auto] gap-y-1 text-sm">
+            <dt className="text-ink-soft">მეტობა</dt>
+            <dd className="text-right font-semibold text-[#60a5fa] tabular-nums">
+              {gel(money.plus)}
+            </dd>
+            <dt className="text-ink-soft">დანაკლისი</dt>
+            <dd className="text-right font-semibold text-[#f87171] tabular-nums">
+              {gel(money.minus)}
+            </dd>
+            <dt className="text-ink-soft">სხვაობა</dt>
+            <dd className="text-right font-bold tabular-nums">{gel(money.plus - money.minus)}</dd>
+          </dl>
+          {worst.length > 0 && (
+            <ul className="mt-3 grid gap-1 border-t border-rule/60 pt-2 text-xs">
+              {worst.map((r) => {
+                const st = name.get(r.stocktake_id);
+                return (
+                  <li key={r.stocktake_id}>
+                    <Link
+                      href={`/manage/${r.stocktake_id}`}
+                      className="flex justify-between gap-2 hover:underline"
+                    >
+                      <span className="truncate">
+                        {st?.number} · {st?.branch ?? st?.client_name}
+                      </span>
+                      <span className="text-[#f87171] tabular-nums">
+                        −{gel(Number(r.minus_sum))}
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          <p className="mt-2 text-xs text-ink-faint">
+            ღია ინვენტარიზაციებში — მხოლოდ დახურული თაროებით.
+          </p>
+        </Card>
+
+        <Card title={`📉 ტოპ დანაკლისი${latest ? ` · ${latest.number}` : ''}`}>
+          {top.length === 0 ? (
+            <p className="text-sm text-ink-faint">დანაკლისი არ არის.</p>
+          ) : (
+            <ul className="grid gap-1 text-sm">
+              {top.map((l) => (
+                <li key={l.n} className="grid grid-cols-[1fr_auto_auto] gap-2">
+                  <span className="truncate" title={l.name}>
+                    {l.name}
+                  </span>
+                  <span className="text-[#f87171] tabular-nums">{l.diff}</span>
+                  <span className="w-20 text-right tabular-nums text-ink-soft">
+                    {l.loss ? gel(l.loss) : '—'}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        <Card title="⚡ დათვლის სისწრაფე · 7 დღე">
+          {speed.length === 0 ? (
+            <p className="text-sm text-ink-faint">ბოლო 7 დღეში დათვლა არ ყოფილა.</p>
+          ) : (
+            <ul className="grid gap-1 text-sm">
+              {speed.map((v) => (
+                <li key={v.name} className="grid grid-cols-[1fr_auto_auto] gap-3">
+                  <span className="truncate">{v.name}</span>
+                  <span className="tabular-nums text-ink-soft">{v.lines} ხაზი</span>
+                  <span className="w-20 text-right font-semibold tabular-nums">{v.perHour}/სთ</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="mt-2 text-xs text-ink-faint">
+            ხაზი საათში — დღის პირველიდან ბოლო ჩანაწერამდე.
+          </p>
+        </Card>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">

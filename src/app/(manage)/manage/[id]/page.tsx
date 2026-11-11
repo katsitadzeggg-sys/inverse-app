@@ -59,10 +59,48 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
       ? null
       : await stockActData(supabase, id).then((d) => ({
           hasCost: d.hasCost,
+          left: d.left,
+          final: d.final,
+          // Counted lines; while open also the shortages of closed shelves.
           lines: d.lines
-            .filter((l) => l.shelves.length > 0 || l.counted !== 0)
+            .filter((l) => l.shelves.length > 0 || l.counted !== 0 || (!d.final && l.diff !== 0))
             .map((l, i) => ({ ...l, n: i + 1 })),
         }));
+  // The shelves: who counted, when closed, lines, open differences, photos.
+  const [{ data: entryRows }, { data: checkRows }, { data: mediaRows }, { data: site }] =
+    await Promise.all([
+      supabase
+        .from('stocktake_entries')
+        .select('location_id')
+        .eq('stocktake_id', id)
+        .limit(20000)
+        .returns<{ location_id: string }[]>(),
+      supabase
+        .from('stocktake_checks')
+        .select('location_id')
+        .eq('stocktake_id', id)
+        .neq('status', 'ok')
+        .returns<{ location_id: string }[]>(),
+      supabase
+        .from('stocktake_media')
+        .select('location_id')
+        .eq('stocktake_id', id)
+        .returns<{ location_id: string }[]>(),
+      supabase
+        .from('sites')
+        .select('model_url')
+        .eq('name', st.branch ?? '')
+        .maybeSingle<{ model_url: string | null }>(),
+    ]);
+  const tally = (rows: { location_id: string }[] | null) => {
+    const m = new Map<string, number>();
+    for (const r of rows ?? []) m.set(r.location_id, (m.get(r.location_id) ?? 0) + 1);
+    return m;
+  };
+  const zLines = tally(entryRows);
+  const zDiffs = tally(checkRows);
+  const zShots = tally(mediaRows);
+  const model = site?.model_url ?? null;
 
   // Action buttons: raised orange keys, clearly different from the faded info tiles.
   const btn =
@@ -171,7 +209,7 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
           </Link>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-5">
           <Link href={`/count/${id}/book`} className={btn}>
             📄 ნაშთი
           </Link>
@@ -184,6 +222,11 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
           <Link href={`/count/${id}/labels`} className={btn}>
             🏷 ეტიკეტები
           </Link>
+          {model && (
+            <a href={model} target="_blank" rel="noreferrer" className={btn}>
+              🏗 3D საწყობი
+            </a>
+          )}
         </div>
       )}
 
@@ -197,6 +240,14 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
 
       {balance && (
         <section className="grid gap-2">
+          {!balance.final && balance.left.qty > 0 && (
+            <p className="rounded-control border border-[#a78bfa]/60 bg-[#7c3aed]/15 px-3 py-1.5 text-sm text-[#ddd6fe]">
+              ⏳ <b>დარჩენილი</b> — {balance.left.shelves} თარო ჯერ არ დახურულა ·{' '}
+              {balance.left.qty.toLocaleString('ka-GE', { maximumFractionDigits: 2 })} ერთ. ·{' '}
+              {balance.left.sum.toLocaleString('ka-GE', { maximumFractionDigits: 0 })} ₾. ცხრილში
+              მხოლოდ დახურული თაროებია.
+            </p>
+          )}
           {balance.lines.length ? (
             <div className="overflow-hidden rounded-md border border-[#c5ccd6]">
               <BalanceTable id={id} lines={balance.lines} hasCost={balance.hasCost} scroll />
@@ -205,6 +256,58 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
             <p className="text-sm text-ink-soft">ჯერ არაფერი დათვლილა.</p>
           )}
         </section>
+      )}
+
+      {list.length > 0 && (
+        <details className="rounded-control border border-rule/70">
+          <summary className="px-3 py-2 text-sm font-semibold">🗂 თაროები ({list.length})</summary>
+          <div className="max-h-[45vh] overflow-auto border-t border-rule/60">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 z-10 bg-paper-sunk text-left text-xs text-ink-faint">
+                <tr>
+                  <th className="px-2 py-1">თარო</th>
+                  <th className="px-2 py-1">თანამშრომელი</th>
+                  <th className="px-2 py-1">სტატუსი</th>
+                  <th className="px-2 py-1 text-right">ჩანაწ.</th>
+                  <th className="px-2 py-1 text-right">სხვაობა</th>
+                  <th className="px-2 py-1 text-right">📷</th>
+                  <th className="px-2 py-1">კომენტარი</th>
+                </tr>
+              </thead>
+              <tbody>
+                {list.map((z) => (
+                  <tr key={z.id} className="border-t border-rule/60 align-top">
+                    <td className="px-2 py-1 font-semibold">
+                      <Link href={`/count/${id}/${z.location_id}/done`} className="underline">
+                        {z.locations?.code}
+                      </Link>
+                    </td>
+                    <td className="px-2 py-1">
+                      {z.user_profiles?.full_name ?? z.user_profiles?.email}
+                    </td>
+                    <td
+                      className={`px-2 py-1 ${z.status === 'done' ? 'text-match' : 'text-review'}`}
+                    >
+                      {z.status === 'done'
+                        ? `✓ ${new Date(z.done_at ?? z.started_at).toLocaleString('ka-GE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tbilisi' })}`
+                        : 'ითვლება'}
+                    </td>
+                    <td className="px-2 py-1 text-right tabular-nums">
+                      {zLines.get(z.location_id) ?? 0}
+                    </td>
+                    <td
+                      className={`px-2 py-1 text-right tabular-nums ${zDiffs.get(z.location_id) ? 'font-semibold text-mismatch' : ''}`}
+                    >
+                      {zDiffs.get(z.location_id) ?? 0}
+                    </td>
+                    <td className="px-2 py-1 text-right">{zShots.get(z.location_id) ?? ''}</td>
+                    <td className="px-2 py-1 text-ink-soft">{z.note}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
       )}
 
       <div className="flex flex-wrap gap-2">

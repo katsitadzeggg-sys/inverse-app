@@ -72,3 +72,16 @@ export async function deleteSite(id: string): Promise<FormState> {
   revalidatePath('/manage/sites');
   return { notice: '✓ წაიშალა' };
 }
+
+/** The warehouse's 3D model (an https link), or none. */
+export async function setSiteModel(id: string, formData: FormData): Promise<void> {
+  const { profile } = await requireSession();
+  if (profile.role !== 'owner' && profile.role !== 'admin') return;
+  const url = String(formData.get('model_url') ?? '').trim();
+  const supabase = await createClient();
+  await supabase
+    .from('sites')
+    .update({ model_url: /^https:\/\//.test(url) ? url : null })
+    .eq('id', id);
+  revalidatePath('/manage/sites');
+}

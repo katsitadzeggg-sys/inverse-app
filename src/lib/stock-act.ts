@@ -40,9 +40,20 @@ export type ActData = {
     minusSum: number;
   };
   team: string[];
+  /**
+   * Open stocktake: only closed shelves are compared; the book on shelves
+   * not closed yet is "remaining". Closed stocktake: everything (left = 0).
+   */
+  left: { qty: number; sum: number; shelves: number };
+  final: boolean;
 };
 
-type Book = { product_id: string; book_qty: number; unit_cost: number | null };
+type Book = {
+  product_id: string;
+  book_qty: number;
+  unit_cost: number | null;
+  location_id: string | null;
+};
 type Entry = {
   product_id: string | null;
   unknown_label: string | null;
@@ -71,7 +82,7 @@ export async function stockActData(supabase: SupabaseClient, id: string): Promis
     pages<Book>((a, b) =>
       supabase
         .from('stocktake_book')
-        .select('product_id, book_qty, unit_cost')
+        .select('product_id, book_qty, unit_cost, location_id')
         .eq('stocktake_id', id)
         .range(a, b),
     ),
@@ -84,17 +95,39 @@ export async function stockActData(supabase: SupabaseClient, id: string): Promis
     ),
     supabase
       .from('stocktake_zones')
-      .select('location_id, locations (code), user_profiles (full_name, email)')
+      .select('location_id, status, locations (code), user_profiles (full_name, email)')
       .eq('stocktake_id', id)
       .returns<
         {
           location_id: string;
+          status: string;
           locations: { code: string } | null;
           user_profiles: { full_name: string | null; email: string } | null;
         }[]
       >(),
   ]);
   const shelfCode = new Map((zones ?? []).map((z) => [z.location_id, z.locations?.code ?? '']));
+  const { data: stRow } = await supabase
+    .from('stocktakes')
+    .select('status')
+    .eq('id', id)
+    .maybeSingle<{ status: string }>();
+  const final = stRow?.status === 'closed';
+  const doneShelves = new Set(
+    (zones ?? []).filter((z) => z.status === 'done').map((z) => z.location_id),
+  );
+  const onClosed = (lid: string | null) => final || (!!lid && doneShelves.has(lid));
+  const left = { qty: 0, sum: 0, shelves: 0 };
+  {
+    const leftShelves = new Set<string>();
+    for (const b of book)
+      if (!onClosed(b.location_id)) {
+        left.qty += Number(b.book_qty);
+        left.sum += Number(b.book_qty) * Number(b.unit_cost ?? 0);
+        if (b.location_id) leftShelves.add(b.location_id);
+      }
+    left.shelves = leftShelves.size;
+  }
   const { data: media } = await supabase
     .from('stocktake_media')
     .select('location_id, path, kind')
@@ -125,13 +158,20 @@ export async function stockActData(supabase: SupabaseClient, id: string): Promis
     if (!r) rows.set(pid, (r = { book: 0, counted: 0, cost: null, shelves: new Set() }));
     return r;
   };
+  // A price from any book line (a surplus found on a closed shelf may be
+  // booked on a shelf still open).
+  const price = new Map<string, number>();
+  for (const b of book) if (b.unit_cost != null) price.set(b.product_id, Number(b.unit_cost));
   for (const b of book) {
+    if (!onClosed(b.location_id)) continue;
     const r = row(b.product_id);
     r.book += Number(b.book_qty);
     r.cost = b.unit_cost ?? r.cost;
   }
   const unknown = new Map<string, { qty: number; shelves: Set<string> }>();
   for (const e of entries) {
+    // Lines of a shelf still being counted wait until the shelf is closed.
+    if (!onClosed(e.location_id)) continue;
     const code = e.location_id;
     if (!e.product_id) {
       const k = e.unknown_label ?? '?';
@@ -142,6 +182,7 @@ export async function stockActData(supabase: SupabaseClient, id: string): Promis
       continue;
     }
     const r = row(e.product_id);
+    r.cost = r.cost ?? price.get(e.product_id) ?? null;
     r.counted += Number(e.quantity);
     if (code) r.shelves.add(code);
   }
@@ -257,5 +298,5 @@ export async function stockActData(supabase: SupabaseClient, id: string): Promis
         .filter(Boolean),
     ),
   ] as string[];
-  return { lines, hasCost: lines.some((l) => l.cost != null), totals, team };
+  return { lines, hasCost: lines.some((l) => l.cost != null), totals, team, left, final };
 }

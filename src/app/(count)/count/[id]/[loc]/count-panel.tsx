@@ -413,6 +413,21 @@ export default function CountPanel({
     return () => window.removeEventListener('count-back', on);
   }, []);
 
+  // The phone's own Back (gesture or button) steps back like "← დაბრუნება":
+  // one extra history entry is kept on this page; Back first spends it on a
+  // step on screen, and only when nothing is left goes to the previous page.
+  // The router's own state is copied, so Next.js treats it as this page.
+  useEffect(() => {
+    const trap = () => window.history.pushState({ ...window.history.state, countTrap: true }, '');
+    trap();
+    const onPop = () => {
+      if (backRef.current()) trap();
+      else window.history.back();
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
   /** Back out of the current product (or the new-product form) without saving. */
   function cancel() {
     pendingScan.current = null;

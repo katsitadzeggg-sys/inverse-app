@@ -29,7 +29,7 @@ export default async function StockAct({ params, searchParams }: PageProps<'/man
   if (!st) notFound();
   if (st.kind === 'assets') redirect(`/count/${id}/report`);
 
-  const { lines: all, hasCost, totals: t } = await stockActData(supabase, id);
+  const { lines: all, hasCost, totals: t, left, final } = await stockActData(supabase, id);
   const diffCount = all.filter((l) => l.diff !== 0).length;
   const lines = onlyDiff ? all.filter((l) => l.diff !== 0) : all;
   const date = new Date(st.count_date).toLocaleDateString('ka-GE');
@@ -119,6 +119,14 @@ export default async function StockAct({ params, searchParams }: PageProps<'/man
 
         <BalanceTable id={id} lines={lines} hasCost={hasCost} />
 
+        {!final && left.qty > 0 && (
+          <p className="mx-4 mt-3 rounded-[4px] border border-[#a78bfa] bg-[#f5f3ff] px-3 py-1.5 text-[#5b21b6] print:hidden">
+            ⏳ <b>დარჩენილი</b> — {left.shelves} თარო ჯერ არ დახურულა ·{' '}
+            {left.qty.toLocaleString('ka-GE', { maximumFractionDigits: 2 })} ერთ. ·{' '}
+            {money(left.sum)} ₾. აქტში მხოლოდ დახურული თაროებია; ინვენტარიზაციის დახურვისას ყველა
+            ხაზი ჩაითვლება.
+          </p>
+        )}
         {/* Amounts at the bottom, as in Balance */}
         <div className="flex flex-wrap items-center justify-end gap-x-6 gap-y-2 px-4 py-3">
           <span className="text-[#4a5568]">

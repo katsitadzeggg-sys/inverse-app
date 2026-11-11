@@ -4,6 +4,7 @@ import { mapsLink } from '@/lib/geo';
 import SiteForms from './site-forms';
 import TeamSection from '../team/team-section';
 import DeleteSite from './delete-site';
+import { setSiteModel } from './actions';
 
 export const metadata = { title: 'მართვის პანელი' };
 
@@ -13,6 +14,7 @@ type Site = {
   address: string | null;
   lat: number | null;
   lng: number | null;
+  model_url: string | null;
 };
 
 /**
@@ -24,7 +26,7 @@ export default async function SitesPage() {
   const supabase = await createClient();
   const { data } = await supabase
     .from('sites')
-    .select('id, name, address, lat, lng')
+    .select('id, name, address, lat, lng, model_url')
     .order('name')
     .returns<Site[]>();
   const list = data ?? [];
@@ -68,7 +70,38 @@ export default async function SitesPage() {
                           )}
                         </p>
                       </div>
-                      <DeleteSite id={s.id} />
+                      <div className="flex shrink-0 items-start gap-2">
+                        {/* 🏗 the warehouse in 3D: open it, or set its link. */}
+                        {s.model_url && (
+                          <a
+                            href={s.model_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="rounded-control border border-accent/60 px-2 py-0.5 text-xs font-semibold text-accent"
+                          >
+                            🏗 3D
+                          </a>
+                        )}
+                        <details className="text-xs">
+                          <summary className="text-ink-faint underline">3D ბმული</summary>
+                          <form action={setSiteModel.bind(null, s.id)} className="mt-1 flex gap-1">
+                            <input
+                              name="model_url"
+                              type="url"
+                              defaultValue={s.model_url ?? ''}
+                              placeholder="https://…"
+                              className="w-44 rounded-control border border-rule-strong bg-paper-sunk px-2 py-1"
+                            />
+                            <button
+                              type="submit"
+                              className="rounded-control border border-rule-strong px-2 py-1"
+                            >
+                              ✓
+                            </button>
+                          </form>
+                        </details>
+                        <DeleteSite id={s.id} />
+                      </div>
                     </li>
                   ))}
                 </ul>
