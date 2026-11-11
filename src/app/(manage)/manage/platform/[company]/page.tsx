@@ -1,3 +1,4 @@
+import { appUrlFrom } from '@/lib/app-url';
 import Link from 'next/link';
 import { headers } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
@@ -137,7 +138,7 @@ export default async function PlatformCompany({
   const managers = people.filter((p) => p.role === 'owner' || p.role === 'admin');
   const counters = people.filter((p) => p.role === 'member' || p.role === 'viewer');
   const h = await headers();
-  const appUrl = `${h.get('x-forwarded-proto') ?? 'https'}://${h.get('x-forwarded-host') ?? h.get('host')}`;
+  const appUrl = appUrlFrom(h);
 
   return (
     <div className="grid gap-6 md:grid-cols-[1fr_20rem]">

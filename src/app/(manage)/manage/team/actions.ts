@@ -1,5 +1,6 @@
 'use server';
 
+import { appUrlFrom } from '@/lib/app-url';
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { headers } from 'next/headers';
@@ -51,7 +52,7 @@ export async function inviteMember(_prev: InviteState, formData: FormData): Prom
 
   // The invitation goes out from the company's own mailbox when it is set up.
   const h = await headers();
-  const appUrl = `${h.get('x-forwarded-proto') ?? 'https'}://${h.get('x-forwarded-host') ?? h.get('host')}`;
+  const appUrl = appUrlFrom(h);
   const what = role === 'admin' ? 'მენეჯერად' : 'აღწერის თანამშრომლად';
   const text = `გამარჯობა!\n\n${company.name}-ში ${what} დაგამატეს.\n\nგახსენი ${appUrl}/login და დარეგისტრირდი ამ მეილით: ${email}\n\nInverse`;
   const html = `<div style="font-family:Arial,sans-serif;font-size:15px;color:#0f172a;line-height:1.6">

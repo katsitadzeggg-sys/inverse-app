@@ -1,3 +1,4 @@
+import { appUrlFrom } from '@/lib/app-url';
 import { headers } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
@@ -22,7 +23,7 @@ export default async function TeamSection() {
   const { userId, profile, company } = await requireSession();
   const supabase = await createClient();
   const h = await headers();
-  const appUrl = `${h.get('x-forwarded-proto') ?? 'https'}://${h.get('x-forwarded-host') ?? h.get('host')}`;
+  const appUrl = appUrlFrom(h);
 
   const [{ data: team }, { data: invites }] = await Promise.all([
     supabase.from('user_profiles').select('*').order('created_at').returns<UserProfile[]>(),
