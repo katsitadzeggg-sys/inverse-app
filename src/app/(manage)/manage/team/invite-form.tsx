@@ -101,41 +101,44 @@ export default function InviteForm({
           <p className="font-semibold text-match">
             {state.mailed ? `✓ მოწვევა გაიგზავნა მეილზე: ${state.notice}` : '✓ მოწვევა შენახულია'}
           </p>
-          <p className="text-ink-soft">
-            {state.mailed ? 'სურვილისამებრ, ესეც გაუგზავნე:' : 'გაუგზავნე ეს ტექსტი:'}
-          </p>
-          <p className="select-all rounded-control border border-rule/70 p-2">{message}</p>
-          <div className="grid grid-cols-3 gap-2">
-            <button
-              type="button"
-              className="rounded-control border border-rule-strong px-3 py-2"
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(message);
-                  setCopied(true);
-                } catch {
-                  setCopied(false);
-                }
-              }}
-            >
-              {copied ? '✓ დაკოპირდა' : '📋 კოპირება'}
-            </button>
-            <a
-              href={`https://wa.me/?text=${encodeURIComponent(message)}`}
-              target="_blank"
-              rel="noreferrer"
-              className="rounded-control border border-rule-strong px-3 py-2 text-center"
-            >
-              WhatsApp
-            </a>
-            {/* Opens the manager's own mail app with the letter ready to send. */}
-            <a
-              href={`mailto:${state.notice}?subject=${encodeURIComponent(`მოწვევა — ${company}`)}&body=${encodeURIComponent(message)}`}
-              className="rounded-control border border-rule-strong px-3 py-2 text-center"
-            >
-              ✉ მეილი
-            </a>
-          </div>
+          {/* Sent by mail: nothing more to do. Not sent: the text to pass on by hand. */}
+          {!state.mailed && (
+            <>
+              <p className="text-ink-soft">გაუგზავნე ეს ტექსტი:</p>
+              <p className="select-all rounded-control border border-rule/70 p-2">{message}</p>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  className="rounded-control border border-rule-strong px-3 py-2"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(message);
+                      setCopied(true);
+                    } catch {
+                      setCopied(false);
+                    }
+                  }}
+                >
+                  {copied ? '✓ დაკოპირდა' : '📋 კოპირება'}
+                </button>
+                <a
+                  href={`https://wa.me/?text=${encodeURIComponent(message)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-control border border-rule-strong px-3 py-2 text-center"
+                >
+                  WhatsApp
+                </a>
+                {/* Opens the manager's own mail app with the letter ready to send. */}
+                <a
+                  href={`mailto:${state.notice}?subject=${encodeURIComponent(`მოწვევა — ${company}`)}&body=${encodeURIComponent(message)}`}
+                  className="rounded-control border border-rule-strong px-3 py-2 text-center"
+                >
+                  ✉ მეილი
+                </a>
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>
