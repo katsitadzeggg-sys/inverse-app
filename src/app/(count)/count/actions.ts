@@ -323,7 +323,25 @@ export async function saveZoneNote(
   return { notice: 'შენახულია' };
 }
 
-export type ProductHit = Pick<Product, 'id' | 'sku' | 'barcode' | 'name' | 'variant' | 'unit'>;
+export type ProductHit = Pick<Product, 'id' | 'sku' | 'barcode' | 'name' | 'variant' | 'unit'> & {
+  /** The product's other barcodes (another supplier's, an old one). */
+  codes?: string[];
+};
+
+/** Products a scanned code belongs to as one of their other barcodes. */
+async function altBarcodeProducts(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  companyId: string,
+  code: string,
+): Promise<string[]> {
+  const { data } = await supabase
+    .from('product_barcodes')
+    .select('product_id')
+    .eq('company_id', companyId)
+    .in('barcode', barcodeVariants(code.replace(/[,()%]/g, '')))
+    .limit(5);
+  return (data ?? []).map((r) => r.product_id as string);
+}
 
 /** Exact barcode or SKU first; otherwise a name search. */
 export async function findProducts(query: string): Promise<ProductHit[]> {
@@ -344,6 +362,11 @@ export async function findProducts(query: string): Promise<ProductHit[]> {
     )
     .limit(5);
   if (exact && exact.length) return exact as ProductHit[];
+  const alt = await altBarcodeProducts(supabase, session.company.id, q);
+  if (alt.length) {
+    const { data } = await supabase.from('products').select(cols).in('id', alt).eq('active', true);
+    if (data?.length) return (data as ProductHit[]).map((p) => ({ ...p, codes: [q] }));
+  }
   const { data } = await supabase
     .from('products')
     .select(cols)
@@ -460,7 +483,8 @@ export async function addEntry(
       )
       .limit(1)
       .maybeSingle<{ id: string }>();
-    if (existing) input.productId = existing.id;
+    const [alt] = existing ? [] : await altBarcodeProducts(supabase, session.company.id, barcode);
+    if (existing || alt) input.productId = existing?.id ?? alt;
     else {
       const { data: made, error: pErr } = await supabase
         .from('products')
@@ -775,6 +799,15 @@ export async function importBook(
     ]);
     for (const p of byBarcode ?? []) if (p.barcode) products.set(p.barcode, p.id);
     for (const p of bySku ?? []) products.set(p.sku, p.id);
+    // A product's other barcodes (attached while counting) find it too.
+    const { data: alt } = await supabase
+      .from('product_barcodes')
+      .select('product_id, barcode')
+      .eq('company_id', company)
+      .in('barcode', chunk);
+    for (const a of alt ?? [])
+      if (!products.has(a.barcode as string))
+        products.set(a.barcode as string, a.product_id as string);
   }
   const known = (r: { code: string; barcode: string }) =>
     products.get(r.code) ?? (r.barcode ? products.get(r.barcode) : undefined);
@@ -1099,7 +1132,109 @@ export async function productCatalog(): Promise<ProductHit[]> {
     out.push(...((data ?? []) as ProductHit[]));
     if (!data || data.length < 1000) break;
   }
+  // Other barcodes, so they are recognised with no connection too.
+  const byId = new Map(out.map((p) => [p.id, p]));
+  for (let from = 0; from < 50000; from += 1000) {
+    const { data } = await supabase
+      .from('product_barcodes')
+      .select('product_id, barcode')
+      .eq('company_id', session.company.id)
+      .range(from, from + 999);
+    for (const r of data ?? []) {
+      const p = byId.get(r.product_id as string);
+      if (p) (p.codes ??= []).push(r.barcode as string);
+    }
+    if (!data || data.length < 1000) break;
+  }
   return out;
+}
+
+export type SameMaker = ProductHit & { book: number; counted: number };
+
+/**
+ * An unknown code: products of the same maker (same GS1 company prefix, the
+ * first 7–9 digits) that are on this stocktake's book — not yet counted first,
+ * numerically closest next. Usually the product is among them.
+ */
+export async function sameMakerProducts(stocktakeId: string, code: string): Promise<SameMaker[]> {
+  const session = await requireSession();
+  const digits = code.trim();
+  if (!/^\d{8,14}$/.test(digits)) return [];
+  const supabase = await createClient();
+  const cols = 'id, sku, barcode, name, variant, unit';
+  let prods: ProductHit[] = [];
+  for (const len of [9, 8, 7]) {
+    const { data } = await supabase
+      .from('products')
+      .select(cols)
+      .eq('company_id', session.company.id)
+      .eq('active', true)
+      .like('barcode', `${digits.slice(0, len)}%`)
+      .neq('barcode', digits)
+      .limit(300);
+    prods = (data ?? []) as ProductHit[];
+    if (prods.length >= 3) break;
+  }
+  if (!prods.length) return [];
+  const ids = prods.map((p) => p.id);
+  const [{ data: book }, { data: ent }] = await Promise.all([
+    supabase
+      .from('stocktake_book')
+      .select('product_id, book_qty')
+      .eq('stocktake_id', stocktakeId)
+      .in('product_id', ids),
+    supabase
+      .from('stocktake_entries')
+      .select('product_id, quantity')
+      .eq('stocktake_id', stocktakeId)
+      .in('product_id', ids),
+  ]);
+  const bq = new Map<string, number>();
+  for (const b of book ?? [])
+    bq.set(b.product_id as string, (bq.get(b.product_id as string) ?? 0) + Number(b.book_qty));
+  const cq = new Map<string, number>();
+  for (const e of ent ?? [])
+    cq.set(e.product_id as string, (cq.get(e.product_id as string) ?? 0) + Number(e.quantity));
+  const target = Number(digits.slice(0, 12));
+  const far = (p: ProductHit) => Math.abs(Number((p.barcode ?? '').slice(0, 12)) - target);
+  return prods
+    .filter((p) => bq.has(p.id))
+    .map((p) => ({ ...p, book: bq.get(p.id) ?? 0, counted: cq.get(p.id) ?? 0 }))
+    .sort((a, b) => Number(a.counted >= a.book) - Number(b.counted >= b.book) || far(a) - far(b))
+    .slice(0, 6);
+}
+
+/** "This code is that product": the scanned code becomes one of its barcodes. */
+export async function linkBarcode(productId: string, code: string): Promise<FormState> {
+  const session = await requireSession();
+  if (!session.canWrite) return { error: 'შენს როლს დათვლა არ შეუძლია.' };
+  const barcode = code.trim();
+  if (barcode.length < 3) return { error: 'კოდი ძალიან მოკლეა.' };
+  const supabase = await createClient();
+  const { data: owner } = await supabase
+    .from('products')
+    .select('id, name')
+    .eq('company_id', session.company.id)
+    .eq('active', true)
+    .or(
+      barcodeVariants(barcode.replace(/[,()%]/g, ''))
+        .map((v) => `barcode.eq.${v}`)
+        .join(','),
+    )
+    .limit(1)
+    .maybeSingle<{ id: string; name: string }>();
+  if (owner && owner.id !== productId)
+    return { error: `ეს კოდი უკვე „${owner.name}“-ის ბარკოდია.` };
+  if (owner) return { notice: 'ok' };
+  const { error } = await supabase
+    .from('product_barcodes')
+    .insert({ company_id: session.company.id, product_id: productId, barcode });
+  if (error && !/duplicate|unique/i.test(error.message)) return { error: error.message };
+  if (error) {
+    const [other] = await altBarcodeProducts(supabase, session.company.id, barcode);
+    if (other && other !== productId) return { error: 'ეს კოდი უკვე სხვა პროდუქტს აქვს მიბმული.' };
+  }
+  return { notice: 'ok' };
 }
 
 /** Shelves each product is booked on (codes only), for "this item belongs on another shelf". */

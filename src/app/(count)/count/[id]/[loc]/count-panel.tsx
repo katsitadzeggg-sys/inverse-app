@@ -21,6 +21,7 @@ import {
 import { isOffline, keepCatalog, pendingEntries, queueEntry, storedCatalog } from '@/lib/outbox';
 import ComboInput from '@/components/combo-input';
 import SerialField from './serial-field';
+import ExistingPicker from './existing-picker';
 import { scanFeedback } from '@/lib/haptic';
 import { createClient } from '@/lib/supabase/client';
 
@@ -186,7 +187,12 @@ export default function CountPanel({
   /** Lookup in the products kept on the phone (no connection). */
   function localFind(q: string): ProductHit[] {
     const t = q.trim().toLowerCase();
-    const exact = catalog.filter((p) => sameBarcode(p.barcode, q) || p.sku.toLowerCase() === t);
+    const exact = catalog.filter(
+      (p) =>
+        sameBarcode(p.barcode, q) ||
+        p.sku.toLowerCase() === t ||
+        !!p.codes?.some((c) => sameBarcode(c, q)),
+    );
     if (exact.length) return exact;
     return catalog.filter((p) => p.name.toLowerCase().includes(t)).slice(0, 8);
   }
@@ -326,7 +332,10 @@ export default function CountPanel({
     start(async () => {
       const found = isOffline() ? localFind(q) : await findProducts(q).catch(() => localFind(q));
       const exact = found.find(
-        (p) => sameBarcode(p.barcode, q) || p.sku.toLowerCase() === q.trim().toLowerCase(),
+        (p) =>
+          sameBarcode(p.barcode, q) ||
+          p.sku.toLowerCase() === q.trim().toLowerCase() ||
+          !!p.codes?.some((c) => sameBarcode(c, q)),
       );
       if (exact) {
         openedBy.current = code;
@@ -871,6 +880,22 @@ export default function CountPanel({
                     ✕ დახურვა
                   </button>
                 </div>
+                <ExistingPicker
+                  key={newCode}
+                  stocktakeId={stocktakeId}
+                  code={newCode}
+                  onPick={(p) => {
+                    const code = newCode.trim();
+                    if (code)
+                      setCatalog((all) =>
+                        all.map((x) =>
+                          x.id === p.id ? { ...x, codes: [...(x.codes ?? []), code] } : x,
+                        ),
+                      );
+                    openedBy.current = code || null;
+                    choose(p);
+                  }}
+                />
                 <label className="grid gap-1 text-sm text-ink-soft">
                   დასახელება
                   <input
