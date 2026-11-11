@@ -3,15 +3,26 @@
 import { useState, useTransition } from 'react';
 import readXlsxFile from 'read-excel-file';
 import { Alert } from '@/components/ui';
-import { fmtDate, parseDate } from '@/lib/expiry';
+import { parseDate } from '@/lib/expiry';
 import { importBook, type BookRow } from '../../actions';
 
 type Field =
-  'barcode' | 'code' | 'name' | 'location' | 'qty' | 'unit' | 'cost' | 'expiry' | 'group';
+  | 'barcode'
+  | 'barcode2'
+  | 'code'
+  | 'name'
+  | 'location'
+  | 'qty'
+  | 'unit'
+  | 'cost'
+  | 'expiry'
+  | 'group';
 
 // Header words seen in exports from Balance, FINA, 1C and hand-made sheets.
 const GUESS: Record<Field, RegExp> = {
   barcode: /(შტრიხ|ბარკოდ|barcode|штрих|ean|gtin)/i,
+  barcode2:
+    /((შტრიხ|ბარკოდ|barcode|штрих|ean).*(2|მეორე|დამატ|alt|second|доп)|(მეორე|დამატებით|alt|second|доп).*(შტრიხ|ბარკოდ|barcode|штрих|ean))/i,
   code: /(კოდ|code|sku|არტიკ|артикул|код)/i,
   name: /(დასახ|სახელ|name|наимен|название|პროდუქ|საქონ)/i,
   location: /(თარო|ადგილ|ლოკაც|უჯრ|location|shelf|bin|ячейк|место)/i,
@@ -25,6 +36,7 @@ const GUESS: Record<Field, RegExp> = {
 const LABELS: Record<Field, string> = {
   name: 'დასახელება *',
   barcode: 'შტრიხკოდი *',
+  barcode2: 'მეორე შტრიხკოდი',
   location: 'თაროს ნომერი',
   qty: 'ნაშთი *',
   unit: 'ზომის ერთეული',
@@ -63,6 +75,7 @@ export default function BookImport({
   const [headerRow, setHeaderRow] = useState(0);
   const [map, setMap] = useState<Record<Field, number>>({
     barcode: -1,
+    barcode2: -1,
     code: -1,
     name: -1,
     location: -1,
@@ -112,8 +125,14 @@ export default function BookImport({
     const guess = Object.fromEntries(
       (Object.keys(GUESS) as Field[]).map((f) => [
         f,
-        // "შტრიხკოდი" also contains "კოდ": a barcode column is not the article code.
-        header.findIndex((c) => GUESS[f].test(c) && !(f === 'code' && GUESS.barcode.test(c))),
+        header.findIndex(
+          (c) =>
+            GUESS[f].test(c) &&
+            // "შტრიხკოდი" also contains "კოდ": a barcode column is not the article code;
+            // and the main barcode is not the second one.
+            !(f === 'code' && GUESS.barcode.test(c)) &&
+            !(f === 'barcode' && GUESS.barcode2.test(c)),
+        ),
       ]),
     ) as Record<Field, number>;
     setTable(rows);
@@ -134,17 +153,81 @@ export default function BookImport({
     cost: map.cost >= 0 && r[map.cost] !== '' ? num(r[map.cost]) : null,
     expiry: expiry && map.expiry >= 0 ? parseDate(r[map.expiry]) : null,
     group: cell(r, 'group'),
+    barcode2: cell(r, 'barcode2'),
   }));
   const valid = preview.filter(
     (r) => (r.code.trim() || r.barcode.trim()) && Number.isFinite(r.qty),
   );
+
+  // What the file holds, at a glance (instead of its lines).
+  const sum = (() => {
+    const skus = new Set<string>();
+    const shelves = new Set<string>();
+    const seen = new Set<string>();
+    let qty = 0;
+    let money = 0;
+    const miss = {
+      name: 0,
+      barcode: 0,
+      cost: 0,
+      group: 0,
+      shelf: 0,
+      badQty: 0,
+      neg: 0,
+      zero: 0,
+      dup: 0,
+      second: 0,
+    };
+    for (const r of preview) {
+      if (!Number.isFinite(r.qty)) {
+        miss.badQty += 1;
+        continue;
+      }
+      if (!(r.code.trim() || r.barcode.trim())) continue;
+      const key = r.barcode.trim() || r.code.trim();
+      skus.add(key);
+      const loc = r.location.trim();
+      if (loc && !/^(0+|[-–—]+)$/.test(loc)) shelves.add(loc);
+      else miss.shelf += 1;
+      const k2 = `${key}|${loc}|${r.expiry ?? ''}`;
+      if (seen.has(k2)) miss.dup += 1;
+      seen.add(k2);
+      qty += r.qty;
+      if (r.cost != null && Number.isFinite(r.cost)) money += r.qty * r.cost;
+      else miss.cost += 1;
+      if (!r.name.trim()) miss.name += 1;
+      if (!r.barcode.trim()) miss.barcode += 1;
+      if (!(r.group ?? '').trim()) miss.group += 1;
+      if (r.qty < 0) miss.neg += 1;
+      if (r.qty === 0) miss.zero += 1;
+      if ((r.barcode2 ?? '').trim()) miss.second += 1;
+    }
+    return { skus: skus.size, shelves: shelves.size, qty, money, miss };
+  })();
+  const required: Field[] = ['name', 'barcode', 'qty'];
+  const lacking = required.filter((f) => map[f] < 0 && !(f === 'barcode' && map.code >= 0));
+  const n = (v: number) => v.toLocaleString('ka-GE', { maximumFractionDigits: 2 });
+  const warn: [number, string, 'error' | 'warn'][] = (
+    [
+      [sum.miss.badQty, 'ხაზი ნაშთის გარეშე / არარიცხვითი ნაშთით — არ ჩაიტვირთება', 'error'],
+      [sum.miss.name, 'დასახელების გარეშე', 'warn'],
+      [map.barcode >= 0 ? sum.miss.barcode : 0, 'შტრიხკოდის გარეშე (კოდით ჩაიტვირთება)', 'warn'],
+      [map.cost >= 0 ? sum.miss.cost : 0, 'ფასის გარეშე (თანხაში არ ითვლება)', 'warn'],
+      [map.group >= 0 ? sum.miss.group : 0, 'ჯგუფის გარეშე', 'warn'],
+      [map.location >= 0 ? sum.miss.shelf : 0, 'თაროს გარეშე (მთელ ობიექტს შეედარება)', 'warn'],
+      [sum.miss.neg, 'უარყოფითი ნაშთით', 'warn'],
+      [sum.miss.zero, 'ნულოვანი ნაშთით', 'warn'],
+      [sum.miss.dup, 'განმეორებადი (იგივე კოდი იმავე თაროზე — შეიკრიბება)', 'warn'],
+    ] as [number, string, 'error' | 'warn'][]
+  ).filter(([c]) => c > 0);
 
   return (
     <div className="grid gap-4">
       <label className="grid cursor-pointer gap-2 rounded-control border-2 border-dashed border-rule-strong p-6 text-center">
         <span className="text-base font-semibold">📄 აირჩიე Excel ან CSV ფაილი</span>
         <span className="text-sm text-ink-faint">
-          საჭიროა: დასახელება, შტრიხკოდი, ჯგუფი, ნაშთი, თაროს ნომერი
+          საჭიროა: დასახელება, შტრიხკოდი, ჯგუფი, ნაშთი, თაროს ნომერი; სურვილისამებრ — მეორე
+          შტრიხკოდი, ფასი
           {expiry ? ', ვარგისიანობის ვადა (ყოველ პარტიას თავისი ხაზი)' : ''}. ზომის ერთეული —
           სურვილისამებრ (თუ არ წერია, „ცალი“)
         </span>
@@ -158,66 +241,86 @@ export default function BookImport({
 
       {table && (
         <>
-          <div className="grid gap-2 rounded-control border border-rule/70 p-4">
-            <p className="text-sm font-semibold">სვეტები</p>
-            {(Object.keys(LABELS) as Field[])
-              .filter((f) => expiry || f !== 'expiry')
-              .map((f) => (
-                <label key={f} className="grid grid-cols-[9rem_1fr] items-center gap-2 text-sm">
-                  <span>{LABELS[f]}</span>
-                  <select
-                    value={map[f]}
-                    onChange={(e) => setMap({ ...map, [f]: Number(e.target.value) })}
-                    className="rounded-control border border-rule-strong bg-paper-sunk px-2 py-1.5"
-                  >
-                    <option value={-1}>—</option>
-                    {header.map((c, i) => (
-                      <option key={i} value={i}>
-                        {c || `სვეტი ${i + 1}`}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+          {/* What the file holds: counts, shelves and what is missing. */}
+          <div className="grid gap-3 rounded-control border border-rule/70 p-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {(
+                [
+                  [
+                    'ხაზი',
+                    `${valid.length}${valid.length !== body.length ? ` / ${body.length}` : ''}`,
+                  ],
+                  ['SKU', n(sum.skus)],
+                  ['ჯამური ნაშთი', n(sum.qty)],
+                  ['თარო', map.location >= 0 ? n(sum.shelves) : '—'],
+                  ...(map.cost >= 0 ? [['თანხა', `${n(Math.round(sum.money))} ₾`]] : []),
+                  ...(map.barcode2 >= 0 ? [['მეორე შტრიხკოდი', n(sum.miss.second)]] : []),
+                ] as [string, string][]
+              ).map(([k, v]) => (
+                <div key={k} className="rounded-control bg-paper-sunk px-3 py-2">
+                  <p className="text-xs text-ink-faint">{k}</p>
+                  <p className="text-xl font-semibold tabular-nums">{v}</p>
+                </div>
               ))}
+            </div>
+            {lacking.length > 0 && (
+              <p className="text-sm font-semibold text-mismatch">
+                ✗ ვერ ვიპოვე სვეტი: {lacking.map((f) => LABELS[f].replace(' *', '')).join(', ')} —
+                მიუთითე ქვემოთ.
+              </p>
+            )}
+            {warn.length === 0 && lacking.length === 0 ? (
+              <p className="text-sm text-match">✓ ინფორმაცია სრულია.</p>
+            ) : (
+              <ul className="grid gap-1 text-sm">
+                {warn.map(([c, t, tone]) => (
+                  <li key={t} className={tone === 'error' ? 'text-mismatch' : 'text-review'}>
+                    ⚠ {t}: <b className="tabular-nums">{n(c)}</b>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {(['location', 'group', 'cost', 'barcode2'] as Field[])
+              .filter((f) => map[f] < 0)
+              .map((f) => LABELS[f])
+              .join(', ') && (
+              <p className="text-xs text-ink-faint">
+                ფაილში არ არის:{' '}
+                {(['location', 'group', 'cost', 'barcode2'] as Field[])
+                  .filter((f) => map[f] < 0)
+                  .map((f) => LABELS[f])
+                  .join(', ')}
+                .
+              </p>
+            )}
           </div>
 
-          <div className="overflow-x-auto rounded-control border border-rule/70">
-            <table className="w-full text-sm">
-              <thead className="bg-paper-sunk text-left">
-                <tr>
-                  <th className="p-2">დასახელება</th>
-                  <th className="p-2">შტრიხკოდი</th>
-                  <th className="p-2">თარო</th>
-                  <th className="p-2 text-right">ნაშთი</th>
-                  <th className="p-2">ერთ.</th>
-                  {expiry && <th className="p-2">ვადა</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {preview.slice(0, 8).map((r, i) => (
-                  <tr key={i} className="border-t border-rule/60">
-                    <td className="p-2">{r.name}</td>
-                    <td className="p-2">{r.barcode || r.code}</td>
-                    <td className="p-2">{r.location}</td>
-                    <td
-                      className={`p-2 text-right ${Number.isFinite(r.qty) ? '' : 'text-mismatch'}`}
+          <details open={lacking.length > 0} className="rounded-control border border-rule/70 p-4">
+            <summary className="cursor-pointer text-sm font-semibold">
+              სვეტები — ავტომატურად ამოცნობილი (შეცვლა)
+            </summary>
+            <div className="mt-3 grid gap-2">
+              {(Object.keys(LABELS) as Field[])
+                .filter((f) => expiry || f !== 'expiry')
+                .map((f) => (
+                  <label key={f} className="grid grid-cols-[9rem_1fr] items-center gap-2 text-sm">
+                    <span>{LABELS[f]}</span>
+                    <select
+                      value={map[f]}
+                      onChange={(e) => setMap({ ...map, [f]: Number(e.target.value) })}
+                      className="rounded-control border border-rule-strong bg-paper-sunk px-2 py-1.5"
                     >
-                      {Number.isFinite(r.qty) ? r.qty : '?'}
-                    </td>
-                    <td className="p-2 text-ink-faint">{r.unit || 'ცალი'}</td>
-                    {expiry && (
-                      <td className={`p-2 ${r.expiry ? '' : 'text-review'}`}>
-                        {fmtDate(r.expiry)}
-                      </td>
-                    )}
-                  </tr>
+                      <option value={-1}>—</option>
+                      {header.map((c, i) => (
+                        <option key={i} value={i}>
+                          {c || `სვეტი ${i + 1}`}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                 ))}
-              </tbody>
-            </table>
-            <p className="p-2 text-xs text-ink-faint">
-              სულ {body.length} ხაზი, აქედან სწორი {valid.length}.
-            </p>
-          </div>
+            </div>
+          </details>
 
           <button
             type="button"

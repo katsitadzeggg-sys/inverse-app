@@ -742,6 +742,8 @@ export type BookRow = {
   expiry?: string | null;
   /** Product group (category), e.g. სასმელები. */
   group?: string;
+  /** Another barcode of the same product (another supplier, an old pack). */
+  barcode2?: string;
 };
 
 /** Units as people write them → one spelling. Pieces are the default. */
@@ -891,6 +893,34 @@ export async function importBook(
             .from('products')
             .update({ name: named.get(p.id)! })
             .eq('id', p.id);
+    }
+  }
+
+  // The file's second barcode becomes one of the product's other barcodes
+  // (skipped when it is the product's own code or another product's barcode).
+  {
+    const pairs = new Map<string, string>();
+    for (const r of clean) {
+      const b2 = (r.barcode2 ?? '').trim();
+      const id = known(r);
+      if (id && b2.length >= 3 && b2 !== r.barcode && b2 !== r.code) pairs.set(b2, id);
+    }
+    const codes2 = [...pairs.keys()];
+    for (let i = 0; i < codes2.length; i += 500) {
+      const chunk = codes2.slice(i, i + 500);
+      const { data: taken } = await supabase
+        .from('products')
+        .select('barcode')
+        .eq('company_id', company)
+        .in('barcode', chunk);
+      const own = new Set((taken ?? []).map((t) => t.barcode as string));
+      const rows2 = chunk
+        .filter((b) => !own.has(b))
+        .map((barcode) => ({ company_id: company, product_id: pairs.get(barcode)!, barcode }));
+      if (rows2.length)
+        await supabase
+          .from('product_barcodes')
+          .upsert(rows2, { onConflict: 'company_id,barcode', ignoreDuplicates: true });
     }
   }
 
