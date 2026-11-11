@@ -43,83 +43,89 @@ export default function Lightbox({
   if (!n) return null;
   const m = items[i];
   const nav =
-    'absolute top-1/2 grid h-14 w-14 -translate-y-1/2 place-items-center rounded-full bg-white/15 text-3xl text-white hover:bg-white/30';
+    'absolute top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-black/50 text-2xl text-white hover:bg-white/30';
 
   return (
     <div
       role="dialog"
       aria-modal="true"
       onClick={onClose}
-      className="fixed inset-0 z-50 grid grid-rows-[auto_1fr_auto] bg-black/90 p-3 text-white"
+      className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 text-white"
     >
-      <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
-        <p className="min-w-0 flex-1 truncate text-sm">
-          {title && <b>{title} · </b>}
-          {i + 1} / {n}
-          {m.caption && <span className="text-white/70"> · {m.caption}</span>}
-        </p>
-        <a href={m.url} target="_blank" rel="noreferrer" className="text-sm underline">
-          ⬇ ორიგინალი
-        </a>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="დახურვა (Esc)"
-          className="grid h-10 w-10 place-items-center rounded-full bg-white/15 text-xl hover:bg-white/30"
-        >
-          ✕
-        </button>
+      {/* A window in the middle of the screen, not the whole screen. */}
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="grid h-[min(75vh,36rem)] w-[min(92vw,46rem)] grid-rows-[auto_1fr_auto] rounded-xl bg-[#111827] p-3 shadow-2xl"
+      >
+        <div className="flex items-center gap-3">
+          <p className="min-w-0 flex-1 truncate text-sm">
+            {title && <b>{title} · </b>}
+            {i + 1} / {n}
+            {m.caption && <span className="text-white/70"> · {m.caption}</span>}
+          </p>
+          <a href={m.url} target="_blank" rel="noreferrer" className="text-sm underline">
+            ⬇ ორიგინალი
+          </a>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="დახურვა (Esc)"
+            className="grid h-10 w-10 place-items-center rounded-full bg-white/15 text-xl hover:bg-white/30"
+          >
+            ✕
+          </button>
+        </div>
+        <div className="relative grid min-h-0 place-items-center overflow-hidden rounded-lg bg-black">
+          {m.kind === 'video' ? (
+            <video
+              key={m.url}
+              src={m.url}
+              poster={m.poster ?? undefined}
+              controls
+              autoPlay
+              playsInline
+              onClick={(e) => e.stopPropagation()}
+              className="max-h-full max-w-full"
+            />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              key={m.url}
+              src={m.url}
+              alt=""
+              onClick={(e) => e.stopPropagation()}
+              className="max-h-full max-w-full object-contain"
+            />
+          )}
+          {n > 1 && (
+            <>
+              <button
+                type="button"
+                aria-label="წინა (←)"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setI((v) => (v - 1 + n) % n);
+                }}
+                className={`${nav} left-2`}
+              >
+                ‹
+              </button>
+              <button
+                type="button"
+                aria-label="შემდეგი (→)"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setI((v) => (v + 1) % n);
+                }}
+                className={`${nav} right-2`}
+              >
+                ›
+              </button>
+            </>
+          )}
+        </div>
+        <p className="pt-2 text-center text-xs text-white/60">← → გადასვლა · Esc გამოსვლა</p>
       </div>
-      <div className="relative grid min-h-0 place-items-center">
-        {m.kind === 'video' ? (
-          <video
-            key={m.url}
-            src={m.url}
-            poster={m.poster ?? undefined}
-            controls
-            autoPlay
-            playsInline
-            onClick={(e) => e.stopPropagation()}
-            className="max-h-full max-w-full"
-          />
-        ) : (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            key={m.url}
-            src={m.url}
-            alt=""
-            onClick={(e) => e.stopPropagation()}
-            className="max-h-full max-w-full object-contain"
-          />
-        )}
-        {n > 1 && (
-          <>
-            <button
-              type="button"
-              aria-label="წინა (←)"
-              onClick={(e) => {
-                e.stopPropagation();
-                setI((v) => (v - 1 + n) % n);
-              }}
-              className={`${nav} left-2`}
-            >
-              ‹
-            </button>
-            <button
-              type="button"
-              aria-label="შემდეგი (→)"
-              onClick={(e) => {
-                e.stopPropagation();
-                setI((v) => (v + 1) % n);
-              }}
-              className={`${nav} right-2`}
-            >
-              ›
-            </button>
-          </>
-        )}
-      </div>
-      <p className="pt-2 text-center text-xs text-white/60">← → გადასვლა · Esc გამოსვლა</p>
     </div>
   );
 }
