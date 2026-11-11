@@ -47,9 +47,28 @@ export async function importSites(rows: { name: string; address: string }[]): Pr
   return { notice: `ჩაიტვირთა ${clean.length} საწყობი / ობიექტი.` };
 }
 
-export async function deleteSite(id: string): Promise<void> {
-  await requireSession();
+/**
+ * A warehouse is deleted only when none of its stocktakes is left in the list
+ * (archived ones do not count): otherwise its acts would lose their warehouse.
+ */
+export async function deleteSite(id: string): Promise<FormState> {
+  const { profile } = await requireSession();
+  if (profile.role !== 'owner' && profile.role !== 'admin')
+    return { error: 'მხოლოდ მენეჯერს შეუძლია.' };
   const supabase = await createClient();
-  await supabase.from('sites').delete().eq('id', id);
+  const { data: site } = await supabase.from('sites').select('name').eq('id', id).maybeSingle();
+  if (!site) return { error: 'ვერ მოიძებნა.' };
+  const { count } = await supabase
+    .from('stocktakes')
+    .select('id', { count: 'exact', head: true })
+    .eq('branch', site.name)
+    .is('archived_at', null);
+  if (count)
+    return {
+      error: `„${site.name}“-ს ${count} ინვენტარიზაცია აქვს. ჯერ ისინი გადაიტანე არქივში, მერე წაშალე.`,
+    };
+  const { error } = await supabase.from('sites').delete().eq('id', id);
+  if (error) return { error: error.message };
   revalidatePath('/manage/sites');
+  return { notice: '✓ წაიშალა' };
 }

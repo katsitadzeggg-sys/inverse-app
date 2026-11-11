@@ -820,3 +820,20 @@ select:focus {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Everything clickable shows the hand, so it reads as a button. */
+@layer base {
+  button:not(:disabled),
+  [role='button'],
+  [role='switch'],
+  a[href],
+  summary,
+  select,
+  label:has(input[type='checkbox']),
+  label:has(input[type='radio']),
+  input[type='checkbox'],
+  input[type='radio'],
+  input[type='file'] {
+    cursor: pointer;
+  }
+}

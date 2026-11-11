@@ -43,7 +43,7 @@ export async function inviteMember(_prev: InviteState, formData: FormData): Prom
           .getAll('modules')
           .map(String)
           .filter((m) => all.includes(m));
-  if (!modules.length) return { error: 'აღმწერს ერთი მოდული მაინც მოუნიშნე.' };
+  if (!modules.length) return { error: 'აღწერის თანამშრომელს ერთი მოდული მაინც მოუნიშნე.' };
   const { error } = await supabase
     .from('company_invites')
     .insert({ company_id: company.id, email, role, modules, invited_by: userId });
@@ -52,7 +52,7 @@ export async function inviteMember(_prev: InviteState, formData: FormData): Prom
   // The invitation goes out from the company's own mailbox when it is set up.
   const h = await headers();
   const appUrl = `${h.get('x-forwarded-proto') ?? 'https'}://${h.get('x-forwarded-host') ?? h.get('host')}`;
-  const what = role === 'admin' ? 'მენეჯერად' : 'აღმწერად';
+  const what = role === 'admin' ? 'მენეჯერად' : 'აღწერის თანამშრომლად';
   const text = `გამარჯობა!\n\n${company.name}-ში ${what} დაგამატეს.\n\nგახსენი ${appUrl}/login და დარეგისტრირდი ამ მეილით: ${email}\n\nInverse`;
   const html = `<div style="font-family:Arial,sans-serif;font-size:15px;color:#0f172a;line-height:1.6">
 <p>გამარჯობა!</p>
@@ -80,6 +80,14 @@ export async function removeMember(id: string): Promise<void> {
   revalidatePath('/manage/sites');
 }
 
+/** A deactivated employee back on (no new invite needed). */
+export async function restoreMember(id: string): Promise<void> {
+  await requireSession();
+  const supabase = await createClient();
+  await supabase.rpc('restore_team_member', { p_user: id });
+  revalidatePath('/manage/sites');
+}
+
 /** Which modules a counter may count in. */
 export async function setModules(id: string, formData: FormData): Promise<void> {
   const { profile } = await requireSession();
@@ -93,7 +101,11 @@ export async function setModules(id: string, formData: FormData): Promise<void> 
   const supabase = await createClient();
   await supabase
     .from('user_profiles')
-    .update({ modules, can_open: formData.get('can_open') === '1' })
+    .update({
+      modules,
+      can_open: formData.get('can_open') === '1',
+      can_see_book: formData.get('can_see_book') === '1',
+    })
     .eq('id', id)
     .eq('role', 'member');
   revalidatePath('/manage/sites');

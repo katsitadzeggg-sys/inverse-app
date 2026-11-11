@@ -175,10 +175,14 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
               type="submit"
               role="switch"
               aria-checked={st.show_book}
-              title={st.show_book ? 'დააჭირე — ბრმა დათვლა' : 'დააჭირე — აღმწერს ნაშთი გამოუჩნდება'}
+              title={
+                st.show_book
+                  ? 'დააჭირე — ბრმა დათვლა'
+                  : 'დააჭირე — აღწერის თანამშრომელს ნაშთი გამოუჩნდება'
+              }
               className="flex items-center gap-2 text-sm"
             >
-              👁 აღმწერს ნაშთი უჩანს
+              👁 აღწერის თანამშრომელს ნაშთი უჩანს
               <span
                 className={`relative inline-block h-6 w-11 rounded-full transition ${st.show_book ? 'bg-[#16a34a]' : 'bg-[#dc2626]'}`}
               >
@@ -265,7 +269,7 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
               <thead className="sticky top-0 z-10 bg-paper-sunk text-left text-xs text-ink-faint">
                 <tr>
                   <th className="px-2 py-1">თარო</th>
-                  <th className="px-2 py-1">აღმწერი</th>
+                  <th className="px-2 py-1">აღწერის თანამშრომელი</th>
                   <th className="px-2 py-1">სტატუსი</th>
                   <th className="px-2 py-1 text-right">ჩანაწ.</th>
                   <th className="px-2 py-1 text-right">სხვაობა</th>
@@ -346,7 +350,7 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
       )}
 
       <section className="grid gap-2 rounded-control border border-rule/70 p-3">
-        <h2 className="font-semibold">👷 აღმწერები</h2>
+        <h2 className="font-semibold">👷 აღწერის თანამშრომლები</h2>
         {working.length > 0 && (
           <ul className="grid gap-1 text-sm">
             {working.map((uid) => (
@@ -366,7 +370,7 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
         )}
         {counters.length === 0 ? (
           <p className="text-sm text-ink-soft">
-            გუნდში აღმწერი ჯერ არ არის —{' '}
+            გუნდში აღწერის თანამშრომელი ჯერ არ არის —{' '}
             <Link href="/manage/sites#team" className="underline">
               მოიწვიე
             </Link>

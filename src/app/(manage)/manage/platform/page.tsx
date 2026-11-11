@@ -94,7 +94,7 @@ export default async function PlatformPage() {
         <Stat
           label="მომხმარებელი"
           value={n(sum('people'))}
-          hint={`აღმწერი: ${n(sum('counters'))}`}
+          hint={`აღწერის თანამშრომელი: ${n(sum('counters'))}`}
         />
         <Stat
           label="ინვენტარიზაცია"

@@ -123,7 +123,11 @@ export default async function ManageDashboard() {
           tone={diffs ? 'mismatch' : 'match'}
           hint="გადასათვლელი და გაყინული"
         />
-        <Stat label="გუნდი" value={(team ?? []).length} hint={`აღმწერი: ${counters}`} />
+        <Stat
+          label="გუნდი"
+          value={(team ?? []).length}
+          hint={`აღწერის თანამშრომელი: ${counters}`}
+        />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">

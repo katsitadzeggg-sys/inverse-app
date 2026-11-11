@@ -66,39 +66,52 @@ export default function SiteForms() {
         </Button>
       </form>
 
-      <label className="grid cursor-pointer gap-1 rounded-control border-2 border-dashed border-rule-strong p-4 text-center text-sm">
-        <span className="font-semibold">📄 სია Excel-იდან</span>
-        <span className="text-xs text-ink-faint">
-          პირველი სვეტი — სახელი, მეორე — მისამართი (სათაურის ხაზი გამოტოვდება)
-        </span>
-        <input
-          type="file"
-          accept=".xlsx,.xlsm"
-          className="hidden"
-          onChange={async (e) => {
-            const f = e.target.files?.[0];
-            e.target.value = '';
-            if (!f) return;
-            let rows: string[][];
-            try {
-              rows = (await readXlsxFile(f)).map((r) => r.map((c) => (c == null ? '' : String(c))));
-            } catch {
-              setMsg({
-                error: 'ფაილი ვერ წავიკითხე. გახსენი Excel-ში, შეინახე და თავიდან აირჩიე.',
-              });
-              return;
-            }
-            const body = /სახელ|name|საწყობ|ობიექტ/i.test(rows[0]?.[0] ?? '')
-              ? rows.slice(1)
-              : rows;
-            start(async () =>
-              setMsg(
-                await importSites(body.map((r) => ({ name: r[0] ?? '', address: r[1] ?? '' }))),
-              ),
-            );
-          }}
-        />
-      </label>
+      {/* Many at once: download the template, fill it in, load it back. */}
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="text-ink-soft">📄 სია Excel-ით:</span>
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- a file download, not a page */}
+        <a
+          href="/manage/sites/template"
+          className="rounded-control border border-rule-strong px-3 py-1.5 font-medium"
+        >
+          ⬇ შაბლონი
+        </a>
+        <label
+          title="შაბლონი: A — სახელი, B — მისამართი"
+          className="rounded-control border border-dashed border-rule-strong px-3 py-1.5 font-medium"
+        >
+          ⬆ ატვირთვა
+          <input
+            type="file"
+            accept=".xlsx,.xlsm"
+            className="hidden"
+            onChange={async (e) => {
+              const f = e.target.files?.[0];
+              e.target.value = '';
+              if (!f) return;
+              let rows: string[][];
+              try {
+                rows = (await readXlsxFile(f)).map((r) =>
+                  r.map((c) => (c == null ? '' : String(c))),
+                );
+              } catch {
+                setMsg({
+                  error: 'ფაილი ვერ წავიკითხე. გახსენი Excel-ში, შეინახე და თავიდან აირჩიე.',
+                });
+                return;
+              }
+              const body = /სახელ|name|საწყობ|ობიექტ/i.test(rows[0]?.[0] ?? '')
+                ? rows.slice(1)
+                : rows;
+              start(async () =>
+                setMsg(
+                  await importSites(body.map((r) => ({ name: r[0] ?? '', address: r[1] ?? '' }))),
+                ),
+              );
+            }}
+          />
+        </label>
+      </div>
       {busy && <p className="text-sm text-ink-soft">იტვირთება…</p>}
       {msg.error && <Alert>{msg.error}</Alert>}
       {msg.notice && <Alert tone="info">{msg.notice}</Alert>}

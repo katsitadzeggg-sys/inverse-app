@@ -30,7 +30,7 @@ export default function InviteForm({
   return (
     <div className="grid gap-3 rounded-control border border-rule/70 p-4">
       <form action={action} className="grid gap-3">
-        <p className="text-sm font-semibold">➕ აღმწერის დამატება</p>
+        <p className="text-sm font-semibold">➕ აღწერის თანამშრომლის დამატება</p>
         <label className="grid gap-1 text-sm">
           მეილი
           <input
@@ -51,7 +51,7 @@ export default function InviteForm({
             onChange={(e) => setRole(e.target.value)}
             className={inputClass}
           >
-            <option value="member">აღმწერი — მხოლოდ დათვლა</option>
+            <option value="member">აღწერის თანამშრომელი — მხოლოდ დათვლა</option>
             {isOwner && <option value="admin">მენეჯერი — მართვაც</option>}
           </select>
         </label>

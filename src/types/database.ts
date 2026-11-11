@@ -33,6 +33,7 @@ export type UserProfile = {
   modules: ('stock' | 'expiry' | 'assets')[];
   /** A counter allowed to open stocktakes in their modules. */
   can_open: boolean;
+  can_see_book?: boolean;
   created_at: string;
   updated_at: string;
 };

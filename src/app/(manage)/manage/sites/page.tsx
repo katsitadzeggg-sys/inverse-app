@@ -3,7 +3,7 @@ import { requireSession } from '@/lib/session';
 import { mapsLink } from '@/lib/geo';
 import SiteForms from './site-forms';
 import TeamSection from '../team/team-section';
-import { deleteSite } from './actions';
+import DeleteSite from './delete-site';
 
 export const metadata = { title: 'მართვის პანელი' };
 
@@ -68,11 +68,7 @@ export default async function SitesPage() {
                           )}
                         </p>
                       </div>
-                      <form action={deleteSite.bind(null, s.id)}>
-                        <button type="submit" className="text-xs text-ink-faint underline">
-                          წაშლა
-                        </button>
-                      </form>
+                      <DeleteSite id={s.id} />
                     </li>
                   ))}
                 </ul>

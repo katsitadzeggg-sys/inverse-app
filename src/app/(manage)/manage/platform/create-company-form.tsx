@@ -30,7 +30,7 @@ export default function CreateCompanyForm() {
       </label>
       <p className="text-xs text-ink-faint">
         მენეჯერი დარეგისტრირდება ამ მეილით და პირდაპირ თავის კომპანიაში მოხვდება: ტვირთავს ნაშთს,
-        ხსნის ინვენტარიზაციას, იწვევს აღმწერებს.
+        ხსნის ინვენტარიზაციას, იწვევს აღწერის თანამშრომლებს.
       </p>
       {state.error && <Alert>{state.error}</Alert>}
       <Button type="submit" disabled={pending}>

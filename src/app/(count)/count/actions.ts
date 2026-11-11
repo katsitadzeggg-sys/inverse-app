@@ -1146,7 +1146,7 @@ export async function setShelfQty(
   const others = (rows ?? [])
     .filter((r) => r.counter_id !== session.userId)
     .reduce((t, r) => t + Number(r.quantity), 0);
-  if (qty < others) return { error: `სხვა აღმწერს აქ უკვე ჩაწერილი აქვს ${others}.` };
+  if (qty < others) return { error: `სხვა აღწერის თანამშრომელს აქ უკვე ჩაწერილი აქვს ${others}.` };
   if (mine.length) {
     const { error } = await supabase
       .from('stocktake_entries')

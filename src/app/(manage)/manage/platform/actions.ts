@@ -50,7 +50,7 @@ export async function invite(
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: 'მეილი არასწორია.' };
   if (!['admin', 'member'].includes(role)) return { error: 'როლი აირჩიე.' };
   const modules = role === 'admin' ? MODULES : modulesFrom(formData);
-  if (!modules.length) return { error: 'აღმწერს ერთი მოდული მაინც მოუნიშნე.' };
+  if (!modules.length) return { error: 'აღწერის თანამშრომელს ერთი მოდული მაინც მოუნიშნე.' };
   const supabase = await createClient();
   const { error } = await supabase.rpc('platform_invite', {
     p_company: companyId,

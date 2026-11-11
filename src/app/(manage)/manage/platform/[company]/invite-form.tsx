@@ -38,7 +38,7 @@ export default function InviteForm({
         onChange={(e) => setRole(e.target.value)}
         className={inputClass}
       >
-        <option value="member">აღმწერი — მხოლოდ დათვლა ობიექტზე</option>
+        <option value="member">აღწერის თანამშრომელი — მხოლოდ დათვლა ობიექტზე</option>
         <option value="admin">მენეჯერი — ნაშთი, ინვენტარიზაცია, გუნდი</option>
       </select>
       {role === 'member' && (

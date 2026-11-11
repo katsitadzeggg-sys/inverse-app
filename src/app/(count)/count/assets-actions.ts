@@ -231,7 +231,7 @@ export async function saveAssetCheck(
     ? await supabase.from('asset_checks').update(row).eq('id', existing.id).select('id').single<{ id: string }>()
     : await supabase.from('asset_checks').insert({ ...row, counter_id: session.userId }).select('id').single<{ id: string }>();
   if (res.error) {
-    return { error: res.error.message.includes('closed') ? 'ინვენტარიზაცია დახურულია.' : res.error.message.includes('row-level') ? 'ეს ჩანაწერი სხვა აღმწერს ეკუთვნის.' : res.error.message };
+    return { error: res.error.message.includes('closed') ? 'ინვენტარიზაცია დახურულია.' : res.error.message.includes('row-level') ? 'ეს ჩანაწერი სხვა აღწერის თანამშრომელს ეკუთვნის.' : res.error.message };
   }
   revalidatePath(`/count/${stocktakeId}/${locationId}`);
   return { id: res.data.id, notice: existing ? 'განახლდა' : 'ჩაიწერა' };

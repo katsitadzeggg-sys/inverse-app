@@ -32,7 +32,7 @@ type Invite = {
 const ROLE: Record<string, string> = {
   owner: 'მფლობელი',
   admin: 'მენეჯერი',
-  member: 'აღმწერი',
+  member: 'აღწერის თანამშრომელი',
   viewer: 'მნახველი',
 };
 const when = (d: string | null) =>
@@ -171,7 +171,7 @@ export default async function PlatformCompany({
           )}
         </div>
         <div className="grid gap-2">
-          <h2 className="font-semibold">👷 აღმწერები ({counters.length})</h2>
+          <h2 className="font-semibold">👷 აღწერის თანამშრომლები ({counters.length})</h2>
           {counters.length ? (
             <ul className="grid gap-2">
               {counters.map((m) => (

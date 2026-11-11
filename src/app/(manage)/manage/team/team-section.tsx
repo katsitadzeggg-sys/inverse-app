@@ -3,12 +3,12 @@ import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
 import type { CompanyInvite, UserProfile } from '@/types/database';
 import InviteForm from './invite-form';
-import { cancelInvite, removeMember, setModules } from './actions';
+import { cancelInvite, removeMember, restoreMember, setModules } from './actions';
 
 const ROLE: Record<string, string> = {
   owner: 'მფლობელი',
   admin: 'მენეჯერი',
-  member: 'აღმწერი',
+  member: 'აღწერის თანამშრომელი',
   viewer: 'მნახველი',
 };
 const MOD: [string, string][] = [
@@ -91,6 +91,18 @@ export default async function TeamSection() {
                       />
                       ➕
                     </label>
+                    <label
+                      title="ნაშთის ხედვის უფლება — დათვლისას უჩანს, რამდენი უნდა იყოს"
+                      className="flex items-center gap-0.5"
+                    >
+                      <input
+                        type="checkbox"
+                        name="can_see_book"
+                        value="1"
+                        defaultChecked={m.can_see_book ?? true}
+                      />
+                      👁
+                    </label>
                     <button
                       type="submit"
                       className="rounded-control border border-rule-strong px-2 py-0.5 text-xs"
@@ -103,9 +115,10 @@ export default async function TeamSection() {
                   <form action={removeMember.bind(null, m.id)} className="shrink-0">
                     <button
                       type="submit"
+                      title="შესვლას ვეღარ შეძლებს; სახელი ძველ აქტებზე რჩება. დაბრუნება შეიძლება."
                       className="rounded-control border border-mismatch/40 px-2 py-0.5 text-xs text-mismatch"
                     >
-                      მოხსნა
+                      დეაქტივაცია
                     </button>
                   </form>
                 )}
@@ -140,13 +153,24 @@ export default async function TeamSection() {
 
           {removed.length > 0 && (
             <div className="grid gap-1 text-sm text-ink-faint">
-              <h2 className="font-semibold">მოხსნილი (სახელი რჩება ძველ აქტებზე)</h2>
+              <h2 className="font-semibold">დეაქტივირებული (სახელი რჩება ძველ აქტებზე)</h2>
               {removed.map((m) => (
-                <p key={m.id}>
-                  {m.full_name ?? m.email} · {m.email}
-                </p>
+                <div key={m.id} className="flex flex-wrap items-center gap-2">
+                  <span>
+                    {m.full_name ?? m.email} · {m.email}
+                  </span>
+                  {canRemove(m) && (
+                    <form action={restoreMember.bind(null, m.id)}>
+                      <button
+                        type="submit"
+                        className="rounded-control border border-match/50 px-2 py-0.5 text-xs text-match"
+                      >
+                        ↺ გააქტიურება
+                      </button>
+                    </form>
+                  )}
+                </div>
               ))}
-              <p className="text-xs">დასაბრუნებლად ხელახლა მოიწვიე იმავე მეილზე.</p>
             </div>
           )}
         </div>
