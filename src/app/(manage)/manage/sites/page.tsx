@@ -24,10 +24,12 @@ export default async function SitesPage({ searchParams }: PageProps<'/manage/sit
   return (
     <div className="grid gap-4 rounded-2xl bg-paper-sunk p-5">
       <div className="flex flex-wrap items-center gap-3">
-        <AddDrawer title="საწყობი / ობიექტი" label="ახალი" startOpen={sp.add === '1'}>
-          <SiteForms />
-        </AddDrawer>
         <h1 className="text-xl font-semibold tracking-tight">საწყობები და ობიექტები</h1>
+        <div className="ml-auto">
+          <AddDrawer title="საწყობი / ობიექტი" label="ახალი" startOpen={sp.add === '1'}>
+            <SiteForms />
+          </AddDrawer>
+        </div>
       </div>
       {list.length === 0 ? (
         <p className="text-sm text-ink-faint">

@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 
 /**
- * The page's "+": a round green button at the top left of its table that opens
+ * The page's "+": a round green button on the right above its table that opens
  * the adding form in a drawer from the right, over the table. Esc, ✕ or a click
  * on the shade closes it. `startOpen` opens it on arrival (?add=1 links).
  */

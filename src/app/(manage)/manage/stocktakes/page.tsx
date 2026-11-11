@@ -119,14 +119,6 @@ export default async function ManageHome({ searchParams }: PageProps<'/manage/st
     <div className="grid gap-6 rounded-2xl bg-paper-sunk p-5">
       <section className="grid content-start gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          {/* "+": a new stocktake in a drawer, over the table. */}
-          <AddDrawer title="ახალი ინვენტარიზაცია" label="ახალი" startOpen={sp.add === '1'}>
-            <NewStocktakeForm
-              kind={kind === 'all' ? 'stock' : kind}
-              companyName={company.name}
-              sites={sites ?? []}
-            />
-          </AddDrawer>
           {KINDS.map((t) => (
             <Link
               key={t.kind}
@@ -150,6 +142,16 @@ export default async function ManageHome({ searchParams }: PageProps<'/manage/st
           >
             🗄 არქივი
           </Link>
+          <div className="ml-auto">
+            {/* "+" on the right above the table: a new stocktake, in a drawer. */}
+            <AddDrawer title="ახალი ინვენტარიზაცია" label="ახალი" startOpen={sp.add === '1'}>
+              <NewStocktakeForm
+                kind={kind === 'all' ? 'stock' : kind}
+                companyName={company.name}
+                sites={sites ?? []}
+              />
+            </AddDrawer>
+          </div>
         </div>
         {list.length === 0 && <p className="text-ink-soft">ჯერ არცერთი არ არის.</p>}
         {list.length > 0 && <StocktakesGrid rows={rows} left={leftRows} />}

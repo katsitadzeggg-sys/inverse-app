@@ -43,11 +43,13 @@ export default async function TeamSection() {
   return (
     <section id="team" className="grid min-w-0 content-start gap-4">
       <div className="flex flex-wrap items-center gap-3">
-        {/* "+": invite someone, in a drawer. */}
-        <AddDrawer title="თანამშრომლის მოწვევა" label="მოწვევა">
-          <InviteForm appUrl={appUrl} company={company.name} isOwner={profile.role === 'owner'} />
-        </AddDrawer>
         <h2 className="text-xl font-semibold tracking-tight">თანამშრომლები</h2>
+        {/* "+" on the right above the list: invite someone, in a drawer. */}
+        <div className="ml-auto">
+          <AddDrawer title="თანამშრომლის მოწვევა" label="მოწვევა">
+            <InviteForm appUrl={appUrl} company={company.name} isOwner={profile.role === 'owner'} />
+          </AddDrawer>
+        </div>
       </div>
       <details open className="rounded-control border border-rule p-4">
         <summary className="cursor-pointer text-sm font-semibold text-accent">
