@@ -38,23 +38,22 @@ export default async function ManageHome({ searchParams }: PageProps<'/manage/st
     stocktake_id: string;
     shelves: number;
     shelves_done: number;
-    entries: number;
-    book_lines: number;
-    products: number;
+    skus: number;
+    counted_qty: number;
     plus_qty: number;
     plus_sum: number;
     minus_qty: number;
     minus_sum: number;
   };
   const { data: statRows } = list.length
-    ? await supabase.rpc('stocktake_stats', { p_ids: list.map((s) => s.id) })
+    ? await supabase.rpc('stocktake_stats2', { p_ids: list.map((s) => s.id) })
     : { data: [] };
   const stats = new Map(((statRows ?? []) as Stats[]).map((r) => [r.stocktake_id, r]));
   const n = (v: number) => Number(v).toLocaleString('ka-GE', { maximumFractionDigits: 2 });
   const gel = (v: number) => `${Number(v).toLocaleString('ka-GE', { maximumFractionDigits: 0 })} ₾`;
   // Same columns for the header and every row.
   const cols =
-    'grid grid-cols-[1.5rem_7.5rem_5.5rem_minmax(9rem,1fr)_3.5rem_4.5rem_4rem_4.5rem_8rem_8rem_6.5rem_6.5rem] items-center gap-x-2';
+    'grid grid-cols-[1.5rem_7.5rem_5.5rem_minmax(9rem,1fr)_3.5rem_3.5rem_5rem_8rem_8rem_6.5rem_6.5rem] items-center gap-x-2';
 
   return (
     <div className="grid gap-6">
@@ -93,16 +92,15 @@ export default async function ManageHome({ searchParams }: PageProps<'/manage/st
         {list.length === 0 && <p className="text-ink-soft">ჯერ არცერთი არ არის.</p>}
         {list.length > 0 && (
           <div className="overflow-x-auto">
-            <div className="grid min-w-[1150px] gap-1">
+            <div className="grid min-w-[1050px] gap-1">
               <div className={`${cols} px-3 text-xs text-ink-faint`}>
                 <span />
                 <span>ნომერი</span>
                 <span>თარიღი</span>
                 <span>კლიენტი · ობიექტი</span>
                 <span className="text-right">თარო</span>
+                <span className="text-right">SKU</span>
                 <span className="text-right">პროდუქტი</span>
-                <span className="text-right">ჩანაწ.</span>
-                <span className="text-right">ნაშთის ხაზი</span>
                 <span className="text-right">მეტობა რაოდ. / ₾</span>
                 <span className="text-right">დანაკლისი რაოდ. / ₾</span>
                 <span className="text-right">სხვაობა ₾</span>
@@ -126,12 +124,14 @@ export default async function ManageHome({ searchParams }: PageProps<'/manage/st
                       {s.client_name ?? s.name}
                       {s.branch && <span className="font-normal text-ink-soft"> · {s.branch}</span>}
                     </span>
-                    <span className="text-right">
-                      {t?.shelves_done ?? 0}/{t?.shelves ?? 0}
+                    <span
+                      className="text-right"
+                      title={`დასრულებული ${t?.shelves_done ?? 0} / ${t?.shelves ?? 0}`}
+                    >
+                      {t?.shelves ?? 0}
                     </span>
-                    <span className="text-right">{t?.products ?? 0}</span>
-                    <span className="text-right">{t?.entries ?? 0}</span>
-                    <span className="text-right text-ink-soft">{t?.book_lines ?? 0}</span>
+                    <span className="text-right">{t?.skus ?? 0}</span>
+                    <span className="text-right">{n(t?.counted_qty ?? 0)}</span>
                     <span className="text-right text-[#60a5fa]">
                       {t?.plus_qty ? `+${n(t.plus_qty)} / ${gel(t.plus_sum)}` : '—'}
                     </span>
@@ -141,7 +141,7 @@ export default async function ManageHome({ searchParams }: PageProps<'/manage/st
                     <span
                       className={`text-right font-semibold ${diffSum < 0 ? 'text-[#f87171]' : diffSum > 0 ? 'text-[#60a5fa]' : 'text-ink-faint'}`}
                     >
-                      {t?.book_lines || t?.entries ? gel(diffSum) : '—'}
+                      {t?.plus_qty || t?.minus_qty ? gel(diffSum) : '—'}
                     </span>
                     <span
                       className={`text-right text-xs ${s.status === 'open' ? 'text-review' : 'text-match'}`}
