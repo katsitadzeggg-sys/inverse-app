@@ -343,6 +343,16 @@ async function altBarcodeProducts(
   return (data ?? []).map((r) => r.product_id as string);
 }
 
+/** Words of a name search, each cut to its stem (case endings dropped). */
+function nameStems(q: string): string[] {
+  return q
+    .replace(/[%_\\"'«»„“”()/.,–—-]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => (w.length >= 5 ? w.slice(0, -2) : w.length === 4 ? w.slice(0, -1) : w))
+    .slice(0, 6);
+}
+
 /** Exact barcode or SKU first; otherwise a name search. */
 export async function findProducts(query: string): Promise<ProductHit[]> {
   const session = await requireSession();
@@ -367,14 +377,15 @@ export async function findProducts(query: string): Promise<ProductHit[]> {
     const { data } = await supabase.from('products').select(cols).in('id', alt).eq('active', true);
     if (data?.length) return (data as ProductHit[]).map((p) => ({ ...p, codes: [q] }));
   }
-  const { data } = await supabase
+  // By words, in any order, each by its stem: "ფროში ბროწეულის" finds
+  // "ფროშის … – ბროწეული" (Georgian case endings differ from the name's).
+  let byName = supabase
     .from('products')
     .select(cols)
     .eq('company_id', session.company.id)
-    .eq('active', true)
-    .ilike('name', `%${q.replace(/[%_]/g, '')}%`)
-    .order('name')
-    .limit(8);
+    .eq('active', true);
+  for (const stem of nameStems(q)) byName = byName.ilike('name', `%${stem}%`);
+  const { data } = await byName.order('name').limit(12);
   return (data ?? []) as ProductHit[];
 }
 

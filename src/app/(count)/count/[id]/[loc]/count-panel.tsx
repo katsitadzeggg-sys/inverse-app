@@ -194,7 +194,16 @@ export default function CountPanel({
         !!p.codes?.some((c) => sameBarcode(c, q)),
     );
     if (exact.length) return exact;
-    return catalog.filter((p) => p.name.toLowerCase().includes(t)).slice(0, 8);
+    const stems = t
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((w) => (w.length >= 5 ? w.slice(0, -2) : w.length === 4 ? w.slice(0, -1) : w));
+    return catalog
+      .filter((p) => {
+        const n = p.name.toLowerCase();
+        return stems.every((x) => n.includes(x));
+      })
+      .slice(0, 8);
   }
   const [pending, start] = useTransition();
   const qtyRef = useRef<HTMLInputElement>(null);
