@@ -15,10 +15,7 @@ export default function LoginForm() {
   const next = searchParams.get('next') ?? '/count';
   const linkError = searchParams.get('error');
 
-  const [state, action, pending] = useActionState(
-    mode === 'signin' ? signIn : signUp,
-    EMPTY,
-  );
+  const [state, action, pending] = useActionState(mode === 'signin' ? signIn : signUp, EMPTY);
 
   return (
     <div>
@@ -65,9 +62,7 @@ export default function LoginForm() {
             className={FIELD}
           />
           {mode === 'signup' && (
-            <span className="mt-2 block text-xs text-ink-faint">
-              At least 8 characters.
-            </span>
+            <span className="mt-2 block text-xs text-ink-faint">At least 8 characters.</span>
           )}
         </label>
 

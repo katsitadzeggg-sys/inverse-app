@@ -40,7 +40,8 @@ export function parseDate(input: unknown): string | null {
     return valid(y, +m[1], lastDay(y, +m[1]));
   }
   const d = new Date(s);
-  if (!Number.isNaN(d.getTime()) && /[a-z]/i.test(s)) return valid(d.getFullYear(), d.getMonth() + 1, d.getDate());
+  if (!Number.isNaN(d.getTime()) && /[a-z]/i.test(s))
+    return valid(d.getFullYear(), d.getMonth() + 1, d.getDate());
   return null;
 }
 
@@ -51,19 +52,24 @@ export function parseDate(input: unknown): string | null {
  */
 export function expiryFromText(text: string): string | null {
   const t = text.replace(/[Oo](?=\d)|(?<=\d)[Oo]/g, '0').replace(/[|lI](?=\d{1,2}[./-])/g, '1');
-  const re = /(\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|\d{4}[./-]\d{1,2}[./-]\d{1,2}|\d{1,2}[./-]\d{4}|\d{1,2}[./-]\d{2}(?![./-]?\d))/g;
+  const re =
+    /(\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|\d{4}[./-]\d{1,2}[./-]\d{1,2}|\d{1,2}[./-]\d{4}|\d{1,2}[./-]\d{2}(?![./-]?\d))/g;
   const found: { date: string; index: number }[] = [];
   for (const m of t.matchAll(re)) {
     const date = parseDate(m[0]);
     if (date) found.push({ date, index: m.index ?? 0 });
   }
   if (!found.length) return null;
-  const word = /(exp|e\.?xp|best\s*before|bb|use\s*by|ვარგ|ვარგისია|მიიღეთ|годен|срок|до\b|son\s*kul|skt)/gi;
+  const word =
+    /(exp|e\.?xp|best\s*before|bb|use\s*by|ვარგ|ვარგისია|მიიღეთ|годен|срок|до\b|son\s*kul|skt)/gi;
   for (const w of t.matchAll(word)) {
     const after = found.find((f) => f.index >= (w.index ?? 0) && f.index - (w.index ?? 0) < 40);
     if (after) return after.date;
   }
-  return found.map((f) => f.date).sort().at(-1)!;
+  return found
+    .map((f) => f.date)
+    .sort()
+    .at(-1)!;
 }
 
 /**
@@ -71,7 +77,9 @@ export function expiryFromText(text: string): string | null {
  * means the end of the month). Handles "(01)…(17)…" and the raw form with the
  * FNC1 separator (\u001d). Returns null for a plain barcode.
  */
-export function parseGs1(raw: string): { gtin: string; ean: string; expiry: string | null; batch: string | null } | null {
+export function parseGs1(
+  raw: string,
+): { gtin: string; ean: string; expiry: string | null; batch: string | null } | null {
   const s = raw.replace(/^\]d2|^\]C1|^\]Q3/, '').trim();
   const fields = new Map<string, string>();
   if (s.includes('(')) {
@@ -117,9 +125,15 @@ export const EXPIRY_LABEL: Record<ExpiryStatus, string> = {
 };
 
 /** Status of a batch on the count date: expired, due within 15 or 40 days, fine, unknown. */
-export function expiryStatus(expiry: string | null | undefined, on: string | Date = new Date()): ExpiryStatus {
+export function expiryStatus(
+  expiry: string | null | undefined,
+  on: string | Date = new Date(),
+): ExpiryStatus {
   if (!expiry) return 'unknown';
-  const day = typeof on === 'string' ? on.slice(0, 10) : iso(on.getFullYear(), on.getMonth() + 1, on.getDate());
+  const day =
+    typeof on === 'string'
+      ? on.slice(0, 10)
+      : iso(on.getFullYear(), on.getMonth() + 1, on.getDate());
   const days = Math.round((Date.parse(expiry) - Date.parse(day)) / 86400000);
   if (days < 0) return 'expired';
   if (days <= 15) return 'd15';
@@ -127,4 +141,5 @@ export function expiryStatus(expiry: string | null | undefined, on: string | Dat
   return 'ok';
 }
 
-export const fmtDate = (d: string | null | undefined) => (d ? `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}` : '—');
+export const fmtDate = (d: string | null | undefined) =>
+  d ? `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}` : '—';

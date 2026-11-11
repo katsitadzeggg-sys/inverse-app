@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { Alert, inputClass } from '@/components/ui';
+import ProductPhoto from './product-photo';
 import Scanner from '../../scanner';
 import {
   addEntry,
@@ -823,6 +824,7 @@ export default function CountPanel({
                 className={`${inputClass} text-base`}
               />
             )}
+            {product && <ProductPhoto key={product.id} productId={product.id} />}
             {newBarcode && !product && (
               <div className="grid gap-2">
                 {!cameraOn && (

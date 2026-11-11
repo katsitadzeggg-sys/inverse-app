@@ -17,7 +17,11 @@ export type CaptionInfo = {
 };
 
 export function captionLines(c: CaptionInfo): string[] {
-  const date = c.when.toLocaleDateString('ka-GE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const date = c.when.toLocaleDateString('ka-GE', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
   const time = c.when.toLocaleTimeString('ka-GE', { hour: '2-digit', minute: '2-digit' });
   const lines = [
     `${date} ${time} · ${c.author}`,
@@ -30,7 +34,13 @@ export function captionLines(c: CaptionInfo): string[] {
   return lines;
 }
 
-function burn(source: CanvasImageSource, w: number, h: number, lines: string[], maxSide = 2560): Promise<Blob> {
+function burn(
+  source: CanvasImageSource,
+  w: number,
+  h: number,
+  lines: string[],
+  maxSide = 2560,
+): Promise<Blob> {
   const scale = Math.min(1, maxSide / Math.max(w, h));
   const cw = Math.round(w * scale);
   const ch = Math.round(h * scale);
@@ -51,7 +61,8 @@ function burn(source: CanvasImageSource, w: number, h: number, lines: string[], 
   ctx.textBaseline = 'top';
   ctx.font = `600 ${font}px -apple-system, "Noto Sans Georgian", "Segoe UI", sans-serif`;
   lines.forEach((line, i) => {
-    if (i === 1) ctx.font = `400 ${font}px -apple-system, "Noto Sans Georgian", "Segoe UI", sans-serif`;
+    if (i === 1)
+      ctx.font = `400 ${font}px -apple-system, "Noto Sans Georgian", "Segoe UI", sans-serif`;
     ctx.fillText(line, pad, ch + pad + i * Math.round(font * 1.35), cw - pad * 2);
   });
   return new Promise((resolve, reject) =>
@@ -85,20 +96,26 @@ export async function videoPoster(file: Blob, lines: string[]): Promise<Blob> {
   video.preload = 'auto';
   // iPhone Safari decodes frames only for a video that is in the page and has
   // played; keep it tiny and out of sight.
-  video.style.cssText = 'position:fixed;left:-9999px;top:0;width:2px;height:2px;opacity:0;pointer-events:none';
+  video.style.cssText =
+    'position:fixed;left:-9999px;top:0;width:2px;height:2px;opacity:0;pointer-events:none';
   document.body.appendChild(video);
   video.src = url;
   video.load();
   const wait = (ev: string, ms: number) =>
     new Promise<boolean>((resolve) => {
       const t = setTimeout(() => resolve(false), ms);
-      video.addEventListener(ev, () => {
-        clearTimeout(t);
-        resolve(true);
-      }, { once: true });
+      video.addEventListener(
+        ev,
+        () => {
+          clearTimeout(t);
+          resolve(true);
+        },
+        { once: true },
+      );
     });
   try {
-    if (video.readyState < 1 && !(await wait('loadedmetadata', 10000))) throw new Error('video metadata');
+    if (video.readyState < 1 && !(await wait('loadedmetadata', 10000)))
+      throw new Error('video metadata');
     // A short play makes Safari produce a picture; then stop on an early frame.
     await video.play().catch(() => {});
     if (video.readyState < 2) await wait('loadeddata', 5000);

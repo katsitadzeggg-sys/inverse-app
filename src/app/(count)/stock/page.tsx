@@ -13,4 +13,9 @@ export default function StockHome() {
   return <CounterHome app="stock" />;
 }
 
-export const viewport = { width: 'device-width', initialScale: 1, maximumScale: 1, themeColor: '#1b120b' };
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  themeColor: '#1b120b',
+};

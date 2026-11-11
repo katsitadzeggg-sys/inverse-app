@@ -32,9 +32,7 @@ export function buildUserPrompt(
   const rows = catalogue
     .map((entry) => {
       const parts = [
-        `- SKU ${entry.sku}: ${[entry.brand, entry.name, entry.variant]
-          .filter(Boolean)
-          .join(' ')}`,
+        `- SKU ${entry.sku}: ${[entry.brand, entry.name, entry.variant].filter(Boolean).join(' ')}`,
         `  expected: ${entry.expected_quantity} ${entry.unit}`,
       ];
       if (entry.visual_notes) parts.push(`  looks like: ${entry.visual_notes}`);

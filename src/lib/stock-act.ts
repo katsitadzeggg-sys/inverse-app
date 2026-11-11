@@ -19,8 +19,10 @@ export type ActLine = {
   comment: string;
   /** The product's group (category). */
   group: string;
-  /** Shelves it was counted on; media = photos/videos of that shelf. */
+  /** Shelves it was counted on; media = the shelf's own photos/videos. */
   shelves: { id: string; code: string; media: number }[];
+  /** Link to the photo taken of this very product (new products), if any. */
+  photo: string | null;
 };
 
 export type ActData = {
@@ -95,11 +97,12 @@ export async function stockActData(supabase: SupabaseClient, id: string): Promis
   const shelfCode = new Map((zones ?? []).map((z) => [z.location_id, z.locations?.code ?? '']));
   const { data: media } = await supabase
     .from('stocktake_media')
-    .select('location_id')
+    .select('location_id, path')
     .eq('stocktake_id', id)
-    .returns<{ location_id: string }[]>();
+    .returns<{ location_id: string; path: string }[]>();
   const mediaCount = new Map<string, number>();
-  for (const m of media ?? [])
+  // Photos of single lines (new products) are not the shelf's photos.
+  for (const m of (media ?? []).filter((x) => !/\/product-[^/]+$/.test(x.path)))
     mediaCount.set(m.location_id, (mediaCount.get(m.location_id) ?? 0) + 1);
   const shelfList = (ids: Set<string>) =>
     [...ids]
@@ -139,14 +142,38 @@ export async function stockActData(supabase: SupabaseClient, id: string): Promis
   const ids = [...rows.keys()];
   const info = new Map<
     string,
-    { name: string; sku: string; barcode: string | null; unit: string; category_id: string | null }
+    {
+      name: string;
+      sku: string;
+      barcode: string | null;
+      unit: string;
+      category_id: string | null;
+      image_url: string | null;
+    }
   >();
   for (let i = 0; i < ids.length; i += 300) {
     const { data } = await supabase
       .from('products')
-      .select('id, name, sku, barcode, unit, category_id')
+      .select('id, name, sku, barcode, unit, category_id, image_url')
       .in('id', ids.slice(i, i + 300));
     for (const p of data ?? []) info.set(p.id, p);
+  }
+  // Product photos of counted products, as links that work for a week.
+  const photoOf = new Map<string, string>();
+  {
+    const want = [...rows.entries()]
+      .filter(([pid, r]) => r.counted && info.get(pid)?.image_url)
+      .map(([pid]) => [pid, info.get(pid)!.image_url!] as const);
+    const stored = want.filter(([, path]) => !/^https?:\/\//.test(path));
+    for (const [pid, path] of want) if (/^https?:\/\//.test(path)) photoOf.set(pid, path);
+    for (let i = 0; i < stored.length; i += 100) {
+      const part = stored.slice(i, i + 100);
+      const { data } = await supabase.storage.from('stocktake-media').createSignedUrls(
+        part.map(([, path]) => path),
+        60 * 60 * 24 * 7,
+      );
+      (data ?? []).forEach((d, j) => d.signedUrl && photoOf.set(part[j][0], d.signedUrl));
+    }
   }
   const { data: cats } = await supabase.from('categories').select('id, name');
   const catName = new Map((cats ?? []).map((c) => [c.id as string, c.name as string]));
@@ -167,6 +194,7 @@ export async function stockActData(supabase: SupabaseClient, id: string): Promis
         comment: '',
         group: p?.category_id ? (catName.get(p.category_id) ?? '') : '',
         shelves: shelfList(r.shelves),
+        photo: photoOf.get(pid) ?? null,
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name, 'ka'));
@@ -184,6 +212,7 @@ export async function stockActData(supabase: SupabaseClient, id: string): Promis
       comment: 'უცნობი პროდუქტი',
       group: '',
       shelves: shelfList(u.shelves),
+      photo: null,
     });
   lines.forEach((l, i) => (l.n = i + 1));
 

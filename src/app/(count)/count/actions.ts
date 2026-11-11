@@ -504,6 +504,8 @@ export async function addEntry(
     expiry_date:
       input.expiryDate && /^\d{4}-\d{2}-\d{2}$/.test(input.expiryDate) ? input.expiryDate : null,
     counter_id: session.userId,
+    // The photo taken for this very line (new product) stays with the line.
+    photo_path: input.newPhoto ?? null,
   });
   if (error)
     return {
@@ -511,6 +513,33 @@ export async function addEntry(
     };
   revalidatePath(`/count/${stocktakeId}/${locationId}`);
   return { notice: 'ჩაიწერა' };
+}
+
+/** The product's photo (taken when it was added), for "🖼 photo" while counting. */
+export async function productPhoto(productId: string): Promise<string | null> {
+  await requireSession();
+  const supabase = await createClient();
+  const { data: p } = await supabase
+    .from('products')
+    .select('image_url')
+    .eq('id', productId)
+    .maybeSingle<{ image_url: string | null }>();
+  let path = p?.image_url ?? null;
+  if (!path) {
+    const { data: e } = await supabase
+      .from('stocktake_entries')
+      .select('photo_path')
+      .eq('product_id', productId)
+      .not('photo_path', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle<{ photo_path: string }>();
+    path = e?.photo_path ?? null;
+  }
+  if (!path) return null;
+  if (/^https?:\/\//.test(path)) return path;
+  const { data } = await supabase.storage.from('stocktake-media').createSignedUrl(path, 60 * 30);
+  return data?.signedUrl ?? null;
 }
 
 export async function deleteEntry(
@@ -964,6 +993,9 @@ export async function setStocktakeStatus(
     .eq('id', stocktakeId);
   revalidatePath(`/manage/${stocktakeId}`);
   revalidatePath('/manage');
+  revalidatePath('/manage/stocktakes');
+  // Closed: straight back to the list.
+  if (status === 'closed') redirect('/manage/stocktakes');
 }
 
 /** Archive (hide everywhere, keep all data) or bring back from the archive. */
@@ -980,7 +1012,10 @@ export async function setStocktakeArchived(stocktakeId: string, archived: boolea
     .eq('id', stocktakeId);
   revalidatePath(`/manage/${stocktakeId}`);
   revalidatePath('/manage');
+  revalidatePath('/manage/stocktakes');
   revalidatePath('/count');
+  // Archived: straight back to the list.
+  if (archived) redirect('/manage/stocktakes');
 }
 
 /** The manager picks who counts in this stocktake. Nobody ticked = whole team. */

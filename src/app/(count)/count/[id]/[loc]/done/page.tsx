@@ -62,12 +62,18 @@ export default async function ShelfDonePage({ params }: PageProps<'/count/[id]/[
         .returns<{ status: string }[]>(),
       supabase
         .from('stocktake_media')
-        .select('id, path, kind, poster_path')
+        .select('id, path, kind, poster_path, caption')
         .eq('stocktake_id', id)
         .eq('location_id', loc)
         .order('created_at')
         .returns<
-          { id: string; path: string; kind: 'photo' | 'video'; poster_path: string | null }[]
+          {
+            id: string;
+            path: string;
+            kind: 'photo' | 'video';
+            poster_path: string | null;
+            caption: string | null;
+          }[]
         >(),
     ]);
 
@@ -90,7 +96,7 @@ export default async function ShelfDonePage({ params }: PageProps<'/count/[id]/[
         : `გამოვლინდა ${differences} სხვაობა`;
   const statement =
     `${isAssets ? 'ოთახი' : 'თარო'} აღწერილია. ${counter?.full_name ?? counter?.email ?? ''}, ${when.toLocaleDateString('ka-GE')} ` +
-    `${when.toLocaleTimeString('ka-GE', { hour: '2-digit', minute: '2-digit' })}, ` +
+    `${when.toLocaleTimeString('ka-GE', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tbilisi' })}, ` +
     `${st.client_name ?? st.name}${st.branch ? ` / ${st.branch}` : ''}, ${isAssets ? 'ოთახი' : 'თარო'} ${location.code}. ${result}.`;
 
   // Where the shelf was opened, and how far that is from the warehouse point.
@@ -110,9 +116,20 @@ export default async function ShelfDonePage({ params }: PageProps<'/count/[id]/[
         ? ((await supabase.storage.from('stocktake-media').createSignedUrl(m.poster_path, 60 * 30))
             .data?.signedUrl ?? null)
         : null;
-      return { id: m.id, path: m.path, kind: m.kind, url: data?.signedUrl ?? '', poster };
+      return {
+        id: m.id,
+        path: m.path,
+        kind: m.kind,
+        url: data?.signedUrl ?? '',
+        poster,
+        caption: m.caption,
+      };
     }),
   );
+  // The shelf's own photos (taken at the end) apart from photos of single lines.
+  const isLineShot = (m: { path: string }) => /\/product-[^/]+$/.test(m.path);
+  const shelfShots = signed.filter((m) => !isLineShot(m));
+  const productShots = signed.filter(isLineShot);
   // Stock: the differences of this shelf — book against what was counted.
   type Diff = { name: string; code: string; diff: number; home?: string | null };
   let diffs: Diff[] = [];
@@ -225,8 +242,43 @@ export default async function ShelfDonePage({ params }: PageProps<'/count/[id]/[
           company={st.client_name ?? st.name}
           branch={st.branch}
           shelf={location.code}
-          items={signed}
+          items={shelfShots}
         />
+      )}
+
+      {/* Photos taken for single lines (new products), each with its line. */}
+      {productShots.length > 0 && (
+        <section className="grid gap-2 rounded-control border border-rule/70 p-3">
+          <p className="font-semibold">🆕 პოზიციების ფოტოები ({productShots.length})</p>
+          <ul className="grid gap-2 sm:grid-cols-2">
+            {productShots.map((m) => (
+              <li key={m.id} className="grid grid-cols-[5rem_1fr] items-center gap-3">
+                {m.kind === 'video' ? (
+                  <video
+                    src={m.url}
+                    poster={m.poster ?? undefined}
+                    controls
+                    playsInline
+                    preload="none"
+                    className="aspect-square w-20 rounded-control bg-black object-cover"
+                  />
+                ) : (
+                  <a href={m.url} target="_blank" rel="noreferrer">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={m.url}
+                      alt=""
+                      className="aspect-square w-20 rounded-control object-cover"
+                    />
+                  </a>
+                )}
+                <span className="text-sm">
+                  {(m.caption ?? '').replace(/^ახალი პროდუქტი:\s*/, '')}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       {canEdit ? (

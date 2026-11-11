@@ -30,11 +30,7 @@ export default async function ProductsPage({ searchParams }: PageProps<'/product
       .returns<LevelRow[]>(),
   ]);
 
-  let productQuery = supabase
-    .from('product_stock')
-    .select('*')
-    .eq('active', true)
-    .order('sku');
+  let productQuery = supabase.from('product_stock').select('*').eq('active', true).order('sku');
 
   if (query) {
     // Postgres `or` filter — matches SKU, name or brand.
@@ -109,9 +105,7 @@ export default async function ProductsPage({ searchParams }: PageProps<'/product
               <tbody className="divide-y divide-rule/50">
                 {products.map((product) => (
                   <tr key={product.product_id} className="align-top">
-                    <td className="py-3 pr-4 font-mono text-xs text-ink-soft">
-                      {product.sku}
-                    </td>
+                    <td className="py-3 pr-4 font-mono text-xs text-ink-soft">{product.sku}</td>
                     <td className="py-3 pr-4">
                       <p className="font-medium">
                         {[product.brand, product.name].filter(Boolean).join(' ')}
@@ -120,14 +114,10 @@ export default async function ProductsPage({ searchParams }: PageProps<'/product
                         <p className="text-xs text-ink-faint">{product.variant}</p>
                       )}
                       {product.barcode && (
-                        <p className="font-mono text-xs text-ink-faint">
-                          {product.barcode}
-                        </p>
+                        <p className="font-mono text-xs text-ink-faint">{product.barcode}</p>
                       )}
                     </td>
-                    <td className="py-3 pr-4 text-ink-soft">
-                      {product.category_name ?? '—'}
-                    </td>
+                    <td className="py-3 pr-4 text-ink-soft">{product.category_name ?? '—'}</td>
                     <td
                       className={`py-3 pr-4 text-right font-semibold tabular-nums ${
                         product.is_low_stock ? 'text-review' : 'text-ink'

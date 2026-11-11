@@ -416,31 +416,94 @@ body {
 }
 
 /* Proforma invoice (pricing calculator): only the sheet prints. */
-body.invoice-open { overflow: hidden; }
+body.invoice-open {
+  overflow: hidden;
+}
 @media print {
-  @page { size: A4; margin: 14mm; }
-  body.invoice-open { overflow: visible; background: #fff !important; }
-  body.invoice-open > *:not(.invoice-overlay) { display: none !important; }
-  body.invoice-open .invoice-overlay { position: static; background: none; padding: 0; overflow: visible; }
-  body.invoice-open .invoice-sheet { max-width: none; box-shadow: none; padding: 0; }
-  body.invoice-open .no-print { display: none; }
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+  body.invoice-open {
+    overflow: visible;
+    background: #fff !important;
+  }
+  body.invoice-open > *:not(.invoice-overlay) {
+    display: none !important;
+  }
+  body.invoice-open .invoice-overlay {
+    position: static;
+    background: none;
+    padding: 0;
+    overflow: visible;
+  }
+  body.invoice-open .invoice-sheet {
+    max-width: none;
+    box-shadow: none;
+    padding: 0;
+  }
+  body.invoice-open .no-print {
+    display: none;
+  }
 }
 
 /* Register demo: printing shows only the register table (rendered into body). */
-.registry-print-root { display: none; }
+.registry-print-root {
+  display: none;
+}
 @media print {
-  body.registry-printing { background: #fff !important; }
-  body.registry-printing > *:not(.registry-print-root) { display: none !important; }
-  body.registry-printing .registry-print-root { display: block; color: #0f172a; font-size: 10pt; }
-  .registry-print-root h1 { font-size: 16pt; font-weight: 600; margin: 0 0 4pt; }
-  .registry-print-root > p { color: #475569; margin: 0 0 10pt; }
-  .registry-print-root table { width: 100%; border-collapse: collapse; }
-  .registry-print-root th, .registry-print-root td { border-bottom: 1px solid #cbd5e1; padding: 5pt 6pt; text-align: left; vertical-align: middle; }
-  .registry-print-root th { font-weight: 600; background: #f1f5f9; }
-  .registry-print-root .thumb { width: 52px; height: 39px; object-fit: cover; border-radius: 3px; }
-  .registry-print-root .num { text-align: right; font-variant-numeric: tabular-nums; }
-  .registry-print-root .note { color: #64748b; font-size: 8.5pt; }
-  .registry-print-root tr { break-inside: avoid; }
+  body.registry-printing {
+    background: #fff !important;
+  }
+  body.registry-printing > *:not(.registry-print-root) {
+    display: none !important;
+  }
+  body.registry-printing .registry-print-root {
+    display: block;
+    color: #0f172a;
+    font-size: 10pt;
+  }
+  .registry-print-root h1 {
+    font-size: 16pt;
+    font-weight: 600;
+    margin: 0 0 4pt;
+  }
+  .registry-print-root > p {
+    color: #475569;
+    margin: 0 0 10pt;
+  }
+  .registry-print-root table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .registry-print-root th,
+  .registry-print-root td {
+    border-bottom: 1px solid #cbd5e1;
+    padding: 5pt 6pt;
+    text-align: left;
+    vertical-align: middle;
+  }
+  .registry-print-root th {
+    font-weight: 600;
+    background: #f1f5f9;
+  }
+  .registry-print-root .thumb {
+    width: 52px;
+    height: 39px;
+    object-fit: cover;
+    border-radius: 3px;
+  }
+  .registry-print-root .num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .registry-print-root .note {
+    color: #64748b;
+    font-size: 8.5pt;
+  }
+  .registry-print-root tr {
+    break-inside: avoid;
+  }
 }
 
 /* Home hero slider (components/marketing/hero-slider.tsx). The slides share
@@ -458,12 +521,16 @@ body.invoice-open { overflow: hidden; }
   padding: 4rem 0 3rem;
   opacity: 0;
   visibility: hidden;
-  transition: opacity 0.9s ease, visibility 0s linear 0.9s;
+  transition:
+    opacity 0.9s ease,
+    visibility 0s linear 0.9s;
 }
 .hero-slide.is-active {
   opacity: 1;
   visibility: visible;
-  transition: opacity 0.9s ease, visibility 0s;
+  transition:
+    opacity 0.9s ease,
+    visibility 0s;
 }
 .hero-slide .hero-slide-copy {
   transform: translateY(14px);
@@ -522,7 +589,9 @@ body.invoice-open { overflow: hidden; }
   border-radius: 999px;
   border: 1px solid var(--color-rule-strong);
   color: var(--color-ink-soft);
-  transition: border-color 0.2s, color 0.2s;
+  transition:
+    border-color 0.2s,
+    color 0.2s;
 }
 .hero-arrow:hover {
   border-color: var(--color-accent);
@@ -552,19 +621,34 @@ body.invoice-open { overflow: hidden; }
   animation: none;
 }
 @keyframes hero-dot-fill {
-  from { transform: scaleX(0); }
-  to { transform: scaleX(1); }
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
 }
 .hero-expiry-row {
   animation: hero-expiry-pulse 4.5s ease-in-out infinite;
 }
 @keyframes hero-expiry-pulse {
-  0%, 70%, 100% { background: transparent; }
-  80% { background: color-mix(in srgb, var(--color-accent) 12%, transparent); }
+  0%,
+  70%,
+  100% {
+    background: transparent;
+  }
+  80% {
+    background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  }
 }
 @media (prefers-reduced-motion: reduce) {
-  .hero-slide, .hero-slide .hero-slide-copy { transition: none; }
-  .hero-expiry-row { animation: none; }
+  .hero-slide,
+  .hero-slide .hero-slide-copy {
+    transition: none;
+  }
+  .hero-expiry-row {
+    animation: none;
+  }
 }
 
 /* CSS 3D warehouse (components/marketing/warehouse-3d.tsx). */
@@ -589,8 +673,12 @@ body.invoice-open { overflow: hidden; }
   animation: wh-turn 26s linear infinite;
 }
 @keyframes wh-turn {
-  from { --wh-rz: -30deg; }
-  to { --wh-rz: 330deg; }
+  from {
+    --wh-rz: -30deg;
+  }
+  to {
+    --wh-rz: 330deg;
+  }
 }
 .wh-floor {
   position: absolute;
@@ -600,7 +688,9 @@ body.invoice-open { overflow: hidden; }
     repeating-linear-gradient(90deg, transparent 0 59px, rgba(255, 255, 255, 0.05) 59px 60px),
     repeating-linear-gradient(0deg, transparent 0 59px, rgba(255, 255, 255, 0.05) 59px 60px),
     #0e4466;
-  box-shadow: 0 0 0 2px #15608c, 0 30px 60px rgba(0, 0, 0, 0.45);
+  box-shadow:
+    0 0 0 2px #15608c,
+    0 30px 60px rgba(0, 0, 0, 0.45);
 }
 .wh-rack {
   position: absolute;
@@ -625,7 +715,8 @@ body.invoice-open { overflow: hidden; }
   height: var(--h);
   background:
     linear-gradient(0deg, #9fb0c0 0 3px, transparent 3px) 0 0 / 100% 33.4%,
-    repeating-linear-gradient(90deg, #f0a24a 0 16px, #e0882c 16px 18px, transparent 18px 23px) 4px 6px / calc(100% - 8px) 33.4%,
+    repeating-linear-gradient(90deg, #f0a24a 0 16px, #e0882c 16px 18px, transparent 18px 23px) 4px
+      6px / calc(100% - 8px) 33.4%,
     #dfe8f0;
   border: 1px solid #a9b9c8;
 }
@@ -673,11 +764,15 @@ body.invoice-open { overflow: hidden; }
   border-radius: 6px;
   background: #0b1220;
   color: #fff;
-  font: 800 15px/1.1 var(--font-hero), system-ui, sans-serif;
+  font:
+    800 15px/1.1 var(--font-hero),
+    system-ui,
+    sans-serif;
   letter-spacing: 0.04em;
   white-space: nowrap;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
-  transform: translate(-50%, -50%) translateZ(calc(var(--h) + 44px)) rotateZ(calc(var(--wh-rz) * -1)) rotateX(-58deg);
+  transform: translate(-50%, -50%) translateZ(calc(var(--h) + 44px))
+    rotateZ(calc(var(--wh-rz) * -1)) rotateX(-58deg);
 }
 .wh-rack.is-found .wh-tag {
   background: #38bdf8;
@@ -685,7 +780,11 @@ body.invoice-open { overflow: hidden; }
   animation: wh-ping 1.6s ease-in-out infinite;
 }
 @keyframes wh-ping {
-  50% { box-shadow: 0 0 0 6px rgba(56, 189, 248, 0.35), 0 2px 8px rgba(0, 0, 0, 0.35); }
+  50% {
+    box-shadow:
+      0 0 0 6px rgba(56, 189, 248, 0.35),
+      0 2px 8px rgba(0, 0, 0, 0.35);
+  }
 }
 @media (max-width: 48rem) {
   .wh-stage {
@@ -696,7 +795,9 @@ body.invoice-open { overflow: hidden; }
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .wh-scene { animation-duration: 90s; }
+  .wh-scene {
+    animation-duration: 90s;
+  }
 }
 
 /* Home slider titles: plain, clean sans in the body face (29.10, after
@@ -709,12 +810,13 @@ body.invoice-open { overflow: hidden; }
   color: #f8fafc;
 }
 
-
 /*
   Every field people type into is white with dark text and a dark, blinking
   cursor, on every screen — easy to see on the dark theme, also outdoors.
 */
-input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='hidden']):not([type='range']):not([type='color']),
+input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='hidden']):not(
+    [type='range']
+  ):not([type='color']),
 textarea,
 select {
   background-color: #ffffff !important;
@@ -772,12 +874,25 @@ select:focus {
 
 /* Stock act: printing shows only the act. */
 @media print {
-  @page { size: A4; margin: 12mm; }
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
   body:has(#stock-act) header,
-  body:has(#stock-act) .no-print { display: none !important; }
-  body:has(#stock-act) main { padding: 0 !important; max-width: none !important; }
-  body:has(#stock-act) #stock-act { padding: 0 !important; max-width: none !important; }
-  body:has(#stock-act) { background: #fff !important; }
+  body:has(#stock-act) .no-print {
+    display: none !important;
+  }
+  body:has(#stock-act) main {
+    padding: 0 !important;
+    max-width: none !important;
+  }
+  body:has(#stock-act) #stock-act {
+    padding: 0 !important;
+    max-width: none !important;
+  }
+  body:has(#stock-act) {
+    background: #fff !important;
+  }
 }
 
 /* Manager backdrop: the blue ring takes the colours of the three apps in turn —
@@ -786,13 +901,26 @@ select:focus {
   animation: brand-ring-hue 18s ease-in-out infinite;
 }
 @keyframes brand-ring-hue {
-  0%, 25% { filter: hue-rotate(190deg) saturate(1.3); }   /* 📦 მარაგები */
-  33%, 58% { filter: hue-rotate(-55deg) saturate(1.2); }  /* 🏷 ძირ. საშუალებები */
-  66%, 91% { filter: hue-rotate(153deg) saturate(1.3); }  /* ⏳ ვადები */
-  100% { filter: hue-rotate(190deg) saturate(1.3); }
+  0%,
+  25% {
+    filter: hue-rotate(190deg) saturate(1.3);
+  } /* 📦 მარაგები */
+  33%,
+  58% {
+    filter: hue-rotate(-55deg) saturate(1.2);
+  } /* 🏷 ძირ. საშუალებები */
+  66%,
+  91% {
+    filter: hue-rotate(153deg) saturate(1.3);
+  } /* ⏳ ვადები */
+  100% {
+    filter: hue-rotate(190deg) saturate(1.3);
+  }
 }
 @media (prefers-reduced-motion: reduce) {
-  .brand-ring { animation: none; }
+  .brand-ring {
+    animation: none;
+  }
 }
 
 /* Dashboard tiles: white and see-through over the navy ground. */

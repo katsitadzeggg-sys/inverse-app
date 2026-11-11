@@ -22,9 +22,7 @@ export async function createLocation(
   const parentId = String(formData.get('parent_id') ?? '').trim() || null;
 
   if (!code || !name) return { error: 'Code and name are both required.' };
-  const kind = KINDS.includes(kindValue as LocationKind)
-    ? (kindValue as LocationKind)
-    : 'shelf';
+  const kind = KINDS.includes(kindValue as LocationKind) ? (kindValue as LocationKind) : 'shelf';
 
   const supabase = await createClient();
   const { error } = await supabase.from('locations').insert({
@@ -37,10 +35,7 @@ export async function createLocation(
 
   if (error) {
     return {
-      error:
-        error.code === '23505'
-          ? `Location code ${code} is already in use.`
-          : error.message,
+      error: error.code === '23505' ? `Location code ${code} is already in use.` : error.message,
     };
   }
 

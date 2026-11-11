@@ -34,15 +34,17 @@ export default async function StockAct({ params, searchParams }: PageProps<'/man
   const lines = onlyDiff ? all.filter((l) => l.diff !== 0) : all;
   const date = new Date(st.count_date).toLocaleDateString('ka-GE');
   // Closed: the date and hour it was finished, in the title.
-  const finished = st.closed_at
-    ? new Date(st.closed_at).toLocaleString('ka-GE', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      })
-    : null;
+  const stamp = (t: string) =>
+    new Date(t).toLocaleString('ka-GE', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Asia/Tbilisi',
+    });
+  const finished = st.closed_at ? stamp(st.closed_at) : null;
+  const opened = stamp(st.created_at);
   const field = 'rounded-[3px] border border-[#b9c2ce] bg-white px-2 py-1';
 
   return (
@@ -70,7 +72,8 @@ export default async function StockAct({ params, searchParams }: PageProps<'/man
         {/* Title bar, as in Balance */}
         <div className="flex flex-wrap items-center gap-3 border-b border-[#c5ccd6] bg-white px-4 py-3">
           <h1 className="text-lg font-semibold">
-            ინვენტარიზაცია {st.number} - {finished ? `დასრულდა ${finished}` : date}
+            ინვენტარიზაცია {st.number} · გაიხსნა {opened}
+            {finished && ` · დასრულდა ${finished}`}
           </h1>
           <span className="text-sm text-[#2f855a] print:hidden">
             {st.status === 'open' ? '● მიმდინარე' : '✓ დახურული'}

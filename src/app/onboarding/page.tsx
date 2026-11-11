@@ -25,10 +25,16 @@ export default async function OnboardingPage() {
         <div className="w-full max-w-md text-center">
           <h1 className="text-2xl font-semibold tracking-tight">წვდომა გაუქმებულია</h1>
           <p className="mt-2 text-sm text-ink-soft">
-            კომპანიის მენეჯერმა წვდომა მოგიხსნა. თუ ეს შეცდომაა, სთხოვე, ხელახლა მოგიწვიოს იმავე მეილზე ({user.email}).
+            კომპანიის მენეჯერმა წვდომა მოგიხსნა. თუ ეს შეცდომაა, სთხოვე, ხელახლა მოგიწვიოს იმავე
+            მეილზე ({user.email}).
           </p>
           <form action="/auth/signout" method="post" className="mt-6">
-            <button type="submit" className="rounded-control border border-rule-strong px-4 py-2 text-sm">გასვლა</button>
+            <button
+              type="submit"
+              className="rounded-control border border-rule-strong px-4 py-2 text-sm"
+            >
+              გასვლა
+            </button>
           </form>
         </div>
       </main>
@@ -42,11 +48,14 @@ export default async function OnboardingPage() {
       <div className="w-full max-w-md text-center">
         <h1 className="text-2xl font-semibold tracking-tight">მოწვევა საჭიროა</h1>
         <p className="mt-2 text-sm text-ink-soft">
-          ამ მეილზე ({user.email}) მოწვევა არ მოიძებნა. სთხოვე მენეჯერს, ზუსტად ამ მეილზე მოგიწვიოს, და
-          თავიდან შედი. ახალი კომპანიის გასახსნელად დაგვიკავშირდი: info@inverse.ge
+          ამ მეილზე ({user.email}) მოწვევა არ მოიძებნა. სთხოვე მენეჯერს, ზუსტად ამ მეილზე მოგიწვიოს,
+          და თავიდან შედი. ახალი კომპანიის გასახსნელად დაგვიკავშირდი: info@inverse.ge
         </p>
         <form action="/auth/signout" method="post" className="mt-6">
-          <button type="submit" className="rounded-control border border-rule-strong px-4 py-2 text-sm">
+          <button
+            type="submit"
+            className="rounded-control border border-rule-strong px-4 py-2 text-sm"
+          >
             გასვლა
           </button>
         </form>

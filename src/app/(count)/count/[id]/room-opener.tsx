@@ -25,7 +25,9 @@ export default function RoomOpener({
 }) {
   const [state, action, pending] = useActionState(openZone.bind(null, stocktakeId), EMPTY);
   const [room, setRoom] = useState('');
-  const [pos, setPos] = useState<{ lat: number; lng: number; accuracy: number } | null | undefined>(undefined);
+  const [pos, setPos] = useState<{ lat: number; lng: number; accuracy: number } | null | undefined>(
+    undefined,
+  );
   useEffect(() => {
     currentPosition().then(setPos);
   }, []);
@@ -67,11 +69,17 @@ export default function RoomOpener({
           ))}
         </div>
       )}
-      <button type="submit" disabled={pending || !room.trim()} className="rounded-control bg-match px-4 py-4 text-xl font-semibold text-white disabled:opacity-50">
+      <button
+        type="submit"
+        disabled={pending || !room.trim()}
+        className="rounded-control bg-match px-4 py-4 text-xl font-semibold text-white disabled:opacity-50"
+      >
         {pending ? '…' : close ? '▶ შემდეგი ოთახი' : '▶ აღწერის დაწყება'}
       </button>
       {/* Only a problem is worth a line: location switched off. */}
-      {pos === null && <LocationStatus pos={pos} onRetry={async () => setPos(await currentPosition(8000))} />}
+      {pos === null && (
+        <LocationStatus pos={pos} onRetry={async () => setPos(await currentPosition(8000))} />
+      )}
       {state.error && <Alert>{state.error}</Alert>}
     </form>
   );

@@ -31,7 +31,6 @@ const display = localFont({
   adjustFontFallback: false,
 });
 
-
 export const metadata: Metadata = {
   metadataBase: new URL(APP_URL),
   title: { default: 'Inverse', template: '%s · Inverse' },
@@ -43,10 +42,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<'/'>) {
   return (
-        <html
-      lang="ka-GE"
-      className={`${body.variable} ${display.variable} h-full`}
-    >
+    <html lang="ka-GE" className={`${body.variable} ${display.variable} h-full`}>
       <body className="flex min-h-full flex-col">{children}</body>
     </html>
   );

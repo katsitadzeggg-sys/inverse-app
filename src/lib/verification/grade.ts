@@ -22,10 +22,7 @@ export type GradedObservation = {
  * or a barcode scan — is made here, where it can be reasoned about and changed
  * without re-prompting.
  */
-export function grade(
-  observation: ShelfObservation,
-  expected: number | null,
-): GradedObservation {
+export function grade(observation: ShelfObservation, expected: number | null): GradedObservation {
   const base = {
     sku: observation.sku,
     expected,

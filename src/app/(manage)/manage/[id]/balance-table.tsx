@@ -44,14 +44,15 @@ export default function BalanceTable({
             <th className={th}>სერიული ნომერი</th>
             <th className={th}>ნომენკლატურა</th>
             <th className={th}>ჯგუფი</th>
-            <th className={th}>ძირითადი შტრიხკოდი</th>
+            <th className={th}>ბარკოდი</th>
             <th className={th}>ერთ.</th>
             {hasCost && <th className={`${th} text-right`}>ფასი</th>}
+            <th className={`${th} text-right`}>ფაქტ. რაოდენობა</th>
             <th className={`${th} text-right`}>ბუღალტრული ნაშთი</th>
             <th className={`${th} text-right`}>სხვაობა (რაოდ.)</th>
-            <th className={`${th} text-right`}>ფაქტ. რაოდენობა</th>
             {hasCost && <th className={`${th} text-right`}>სხვაობის თანხა</th>}
-            <th className={th}>თარო · ფოტო/ვიდეო</th>
+            <th className={th}>ფოტო</th>
+            <th className={th}>თარო · თაროს ფოტო</th>
             <th className={th}>კომენტარები</th>
           </tr>
         </thead>
@@ -69,19 +70,32 @@ export default function BalanceTable({
                   {l.cost != null ? money(l.cost) : ''}
                 </td>
               )}
+              <td className={`${td} text-right font-semibold tabular-nums`}>{q4(l.counted)}</td>
               <td className={`${td} text-right tabular-nums`}>{q4(l.book)}</td>
               <td
                 className={`${td} text-right tabular-nums ${l.diff < 0 ? 'text-[#c53030]' : l.diff > 0 ? 'text-[#2b6cb0]' : 'text-[#a0aec0]'}`}
               >
                 {q4(l.diff)}
               </td>
-              <td className={`${td} text-right font-semibold tabular-nums`}>{q4(l.counted)}</td>
-
               {hasCost && (
                 <td className={`${td} text-right tabular-nums`}>
                   {l.diff && l.cost != null ? money(l.diff * l.cost) : ''}
                 </td>
               )}
+              {/* The photo taken of this very product (separate from the shelf's photos). */}
+              <td className={`${td} text-center`}>
+                {l.photo && (
+                  <a
+                    href={l.photo}
+                    target="_blank"
+                    rel="noreferrer"
+                    title="პოზიციის ფოტო — გახსნა"
+                    className="text-[#2b6cb0]"
+                  >
+                    🖼
+                  </a>
+                )}
+              </td>
               <td className={td}>
                 <span className="flex flex-wrap gap-x-2 gap-y-0.5">
                   {l.shelves.map((sh) => (
@@ -108,10 +122,11 @@ export default function BalanceTable({
             <td className={td} colSpan={hasCost ? 7 : 6}>
               სულ
             </td>
+            <td className={`${td} text-right tabular-nums`}>{q4(t.counted)}</td>
             <td className={`${td} text-right tabular-nums`}>{q4(t.book)}</td>
             <td className={`${td} text-right tabular-nums`}>{q4(t.diff)}</td>
-            <td className={`${td} text-right tabular-nums`}>{q4(t.counted)}</td>
             {hasCost && <td className={`${td} text-right tabular-nums`}>{money(t.sum)}</td>}
+            <td className={td} />
             <td className={td} />
             <td className={td} />
           </tr>

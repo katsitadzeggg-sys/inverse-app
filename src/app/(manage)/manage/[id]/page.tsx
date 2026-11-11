@@ -258,7 +258,7 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
                       className={`px-2 py-1 ${z.status === 'done' ? 'text-match' : 'text-review'}`}
                     >
                       {z.status === 'done'
-                        ? `✓ ${new Date(z.done_at ?? z.started_at).toLocaleTimeString('ka-GE', { hour: '2-digit', minute: '2-digit' })}`
+                        ? `✓ ${new Date(z.done_at ?? z.started_at).toLocaleTimeString('ka-GE', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tbilisi' })}`
                         : 'ითვლება'}
                     </td>
                     <td className="px-2 py-1 text-right tabular-nums">
@@ -320,9 +320,7 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
             type="submit"
             className="rounded-control border border-rule-strong px-4 py-3 text-sm"
           >
-            {st.status === 'open'
-              ? '🔒 დახურვა — დათვლა დასრულდა'
-              : '↺ ხელახლა გახსნა — დათვლის გაგრძელება'}
+            {st.status === 'open' ? '🔒 დახურვა' : '↺ ხელახლა გახსნა'}
           </button>
         </form>
         <form action={setStocktakeArchived.bind(null, id, !st.archived_at)}>
@@ -330,7 +328,7 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
             type="submit"
             className="rounded-control border border-rule-strong px-4 py-3 text-sm text-ink-soft"
           >
-            {st.archived_at ? '↩ არქივიდან დაბრუნება' : '🗄 არქივში — სიიდან მოშორება'}
+            {st.archived_at ? '↩ არქივიდან დაბრუნება' : '🗄 არქივში გადატანა'}
           </button>
         </form>
       </div>

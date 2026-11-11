@@ -11,21 +11,35 @@ export default async function RegisterPage({ params }: PageProps<'/count/[id]/re
   const { profile } = await requireSession();
   if (profile.role !== 'owner' && profile.role !== 'admin') redirect(`/count/${id}`);
   const supabase = await createClient();
-  const { data: stocktake } = await supabase.from('stocktakes').select('*').eq('id', id).maybeSingle<Stocktake>();
+  const { data: stocktake } = await supabase
+    .from('stocktakes')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle<Stocktake>();
   if (!stocktake) notFound();
-  const { count } = await supabase.from('asset_register').select('id', { count: 'exact', head: true }).eq('stocktake_id', id);
+  const { count } = await supabase
+    .from('asset_register')
+    .select('id', { count: 'exact', head: true })
+    .eq('stocktake_id', id);
 
   return (
     <div className="grid gap-5">
       <div>
-        <Link href={`/manage/${id}`} className="inline-flex w-fit items-center gap-2 rounded-control border border-rule-strong px-4 py-2 text-base font-medium text-ink">← დაბრუნება</Link>
+        <Link
+          href={`/manage/${id}`}
+          className="inline-flex w-fit items-center gap-2 rounded-control border border-rule-strong px-4 py-2 text-base font-medium text-ink"
+        >
+          ← დაბრუნება
+        </Link>
         <h1 className="mt-1 text-xl font-semibold">ძირითადი საშუალებების რეესტრი</h1>
         <p className="text-sm text-ink-soft">
-          {count ? `ახლა ჩატვირთულია ${count} პოზიცია. ახალი ფაილი ძველს ჩაანაცვლებს.` : 'რეესტრი ჯერ არ არის ჩატვირთული.'}
+          {count
+            ? `ახლა ჩატვირთულია ${count} პოზიცია. ახალი ფაილი ძველს ჩაანაცვლებს.`
+            : 'რეესტრი ჯერ არ არის ჩატვირთული.'}
         </p>
         <p className="mt-2 text-sm text-ink-faint">
-          აღწერის თანამშრომელი ეტიკეტს ასკანერებს და ხედავს დასახელებას და ოთახს. რაც რეესტრშია და არავინ დაასკანერა, დაკარგულში
-          გავა; რაც დაასკანერეს და რეესტრში არ არის, მეტობაში.
+          აღწერის თანამშრომელი ეტიკეტს ასკანერებს და ხედავს დასახელებას და ოთახს. რაც რეესტრშია და
+          არავინ დაასკანერა, დაკარგულში გავა; რაც დაასკანერეს და რეესტრში არ არის, მეტობაში.
         </p>
       </div>
       <RegisterImport stocktakeId={id} />

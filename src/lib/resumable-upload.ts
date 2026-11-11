@@ -29,11 +29,20 @@ export async function resumableUpload(
     const upload = new Upload(file, {
       endpoint: `https://${host}/storage/v1/upload/resumable`,
       retryDelays: [0, 2000, 5000, 10000, 20000, 30000],
-      headers: { authorization: `Bearer ${session.access_token}`, apikey: supabaseAnonKey(), 'x-upsert': 'false' },
+      headers: {
+        authorization: `Bearer ${session.access_token}`,
+        apikey: supabaseAnonKey(),
+        'x-upsert': 'false',
+      },
       uploadDataDuringCreation: true,
       removeFingerprintOnSuccess: true,
       chunkSize: 6 * 1024 * 1024, // Supabase requires exactly 6 MB parts
-      metadata: { bucketName: bucket, objectName: path, contentType: file.type || 'video/mp4', cacheControl: '3600' },
+      metadata: {
+        bucketName: bucket,
+        objectName: path,
+        contentType: file.type || 'video/mp4',
+        cacheControl: '3600',
+      },
       onError: (e) => reject(e),
       onProgress: (sent, total) => onProgress(Math.round((sent / total) * 100)),
       onSuccess: () => resolve(),

@@ -28,11 +28,7 @@ export default async function CheckDetailPage({ params }: PageProps<'/checks/[id
       .eq('check_id', id)
       .order('status')
       .returns<InventoryCheckItem[]>(),
-    supabase
-      .from('check_summary')
-      .select('*')
-      .eq('id', id)
-      .maybeSingle<CheckSummary>(),
+    supabase.from('check_summary').select('*').eq('id', id).maybeSingle<CheckSummary>(),
     // The bucket is private; hand the browser a short-lived signed URL instead.
     supabase.storage.from('inventory-checks').createSignedUrl(check.image_path, 60 * 10),
   ]);
@@ -59,6 +55,7 @@ export default async function CheckDetailPage({ params }: PageProps<'/checks/[id
             {new Date(check.started_at).toLocaleString('en-GB', {
               dateStyle: 'medium',
               timeStyle: 'short',
+              timeZone: 'Asia/Tbilisi',
             })}
             {check.model && ` · ${check.model}`}
           </p>
@@ -130,9 +127,7 @@ export default async function CheckDetailPage({ params }: PageProps<'/checks/[id
                     <tr key={row.id} className="align-top">
                       <td className="py-3 pr-4">
                         <p className="font-medium">{row.product_label}</p>
-                        {row.notes && (
-                          <p className="mt-0.5 text-xs text-ink-faint">{row.notes}</p>
-                        )}
+                        {row.notes && <p className="mt-0.5 text-xs text-ink-faint">{row.notes}</p>}
                         {row.needs_barcode && (
                           <p className="mt-0.5 text-xs text-review">
                             Scan the barcode to confirm which variant this is.
@@ -146,9 +141,7 @@ export default async function CheckDetailPage({ params }: PageProps<'/checks/[id
                         {row.detected_qty ?? '—'}
                       </td>
                       <td className="py-3 pr-4 text-right tabular-nums text-ink-faint">
-                        {row.confidence === null
-                          ? '—'
-                          : `${Math.round(row.confidence * 100)}%`}
+                        {row.confidence === null ? '—' : `${Math.round(row.confidence * 100)}%`}
                       </td>
                       <td className="py-3">
                         <MatchBadge status={row.status} />
@@ -170,9 +163,7 @@ export default async function CheckDetailPage({ params }: PageProps<'/checks/[id
               className="w-full rounded-control border border-rule"
             />
           ) : (
-            <p className="text-sm text-ink-faint">
-              The photo is no longer available in storage.
-            </p>
+            <p className="text-sm text-ink-faint">The photo is no longer available in storage.</p>
           )}
           {check.input_tokens !== null && (
             <p className="mt-3 text-xs text-ink-faint">

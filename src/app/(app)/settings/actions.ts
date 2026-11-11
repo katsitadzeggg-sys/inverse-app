@@ -19,10 +19,7 @@ export async function renameCompany(
   if (name.length < 2) return { error: 'Enter a company name.' };
 
   const supabase = await createClient();
-  const { error } = await supabase
-    .from('companies')
-    .update({ name })
-    .eq('id', profile.company_id);
+  const { error } = await supabase.from('companies').update({ name }).eq('id', profile.company_id);
 
   if (error) return { error: error.message };
 

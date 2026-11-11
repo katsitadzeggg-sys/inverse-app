@@ -6,9 +6,7 @@ import { z } from 'zod';
  * verdict happens in `grade.ts`, so the rule is deterministic and auditable.
  */
 export const ShelfObservationSchema = z.object({
-  sku: z
-    .string()
-    .describe('SKU from the provided catalogue, or "UNKNOWN" for an item not in it'),
+  sku: z.string().describe('SKU from the provided catalogue, or "UNKNOWN" for an item not in it'),
   detected_quantity: z
     .number()
     .int()
@@ -36,9 +34,7 @@ export const ShelfAnalysisSchema = z.object({
   image_quality: z
     .enum(['good', 'fair', 'poor'])
     .describe('Whether the photo is clear enough to count from'),
-  summary: z
-    .string()
-    .describe('One or two sentences a warehouse operator would find useful'),
+  summary: z.string().describe('One or two sentences a warehouse operator would find useful'),
 });
 
 export type ShelfObservation = z.infer<typeof ShelfObservationSchema>;

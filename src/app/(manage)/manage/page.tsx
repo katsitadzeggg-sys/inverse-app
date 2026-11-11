@@ -16,6 +16,7 @@ const time = (v: string) =>
     day: '2-digit',
     month: '2-digit',
     hour: '2-digit',
+    timeZone: 'Asia/Tbilisi',
     minute: '2-digit',
   });
 

@@ -6,9 +6,7 @@ import { isSupabaseConfigured, supabaseAnonKey, supabaseUrl } from '@/lib/env';
 const PUBLIC_PATHS = ['/login', '/auth', '/api/keepalive'];
 
 function isPublic(pathname: string) {
-  return PUBLIC_PATHS.some(
-    (path) => pathname === path || pathname.startsWith(`${path}/`),
-  );
+  return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
 }
 
 /** Refreshes the auth cookie and gates the app routes behind a session. */

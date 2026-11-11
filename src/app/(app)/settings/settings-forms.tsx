@@ -38,9 +38,9 @@ export default function SettingsForms({
 
       <Card title="Demo data">
         <p className="text-sm text-ink-faint">
-          Loads a small catalogue — two near-identical hairbrush lines and a cosmetics
-          shelf — so you can try the verification flow before importing anything real.
-          It refuses to run if the workspace already has products.
+          Loads a small catalogue — two near-identical hairbrush lines and a cosmetics shelf — so
+          you can try the verification flow before importing anything real. It refuses to run if the
+          workspace already has products.
         </p>
         <form action={demoAction} className="mt-4 space-y-4">
           {demoState.error && <Alert>{demoState.error}</Alert>}

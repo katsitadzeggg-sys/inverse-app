@@ -62,19 +62,16 @@ export default async function ChecksPage() {
                           month: 'short',
                           year: 'numeric',
                           hour: '2-digit',
+                          timeZone: 'Asia/Tbilisi',
                           minute: '2-digit',
                         })}
                       </Link>
                     </td>
                     <td className="py-3 pr-4">
-                      <span className="font-mono text-xs text-ink-soft">
-                        {check.location_code}
-                      </span>{' '}
+                      <span className="font-mono text-xs text-ink-soft">{check.location_code}</span>{' '}
                       {check.location_name}
                     </td>
-                    <td className="py-3 pr-4 text-ink-faint">
-                      {check.created_by_name ?? '—'}
-                    </td>
+                    <td className="py-3 pr-4 text-ink-faint">{check.created_by_name ?? '—'}</td>
                     <td className="py-3 pr-4">
                       <CheckBadge status={check.status} />
                     </td>

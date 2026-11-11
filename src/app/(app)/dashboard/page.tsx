@@ -1,13 +1,7 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
-import {
-  ButtonLink,
-  Card,
-  CheckBadge,
-  EmptyState,
-  Stat,
-} from '@/components/ui';
+import { ButtonLink, Card, CheckBadge, EmptyState, Stat } from '@/components/ui';
 import type { CheckSummary, Location, ProductStock } from '@/types/database';
 
 export const metadata = { title: 'Dashboard' };
@@ -17,6 +11,7 @@ function formatDate(value: string) {
     day: '2-digit',
     month: 'short',
     hour: '2-digit',
+    timeZone: 'Asia/Tbilisi',
     minute: '2-digit',
   });
 }
@@ -45,10 +40,7 @@ export default async function DashboardPage() {
   const lowStock = products.filter((p) => p.is_low_stock);
   const units = products.reduce((sum, p) => sum + p.total_quantity, 0);
   const recentChecks = checks ?? [];
-  const openIssues = recentChecks.reduce(
-    (sum, c) => sum + c.mismatch_count + c.partial_count,
-    0,
-  );
+  const openIssues = recentChecks.reduce((sum, c) => sum + c.mismatch_count + c.partial_count, 0);
 
   if (products.length === 0) {
     return (
@@ -109,9 +101,7 @@ export default async function DashboardPage() {
           }
         >
           {lowStock.length === 0 ? (
-            <p className="text-sm text-ink-faint">
-              Every product is above its reorder point.
-            </p>
+            <p className="text-sm text-ink-faint">Every product is above its reorder point.</p>
           ) : (
             <ul className="divide-y divide-rule/70">
               {lowStock.slice(0, 8).map((product) => (
@@ -126,9 +116,7 @@ export default async function DashboardPage() {
                     <p className="text-sm font-semibold tabular-nums text-review">
                       {product.total_quantity} {product.unit}
                     </p>
-                    <p className="text-xs text-ink-faint">
-                      reorder at {product.reorder_point}
-                    </p>
+                    <p className="text-xs text-ink-faint">reorder at {product.reorder_point}</p>
                   </div>
                 </li>
               ))}
@@ -146,8 +134,7 @@ export default async function DashboardPage() {
         >
           {recentChecks.length === 0 ? (
             <p className="text-sm text-ink-faint">
-              No verifications yet. Photograph a shelf and Inverse will count it against
-              the record.
+              No verifications yet. Photograph a shelf and Inverse will count it against the record.
             </p>
           ) : (
             <ul className="divide-y divide-rule/70">

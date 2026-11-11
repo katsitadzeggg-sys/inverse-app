@@ -12,7 +12,9 @@ function required(name: string): string {
 /** Fails loudly when a value is missing. */
 function present(name: string, value: string | undefined): string {
   if (!value) {
-    throw new Error(`Missing environment variable ${name}. Copy .env.example to .env.local and fill it in.`);
+    throw new Error(
+      `Missing environment variable ${name}. Copy .env.example to .env.local and fill it in.`,
+    );
   }
   return value;
 }
@@ -20,8 +22,10 @@ function present(name: string, value: string | undefined): string {
 // Written as full literals: Next.js inlines `process.env.NEXT_PUBLIC_*` into the
 // browser bundle only when it sees the whole expression. A computed lookup
 // (`process.env[name]`) is undefined in the browser, which broke photo upload.
-export const supabaseUrl = () => present('NEXT_PUBLIC_SUPABASE_URL', process.env.NEXT_PUBLIC_SUPABASE_URL);
-export const supabaseAnonKey = () => present('NEXT_PUBLIC_SUPABASE_ANON_KEY', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+export const supabaseUrl = () =>
+  present('NEXT_PUBLIC_SUPABASE_URL', process.env.NEXT_PUBLIC_SUPABASE_URL);
+export const supabaseAnonKey = () =>
+  present('NEXT_PUBLIC_SUPABASE_ANON_KEY', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 export const anthropicApiKey = () => required('ANTHROPIC_API_KEY');
 
 /**
@@ -36,7 +40,5 @@ export const anthropicApiKey = () => required('ANTHROPIC_API_KEY');
  * expression — a computed lookup would come back undefined in the browser.
  */
 export function isSupabaseConfigured(): boolean {
-  return Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  );
+  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 }

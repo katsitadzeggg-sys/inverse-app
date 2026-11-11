@@ -40,9 +40,7 @@ export default function StockCell({
           >
             <input type="hidden" name="product_id" value={productId} />
             <input type="hidden" name="location_id" value={level.location_id} />
-            <span className="font-mono text-xs text-ink-faint">
-              {location?.code ?? 'unknown'}
-            </span>
+            <span className="font-mono text-xs text-ink-faint">{location?.code ?? 'unknown'}</span>
             <input
               name="quantity"
               type="number"
@@ -53,10 +51,7 @@ export default function StockCell({
               className="w-14 bg-transparent text-right text-xs tabular-nums text-ink focus:outline-none disabled:text-ink-faint"
             />
             {canWrite && (
-              <button
-                type="submit"
-                className="text-xs text-ink transition hover:text-ink"
-              >
+              <button type="submit" className="text-xs text-ink transition hover:text-ink">
                 save
               </button>
             )}

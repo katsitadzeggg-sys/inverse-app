@@ -16,10 +16,7 @@ export default function LoginPage() {
     <main className="flex flex-1 flex-col">
       <header className="border-b border-rule">
         <div className="mx-auto flex max-w-5xl items-baseline gap-6 px-6 py-5">
-          <Link
-            href={SITE_URL}
-            className="font-display text-lg tracking-[0.08em]"
-          >
+          <Link href={SITE_URL} className="font-display text-lg tracking-[0.08em]">
             INVERSE
           </Link>
           <p className="label">Platform</p>

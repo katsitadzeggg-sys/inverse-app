@@ -26,10 +26,7 @@ test('a confident count different from the record is a mismatch', () => {
 });
 
 test('low confidence never produces a mismatch, even when the numbers differ', () => {
-  assert.equal(
-    grade(observation({ detected_quantity: 9, confidence: 0.3 }), 12).status,
-    'partial',
-  );
+  assert.equal(grade(observation({ detected_quantity: 9, confidence: 0.3 }), 12).status, 'partial');
 });
 
 test('look-alike variants are flagged for a barcode instead of graded', () => {

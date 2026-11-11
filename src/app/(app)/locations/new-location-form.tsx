@@ -28,12 +28,7 @@ export default function NewLocationForm({ locations }: { locations: Location[] }
           <input name="code" required placeholder="R-2" className={inputClass} />
         </Field>
         <Field label="Name">
-          <input
-            name="name"
-            required
-            placeholder="Rack 2 — cosmetics"
-            className={inputClass}
-          />
+          <input name="name" required placeholder="Rack 2 — cosmetics" className={inputClass} />
         </Field>
         <Field label="Type">
           <select name="kind" defaultValue="shelf" className={inputClass}>

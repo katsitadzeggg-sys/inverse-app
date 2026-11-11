@@ -29,13 +29,19 @@ export const ASSET_STATUS: Record<AssetStatus, string> = {
   surplus: 'მეტობა',
 };
 
-export const CONDITION: Record<string, string> = { good: 'კარგი', damaged: 'დაზიანებული', writeoff: 'ჩამოსაწერი' };
+export const CONDITION: Record<string, string> = {
+  good: 'კარგი',
+  damaged: 'დაზიანებული',
+  writeoff: 'ჩამოსაწერი',
+};
 
 // "A-302", "a 302" and "A302" are the same room.
 const norm = (s: string | null) => normKey(s);
 const same = (a: string | null, b: string | null) => norm(a) === norm(b);
 
-async function all<T>(make: (from: number, to: number) => PromiseLike<{ data: T[] | null }>): Promise<T[]> {
+async function all<T>(
+  make: (from: number, to: number) => PromiseLike<{ data: T[] | null }>,
+): Promise<T[]> {
   const out: T[] = [];
   for (let from = 0; ; from += 1000) {
     const { data } = await make(from, from + 999);
@@ -45,29 +51,72 @@ async function all<T>(make: (from: number, to: number) => PromiseLike<{ data: T[
 }
 
 /** The register against what was found: found, moved, missing and surplus, with condition. */
-export async function loadAssetResult(supabase: SupabaseClient, stocktakeId: string): Promise<AssetRow[]> {
-  type Reg = { id: string; inv_no: string; name: string; room: string | null; responsible: string | null; value: number | null; serial: string | null; group_name: string | null };
+export async function loadAssetResult(
+  supabase: SupabaseClient,
+  stocktakeId: string,
+): Promise<AssetRow[]> {
+  type Reg = {
+    id: string;
+    inv_no: string;
+    name: string;
+    room: string | null;
+    responsible: string | null;
+    value: number | null;
+    serial: string | null;
+    group_name: string | null;
+  };
   type Chk = {
-    id: string; register_id: string | null; inv_no: string; name: string; condition: 'good' | 'damaged' | 'writeoff';
-    responsible: string | null; serial: string | null; needs_label: boolean; note: string | null; counter_id: string | null; group_name: string | null;
+    id: string;
+    register_id: string | null;
+    inv_no: string;
+    name: string;
+    condition: 'good' | 'damaged' | 'writeoff';
+    responsible: string | null;
+    serial: string | null;
+    needs_label: boolean;
+    note: string | null;
+    counter_id: string | null;
+    group_name: string | null;
     locations: { code: string } | null;
   };
   const [reg, checks, media, people] = await Promise.all([
-    all<Reg>((a, b) => supabase.from('asset_register').select('id, inv_no, name, room, responsible, value, serial, group_name').eq('stocktake_id', stocktakeId).order('inv_no').range(a, b)),
+    all<Reg>((a, b) =>
+      supabase
+        .from('asset_register')
+        .select('id, inv_no, name, room, responsible, value, serial, group_name')
+        .eq('stocktake_id', stocktakeId)
+        .order('inv_no')
+        .range(a, b),
+    ),
     all<Chk>((a, b) =>
       supabase
         .from('asset_checks')
-        .select('id, register_id, inv_no, name, condition, responsible, serial, needs_label, note, counter_id, group_name, locations (code)')
+        .select(
+          'id, register_id, inv_no, name, condition, responsible, serial, needs_label, note, counter_id, group_name, locations (code)',
+        )
         .eq('stocktake_id', stocktakeId)
         .range(a, b)
         .returns<Chk[]>(),
     ),
     all<{ asset_check_id: string; kind: string }>((a, b) =>
-      supabase.from('stocktake_media').select('asset_check_id, kind').eq('stocktake_id', stocktakeId).not('asset_check_id', 'is', null).range(a, b),
+      supabase
+        .from('stocktake_media')
+        .select('asset_check_id, kind')
+        .eq('stocktake_id', stocktakeId)
+        .not('asset_check_id', 'is', null)
+        .range(a, b),
     ),
-    supabase.from('user_profiles').select('id, full_name, email').then((r) => r.data ?? []),
+    supabase
+      .from('user_profiles')
+      .select('id, full_name, email')
+      .then((r) => r.data ?? []),
   ]);
-  const who = new Map(people.map((p: { id: string; full_name: string | null; email: string }) => [p.id, p.full_name ?? p.email]));
+  const who = new Map(
+    people.map((p: { id: string; full_name: string | null; email: string }) => [
+      p.id,
+      p.full_name ?? p.email,
+    ]),
+  );
   const shots = new Map<string, { photos: number; videos: number }>();
   for (const m of media) {
     const s = shots.get(m.asset_check_id) ?? { photos: 0, videos: 0 };
@@ -78,7 +127,13 @@ export async function loadAssetResult(supabase: SupabaseClient, stocktakeId: str
   const byReg = new Map(checks.filter((c) => c.register_id).map((c) => [c.register_id!, c]));
   const row = (c: Chk | undefined, r: Reg | undefined): AssetRow => {
     const actual = c?.locations?.code ?? null;
-    const status: AssetStatus = !r ? 'surplus' : !c ? 'missing' : r.room && !same(r.room, actual) ? 'moved' : 'found';
+    const status: AssetStatus = !r
+      ? 'surplus'
+      : !c
+        ? 'missing'
+        : r.room && !same(r.room, actual)
+          ? 'moved'
+          : 'found';
     return {
       checkId: c?.id ?? null,
       invNo: r?.inv_no ?? c!.inv_no,
@@ -98,5 +153,8 @@ export async function loadAssetResult(supabase: SupabaseClient, stocktakeId: str
       group: c?.group_name?.trim() || r?.group_name?.trim() || null,
     };
   };
-  return [...reg.map((r) => row(byReg.get(r.id), r)), ...checks.filter((c) => !c.register_id).map((c) => row(c, undefined))];
+  return [
+    ...reg.map((r) => row(byReg.get(r.id), r)),
+    ...checks.filter((c) => !c.register_id).map((c) => row(c, undefined)),
+  ];
 }

@@ -14,10 +14,7 @@ export default async function LocationsPage() {
 
   const [{ data: locations }, { data: levels }] = await Promise.all([
     supabase.from('locations').select('*').order('code').returns<Location[]>(),
-    supabase
-      .from('inventory_levels')
-      .select('location_id, quantity')
-      .returns<LevelRow[]>(),
+    supabase.from('inventory_levels').select('location_id, quantity').returns<LevelRow[]>(),
   ]);
 
   const stats = new Map<string, { skus: number; units: number }>();
@@ -64,22 +61,16 @@ export default async function LocationsPage() {
               <tbody className="divide-y divide-rule/50">
                 {list.map((location) => {
                   const stat = stats.get(location.id);
-                  const parent = location.parent_id
-                    ? byId.get(location.parent_id)
-                    : undefined;
+                  const parent = location.parent_id ? byId.get(location.parent_id) : undefined;
                   return (
                     <tr key={location.id}>
-                      <td className="py-3 pr-4 font-mono text-xs text-ink-soft">
-                        {location.code}
-                      </td>
+                      <td className="py-3 pr-4 font-mono text-xs text-ink-soft">{location.code}</td>
                       <td className="py-3 pr-4 font-medium">{location.name}</td>
                       <td className="py-3 pr-4 capitalize text-ink-soft">{location.kind}</td>
                       <td className="py-3 pr-4 text-ink-faint">
                         {parent ? `${parent.code} — ${parent.name}` : '—'}
                       </td>
-                      <td className="py-3 pr-4 text-right tabular-nums">
-                        {stat?.skus ?? 0}
-                      </td>
+                      <td className="py-3 pr-4 text-right tabular-nums">{stat?.skus ?? 0}</td>
                       <td className="py-3 text-right tabular-nums">{stat?.units ?? 0}</td>
                     </tr>
                   );

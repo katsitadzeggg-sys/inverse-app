@@ -152,6 +152,7 @@ export default async function StocktakePage({ params }: PageProps<'/count/[id]'>
             {new Date(finishedAt).toLocaleString('ka-GE', {
               dateStyle: 'short',
               timeStyle: 'short',
+              timeZone: 'Asia/Tbilisi',
             })}{' '}
             · მენეჯერი ხედავს, რომ დაასრულე.
           </p>

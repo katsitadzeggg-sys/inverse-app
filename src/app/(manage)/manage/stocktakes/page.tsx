@@ -55,9 +55,25 @@ export default async function ManageHome({ searchParams }: PageProps<'/manage/st
   const stats = new Map(((statRows ?? []) as Stats[]).map((r) => [r.stocktake_id, r]));
   const n = (v: number) => Number(v).toLocaleString('ka-GE', { maximumFractionDigits: 2 });
   const gel = (v: number) => `${Number(v).toLocaleString('ka-GE', { maximumFractionDigits: 0 })} ₾`;
+  const when = (t: string) =>
+    new Date(t).toLocaleString('ka-GE', {
+      day: '2-digit',
+      month: '2-digit',
+      year: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Asia/Tbilisi',
+    });
+  const hour = (t: string) =>
+    new Date(t).toLocaleTimeString('ka-GE', {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Asia/Tbilisi',
+    });
+  const day = (t: string) => new Date(t).toLocaleDateString('ka-GE', { timeZone: 'Asia/Tbilisi' });
   // Same columns for the header and every row.
   const cols =
-    'grid grid-cols-[1.5rem_7.5rem_7.5rem_minmax(7rem,1fr)_3rem_3.5rem_4.5rem_8rem_8rem_6.5rem_6.5rem] items-center gap-x-2';
+    'grid grid-cols-[1.5rem_7.5rem_10rem_minmax(7rem,1fr)_3rem_3.5rem_4.5rem_8rem_8rem_6.5rem_6.5rem] items-center gap-x-2';
 
   return (
     <div className="grid gap-6">
@@ -100,7 +116,7 @@ export default async function ManageHome({ searchParams }: PageProps<'/manage/st
               <div className={`${cols} px-3 text-xs text-ink-faint`}>
                 <span />
                 <span>ინვენტარიზაციის N</span>
-                <span>თარიღი · დაიხურა</span>
+                <span>გაიხსნა → დაიხურა</span>
                 <span>საწყობი</span>
                 <span className="text-right">თარო</span>
                 <span className="text-right">SKU</span>
@@ -152,15 +168,16 @@ export default async function ManageHome({ searchParams }: PageProps<'/manage/st
                     <span title={KIND_LABEL[s.kind]}>{KIND_LABEL[s.kind].split(' ')[0]}</span>
                     <span className="text-ink-faint">{s.number}</span>
                     <span className="text-ink-faint">
-                      {s.closed_at
-                        ? new Date(s.closed_at).toLocaleString('ka-GE', {
-                            day: '2-digit',
-                            month: '2-digit',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })
-                        : new Date(s.count_date).toLocaleDateString('ka-GE')}
+                      {/* Opened (day and hour) → closed (hour, or day too if another day). */}
+                      {when(s.created_at)}
+                      {s.closed_at && (
+                        <span className="text-ink-soft">
+                          {' → '}
+                          {day(s.closed_at) === day(s.created_at)
+                            ? hour(s.closed_at)
+                            : when(s.closed_at)}
+                        </span>
+                      )}
                     </span>
                     <span className="min-w-0 truncate font-semibold">
                       {s.branch || s.client_name || s.name}

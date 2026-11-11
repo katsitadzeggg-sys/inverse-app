@@ -47,9 +47,7 @@ export async function createProduct(
   if (error) {
     return {
       error:
-        error.code === '23505'
-          ? `SKU ${sku} already exists in this workspace.`
-          : error.message,
+        error.code === '23505' ? `SKU ${sku} already exists in this workspace.` : error.message,
     };
   }
 

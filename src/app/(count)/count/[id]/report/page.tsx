@@ -595,7 +595,7 @@ export default async function ReportPage({ params }: PageProps<'/count/[id]/repo
                   </span>
                   <span className={z.status === 'done' ? 'text-match' : 'text-review'}>
                     {z.status === 'done'
-                      ? `✓ ${new Date(z.done_at ?? z.started_at).toLocaleTimeString('ka-GE', { hour: '2-digit', minute: '2-digit' })}`
+                      ? `✓ ${new Date(z.done_at ?? z.started_at).toLocaleTimeString('ka-GE', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tbilisi' })}`
                       : 'ითვლება'}
                   </span>
                 </div>

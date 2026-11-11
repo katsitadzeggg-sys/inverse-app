@@ -237,9 +237,7 @@ export default function CapturePanel({ locations }: { locations: Location[] }) {
             <li>Fill the frame with one shelf — not the whole rack.</li>
             <li>Shoot straight on. Oblique angles hide the back of each row.</li>
             <li>Avoid glare on packaging; it costs the model confidence.</li>
-            <li>
-              Look-alike variants get flagged for a barcode scan rather than guessed at.
-            </li>
+            <li>Look-alike variants get flagged for a barcode scan rather than guessed at.</li>
           </ul>
         </Card>
       </div>
