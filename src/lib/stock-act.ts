@@ -117,28 +117,18 @@ export async function stockActData(supabase: SupabaseClient, id: string): Promis
     (zones ?? []).filter((z) => z.status === 'done').map((z) => z.location_id),
   );
   const onClosed = (lid: string | null) => final || (!!lid && doneShelves.has(lid));
-  // Book lines with no shelf are matched at warehouse level: what was counted
-  // of such a product on closed shelves (beyond its shelved book) is matched
-  // against it; only a count above the book is surplus, the rest stays
-  // "remaining" until it is found or the stocktake is closed.
-  const shelvedDone = new Map<string, number>();
+  // Book lines with no shelf: the object's book is what counts. Once a product
+  // has been counted on a closed shelf its whole book is compared (a shortage
+  // shows at once); one not counted anywhere yet stays "remaining".
   const unshelved = new Map<string, number>();
-  for (const b of book) {
-    const m = b.location_id ? (onClosed(b.location_id) ? shelvedDone : null) : unshelved;
-    if (m) m.set(b.product_id, (m.get(b.product_id) ?? 0) + Number(b.book_qty));
-  }
-  const countedDone = new Map<string, number>();
+  for (const b of book)
+    if (!b.location_id)
+      unshelved.set(b.product_id, (unshelved.get(b.product_id) ?? 0) + Number(b.book_qty));
+  const countedDone = new Set<string>();
   for (const e of entries)
-    if (e.product_id && onClosed(e.location_id))
-      countedDone.set(e.product_id, (countedDone.get(e.product_id) ?? 0) + Number(e.quantity));
+    if (e.product_id && onClosed(e.location_id)) countedDone.add(e.product_id);
   const matched = new Map<string, number>();
-  for (const [pid, q] of unshelved)
-    matched.set(
-      pid,
-      final
-        ? q
-        : Math.min(q, Math.max((countedDone.get(pid) ?? 0) - (shelvedDone.get(pid) ?? 0), 0)),
-    );
+  for (const [pid, q] of unshelved) matched.set(pid, final || countedDone.has(pid) ? q : 0);
   const left = { qty: 0, sum: 0, shelves: 0, skus: 0 };
   {
     const leftShelves = new Set<string>();

@@ -860,7 +860,8 @@ export async function importBook(
     }
   }
 
-  // A product that so far has only its code as a name takes the file's name.
+  // The book file is the accounting's list: its name replaces the product's
+  // (a short or temporary name typed while counting, or only the code).
   {
     const named = new Map<string, string>();
     for (const r of clean) {
@@ -874,7 +875,7 @@ export async function importBook(
         .select('id, name, sku, barcode')
         .in('id', ids.slice(i, i + 300));
       for (const p of data ?? [])
-        if (p.name === p.sku || p.name === p.barcode || p.name.startsWith('ახალი · '))
+        if (p.name !== named.get(p.id))
           await supabase
             .from('products')
             .update({ name: named.get(p.id)! })
