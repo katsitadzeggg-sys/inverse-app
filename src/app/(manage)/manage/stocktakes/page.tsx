@@ -40,20 +40,24 @@ export default async function ManageHome({ searchParams }: PageProps<'/manage/st
     shelves_done: number;
     skus: number;
     counted_qty: number;
+    plus_nocost: number;
+    left_qty: number;
+    left_sum: number;
+    left_shelves: number;
     plus_qty: number;
     plus_sum: number;
     minus_qty: number;
     minus_sum: number;
   };
   const { data: statRows } = list.length
-    ? await supabase.rpc('stocktake_stats2', { p_ids: list.map((s) => s.id) })
+    ? await supabase.rpc('stocktake_stats3', { p_ids: list.map((s) => s.id) })
     : { data: [] };
   const stats = new Map(((statRows ?? []) as Stats[]).map((r) => [r.stocktake_id, r]));
   const n = (v: number) => Number(v).toLocaleString('ka-GE', { maximumFractionDigits: 2 });
   const gel = (v: number) => `${Number(v).toLocaleString('ka-GE', { maximumFractionDigits: 0 })} ₾`;
   // Same columns for the header and every row.
   const cols =
-    'grid grid-cols-[1.5rem_7.5rem_5.5rem_minmax(9rem,1fr)_3.5rem_3.5rem_5rem_8rem_8rem_6.5rem_6.5rem] items-center gap-x-2';
+    'grid grid-cols-[1.5rem_7.5rem_7.5rem_minmax(7rem,1fr)_9.5rem_3rem_3.5rem_4.5rem_8rem_8rem_6.5rem_6.5rem] items-center gap-x-2';
 
   return (
     <div className="grid gap-6">
@@ -92,12 +96,13 @@ export default async function ManageHome({ searchParams }: PageProps<'/manage/st
         {list.length === 0 && <p className="text-ink-soft">ჯერ არცერთი არ არის.</p>}
         {list.length > 0 && (
           <div className="overflow-x-auto">
-            <div className="grid min-w-[1050px] gap-1">
+            <div className="grid min-w-[1150px] gap-1">
               <div className={`${cols} px-3 text-xs text-ink-faint`}>
                 <span />
-                <span>ნომერი</span>
-                <span>თარიღი</span>
-                <span>კლიენტი · ობიექტი</span>
+                <span>ინვენტარიზაციის N</span>
+                <span>თარიღი · დაიხურა</span>
+                <span>საწყობი</span>
+                <span className="text-right text-[#c4b5fd]">დარჩენილი რაოდ. / ₾</span>
                 <span className="text-right">თარო</span>
                 <span className="text-right">SKU</span>
                 <span className="text-right">პროდუქტი</span>
@@ -118,11 +123,25 @@ export default async function ManageHome({ searchParams }: PageProps<'/manage/st
                     <span title={KIND_LABEL[s.kind]}>{KIND_LABEL[s.kind].split(' ')[0]}</span>
                     <span className="text-ink-faint">{s.number}</span>
                     <span className="text-ink-faint">
-                      {new Date(s.count_date).toLocaleDateString('ka-GE')}
+                      {s.closed_at
+                        ? new Date(s.closed_at).toLocaleString('ka-GE', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
+                        : new Date(s.count_date).toLocaleDateString('ka-GE')}
                     </span>
                     <span className="min-w-0 truncate font-semibold">
-                      {s.client_name ?? s.name}
-                      {s.branch && <span className="font-normal text-ink-soft"> · {s.branch}</span>}
+                      {s.branch || s.client_name || s.name}
+                    </span>
+                    {/* Book on shelves not closed yet: still to count. */}
+                    <span
+                      className="text-right text-[#c4b5fd]"
+                      title={t?.left_shelves ? `${t.left_shelves} თარო ჯერ არ დახურულა` : undefined}
+                    >
+                      {t?.left_qty ? `${n(t.left_qty)} / ${gel(t.left_sum)}` : '—'}
                     </span>
                     <span
                       className="text-right"
@@ -132,8 +151,17 @@ export default async function ManageHome({ searchParams }: PageProps<'/manage/st
                     </span>
                     <span className="text-right">{t?.skus ?? 0}</span>
                     <span className="text-right">{n(t?.counted_qty ?? 0)}</span>
-                    <span className="text-right text-[#60a5fa]">
-                      {t?.plus_qty ? `+${n(t.plus_qty)} / ${gel(t.plus_sum)}` : '—'}
+                    <span
+                      className="text-right text-[#60a5fa]"
+                      title={
+                        t?.plus_nocost
+                          ? `${t.plus_nocost} პროდუქტს ფასი არ აქვს — თანხაში არ ითვლება`
+                          : undefined
+                      }
+                    >
+                      {t?.plus_qty
+                        ? `+${n(t.plus_qty)} / ${gel(t.plus_sum)}${t.plus_nocost ? ' *' : ''}`
+                        : '—'}
                     </span>
                     <span className="text-right text-[#f87171]">
                       {t?.minus_qty ? `−${n(t.minus_qty)} / ${gel(t.minus_sum)}` : '—'}

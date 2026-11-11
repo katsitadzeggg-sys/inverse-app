@@ -1,11 +1,8 @@
 import type { ActLine } from '@/lib/stock-act';
 
+// Quantities without Balance's trailing zeros: 3, 2.5, -10.
 const q4 = (n: number) =>
-  Number(n).toLocaleString('en-US', {
-    minimumFractionDigits: 4,
-    maximumFractionDigits: 4,
-    useGrouping: false,
-  });
+  Number(n).toLocaleString('en-US', { maximumFractionDigits: 3, useGrouping: false });
 const money = (n: number) =>
   n.toLocaleString('ka-GE', { maximumFractionDigits: 2, minimumFractionDigits: 2 });
 
@@ -44,15 +41,15 @@ export default function BalanceTable({
         <thead className="sticky top-0 z-10 bg-[#eef1f5] text-left">
           <tr>
             <th className={`${th} w-10 text-center`}>N</th>
-            <th className={th}>არტიკული</th>
+            <th className={th}>სერიული ნომერი</th>
             <th className={th}>ნომენკლატურა</th>
             <th className={th}>ჯგუფი</th>
             <th className={th}>ძირითადი შტრიხკოდი</th>
             <th className={th}>ერთ.</th>
-            <th className={`${th} text-right`}>აღრიცხვით</th>
+            {hasCost && <th className={`${th} text-right`}>ფასი</th>}
+            <th className={`${th} text-right`}>ბუღალტრული ნაშთი</th>
             <th className={`${th} text-right`}>სხვაობა (რაოდ.)</th>
             <th className={`${th} text-right`}>ფაქტ. რაოდენობა</th>
-            {hasCost && <th className={`${th} text-right`}>ფასი</th>}
             {hasCost && <th className={`${th} text-right`}>სხვაობის თანხა</th>}
             <th className={th}>თარო · ფოტო/ვიდეო</th>
             <th className={th}>კომენტარები</th>
@@ -67,6 +64,11 @@ export default function BalanceTable({
               <td className={`${td} text-[#4a5568]`}>{l.group}</td>
               <td className={`${td} tabular-nums`}>{l.barcode}</td>
               <td className={td}>{l.unit}</td>
+              {hasCost && (
+                <td className={`${td} text-right tabular-nums`}>
+                  {l.cost != null ? money(l.cost) : ''}
+                </td>
+              )}
               <td className={`${td} text-right tabular-nums`}>{q4(l.book)}</td>
               <td
                 className={`${td} text-right tabular-nums ${l.diff < 0 ? 'text-[#c53030]' : l.diff > 0 ? 'text-[#2b6cb0]' : 'text-[#a0aec0]'}`}
@@ -74,11 +76,7 @@ export default function BalanceTable({
                 {q4(l.diff)}
               </td>
               <td className={`${td} text-right font-semibold tabular-nums`}>{q4(l.counted)}</td>
-              {hasCost && (
-                <td className={`${td} text-right tabular-nums`}>
-                  {l.cost != null ? money(l.cost) : ''}
-                </td>
-              )}
+
               {hasCost && (
                 <td className={`${td} text-right tabular-nums`}>
                   {l.diff && l.cost != null ? money(l.diff * l.cost) : ''}
@@ -107,13 +105,12 @@ export default function BalanceTable({
         </tbody>
         <tfoot className="bg-[#eef1f5] font-semibold">
           <tr>
-            <td className={td} colSpan={6}>
+            <td className={td} colSpan={hasCost ? 7 : 6}>
               სულ
             </td>
             <td className={`${td} text-right tabular-nums`}>{q4(t.book)}</td>
             <td className={`${td} text-right tabular-nums`}>{q4(t.diff)}</td>
             <td className={`${td} text-right tabular-nums`}>{q4(t.counted)}</td>
-            {hasCost && <td className={td} />}
             {hasCost && <td className={`${td} text-right tabular-nums`}>{money(t.sum)}</td>}
             <td className={td} />
             <td className={td} />

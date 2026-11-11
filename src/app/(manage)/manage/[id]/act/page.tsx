@@ -29,10 +29,20 @@ export default async function StockAct({ params, searchParams }: PageProps<'/man
   if (!st) notFound();
   if (st.kind === 'assets') redirect(`/count/${id}/report`);
 
-  const { lines: all, hasCost, totals: t, team } = await stockActData(supabase, id);
+  const { lines: all, hasCost, totals: t } = await stockActData(supabase, id);
   const diffCount = all.filter((l) => l.diff !== 0).length;
   const lines = onlyDiff ? all.filter((l) => l.diff !== 0) : all;
   const date = new Date(st.count_date).toLocaleDateString('ka-GE');
+  // Closed: the date and hour it was finished, in the title.
+  const finished = st.closed_at
+    ? new Date(st.closed_at).toLocaleString('ka-GE', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : null;
   const field = 'rounded-[3px] border border-[#b9c2ce] bg-white px-2 py-1';
 
   return (
@@ -60,7 +70,7 @@ export default async function StockAct({ params, searchParams }: PageProps<'/man
         {/* Title bar, as in Balance */}
         <div className="flex flex-wrap items-center gap-3 border-b border-[#c5ccd6] bg-white px-4 py-3">
           <h1 className="text-lg font-semibold">
-            ინვენტარიზაცია {st.number} - {date}
+            ინვენტარიზაცია {st.number} - {finished ? `დასრულდა ${finished}` : date}
           </h1>
           <span className="text-sm text-[#2f855a] print:hidden">
             {st.status === 'open' ? '● მიმდინარე' : '✓ დახურული'}
@@ -85,7 +95,6 @@ export default async function StockAct({ params, searchParams }: PageProps<'/man
           <p className="text-[#4a5568] sm:col-span-3">
             ორგანიზაცია: <b className="text-[#1a202c]">{st.client_name ?? st.name}</b>
             {st.address && <> · {st.address}</>}
-            {team.length > 0 && <> · აღმწერები: {team.join(', ')}</>}
           </p>
         </div>
 
@@ -138,27 +147,6 @@ export default async function StockAct({ params, searchParams }: PageProps<'/man
             <b className="text-[#c53030]">{money(t.minusSum)} ₾</b>
           </p>
         )}
-
-        <section className="grid gap-6 border-t border-[#c5ccd6] bg-white px-4 py-6 break-inside-avoid">
-          {[
-            'კომისიის თავმჯდომარე',
-            'კომისიის წევრი',
-            'კომისიის წევრი',
-            'მატერიალურად პასუხისმგებელი პირი',
-          ].map((role, i) => (
-            <div key={i} className="grid grid-cols-[1fr_1fr_8rem] items-end gap-4">
-              <span>{role}:</span>
-              <span className="border-b border-black" />
-              <span className="border-b border-black text-center text-xs text-gray-500">
-                ხელმოწერა
-              </span>
-            </div>
-          ))}
-          <p className="text-xs text-gray-600">
-            მატერიალურად პასუხისმგებელი პირი ადასტურებს, რომ ინვენტარიზაცია ჩატარდა მისი
-            თანდასწრებით და პრეტენზია არ გააჩნია.
-          </p>
-        </section>
       </article>
     </div>
   );

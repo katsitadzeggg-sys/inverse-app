@@ -31,20 +31,26 @@ export async function GET(request: Request, { params }: RouteContext<'/manage/[i
   });
   const headers = [
     'N',
-    'არტიკული',
+    'სერიული ნომერი',
     'ნომენკლატურა',
     'ჯგუფი',
     'ძირითადი შტრიხკოდი',
     'ერთ.',
-    'აღრიცხვით',
+    ...(hasCost ? ['ფასი'] : []),
+    'ბუღალტრული ნაშთი',
     'სხვაობა (რაოდ.)',
     'ფაქტ. რაოდენობა',
-    ...(hasCost ? ['ფასი', 'სხვაობის თანხა'] : []),
+    ...(hasCost ? ['სხვაობის თანხა'] : []),
     'თარო',
     'ფოტო/ვიდეო',
     'კომენტარები',
   ];
-  const num = (v: number, format = '0.0000') => ({ type: Number, value: v, format });
+  // Quantities as plain numbers (no Balance-style 0.0000).
+  const num = (v: number, format?: string) => ({
+    type: Number,
+    value: v,
+    ...(format ? { format } : {}),
+  });
   const txt = (v: string) => ({ type: String, value: v });
   // A clickable link to the shelf page with its photos/videos (sign-in needed).
   const origin = new URL(request.url).origin;
@@ -62,21 +68,17 @@ export async function GET(request: Request, { params }: RouteContext<'/manage/[i
   const data = [
     headers.map(head),
     ...lines.map((l) => [
-      num(l.n, '0'),
+      num(l.n),
       txt(l.sku),
       txt(l.name),
       txt(l.group),
       txt(l.barcode),
       txt(l.unit),
+      ...(hasCost ? [l.cost != null ? num(l.cost, '0.00') : null] : []),
       num(l.book),
       num(l.diff),
       num(l.counted),
-      ...(hasCost
-        ? [
-            l.cost != null ? num(l.cost, '0.00') : null,
-            l.cost != null && l.diff ? num(l.diff * l.cost, '0.00') : null,
-          ]
-        : []),
+      ...(hasCost ? [l.cost != null && l.diff ? num(l.diff * l.cost, '0.00') : null] : []),
       txt(l.shelves.map((s) => s.code).join(', ')),
       mediaCell(l.shelves),
       txt(l.comment),
@@ -92,10 +94,11 @@ export async function GET(request: Request, { params }: RouteContext<'/manage/[i
       { width: 18 },
       { width: 16 },
       { width: 7 },
-      { width: 12 },
+      ...(hasCost ? [{ width: 10 }] : []),
+      { width: 14 },
       { width: 14 },
       { width: 15 },
-      ...(hasCost ? [{ width: 10 }, { width: 14 }] : []),
+      ...(hasCost ? [{ width: 14 }] : []),
       { width: 14 },
       { width: 22 },
       { width: 18 },
