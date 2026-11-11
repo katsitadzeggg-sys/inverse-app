@@ -6,7 +6,7 @@ import type { Stocktake, StocktakeZone } from '@/types/database';
 import { mapsLink } from '@/lib/geo';
 import { setShowBook, setStocktakeArchived, setStocktakeStatus } from '@/app/(count)/count/actions';
 import ExportBox from './export-box';
-import BalanceTable from './balance-table';
+import LinesGrid from './lines-grid';
 import { stockActData } from '@/lib/stock-act';
 
 type ZoneRow = StocktakeZone & {
@@ -251,9 +251,12 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
             </p>
           )}
           {balance.lines.length ? (
-            <div className="overflow-hidden rounded-md border border-[#c5ccd6]">
-              <BalanceTable id={id} lines={balance.lines} hasCost={balance.hasCost} scroll />
-            </div>
+            <LinesGrid
+              id={id}
+              lines={balance.lines}
+              hasCost={balance.hasCost}
+              fileName={st.number}
+            />
           ) : (
             <p className="text-sm text-ink-soft">ჯერ არაფერი დათვლილა.</p>
           )}

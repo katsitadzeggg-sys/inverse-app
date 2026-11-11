@@ -16,6 +16,8 @@
     "@anthropic-ai/sdk": "^0.124.0",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.116.0",
+    "ag-grid-community": "^36.2.0",
+    "ag-grid-react": "^36.2.0",
     "barcode-detector": "^3.2.3",
     "fflate": "^0.8.3",
     "jsbarcode": "^3.11.6",

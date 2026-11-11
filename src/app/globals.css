@@ -999,3 +999,8 @@ select:focus {
   background-image: repeating-linear-gradient(-45deg, #d7dfda 0 4px, transparent 4px 9px);
   border: 1px solid #d7dfda;
 }
+/* The pinned "still to count" rows of the stocktake table, in violet. */
+.ag-row.st-left-row {
+  background-color: #f3efff;
+  color: #5b21b6;
+}
