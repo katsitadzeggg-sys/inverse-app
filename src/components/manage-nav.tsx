@@ -8,7 +8,6 @@ import type { ReactNode } from 'react';
 const I = {
   grid: <path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z" />,
   list: <path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01" />,
-  plus: <path d="M12 5v14M5 12h14" />,
   box: <path d="M3 8l9-5 9 5v8l-9 5-9-5zM3 8l9 5 9-5M12 13v8" />,
   users: (
     <path d="M16 19v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1M9.5 10a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM21 19v-1a4 4 0 0 0-3-3.87M16 3.13a3.5 3.5 0 0 1 0 6.75" />
@@ -59,12 +58,13 @@ export default function ManageNav({ platform, open }: { platform: boolean; open:
       href: '/manage/stocktakes',
       label: 'ინვენტარიზაციები',
       icon: 'list',
+      // A new stocktake is made from here (the "+" button), so it lights this item.
       active:
         pathname === '/manage/stocktakes' ||
-        (/^\/manage\/[0-9a-f-]{36}/.test(pathname) && !pathname.startsWith('/manage/new')),
+        pathname === '/manage/new' ||
+        /^\/manage\/[0-9a-f-]{36}/.test(pathname),
       badge: open > 0 ? open : undefined,
     },
-    { href: '/manage/new', label: 'ახალი', icon: 'plus', active: pathname === '/manage/new' },
     {
       href: '/manage/sites',
       label: 'ობიექტები',
