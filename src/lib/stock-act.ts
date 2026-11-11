@@ -21,7 +21,7 @@ export type ActLine = {
   group: string;
   /** Shelves it was counted on; media = the shelf's own photos/videos. */
   shelves: { id: string; code: string; media: number; photos: number; videos: number }[];
-  /** Link to the photo taken of this very product (new products), if any. */
+  /** Link to the photo taken of this product in this stocktake (new products), if any. */
   photo: string | null;
 };
 
@@ -56,6 +56,7 @@ type Book = {
 };
 type Entry = {
   product_id: string | null;
+  photo_path: string | null;
   unknown_label: string | null;
   quantity: number;
   location_id: string;
@@ -89,7 +90,7 @@ export async function stockActData(supabase: SupabaseClient, id: string): Promis
     pages<Entry>((a, b) =>
       supabase
         .from('stocktake_entries')
-        .select('product_id, unknown_label, quantity, location_id')
+        .select('product_id, unknown_label, quantity, location_id, photo_path')
         .eq('stocktake_id', id)
         .range(a, b),
     ),
@@ -239,9 +240,13 @@ export async function stockActData(supabase: SupabaseClient, id: string): Promis
   // Product photos of counted products, as links that work for a week.
   const photoOf = new Map<string, string>();
   {
-    const want = [...rows.entries()]
-      .filter(([pid, r]) => r.counted && info.get(pid)?.image_url)
-      .map(([pid]) => [pid, info.get(pid)!.image_url!] as const);
+    // Only a photo taken in this very stocktake (a new product's line), not
+    // the product's picture from some earlier count.
+    const taken = new Map<string, string>();
+    for (const e of entries)
+      if (e.product_id && e.photo_path && onClosed(e.location_id))
+        taken.set(e.product_id, e.photo_path);
+    const want = [...taken.entries()].filter(([pid]) => rows.get(pid)?.counted);
     const stored = want.filter(([, path]) => !/^https?:\/\//.test(path));
     for (const [pid, path] of want) if (/^https?:\/\//.test(path)) photoOf.set(pid, path);
     for (let i = 0; i < stored.length; i += 100) {
