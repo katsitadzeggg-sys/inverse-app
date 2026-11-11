@@ -1028,3 +1028,11 @@ select:focus {
   background-color: #f3efff;
   color: #5b21b6;
 }
+/* Main buttons in the dashboard are its green, white type. */
+.theme-light .btn-primary {
+  background-color: var(--color-accent);
+  color: #ffffff;
+}
+.theme-light .btn-primary:hover {
+  background-color: var(--color-accent-deep);
+}

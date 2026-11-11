@@ -6,6 +6,7 @@ import { requireSession } from '@/lib/session';
 import { createClient } from '@/lib/supabase/server';
 import ManageNav from '@/components/manage-nav';
 import { Bell, ProfileMenu, type Note } from '@/components/manage-topbar';
+import FormHelpers from '@/components/form-helpers';
 
 export const metadata = { title: 'მართვა' };
 
@@ -55,6 +56,7 @@ export default async function ManageLayout({ children }: LayoutProps<'/'>) {
       data-manage-root
       className={`theme-light ${theme === 'dark' ? 'theme-dark' : ''} min-h-full p-3 lg:p-4`}
     >
+      <FormHelpers />
       <div className="mx-auto grid max-w-[1600px] gap-3 lg:grid-cols-[15.5rem_1fr] lg:gap-4">
         <aside className="rounded-2xl bg-paper-sunk p-4 lg:sticky lg:top-4 lg:flex lg:h-[calc(100vh-2rem)] lg:flex-col">
           <Link href="/manage" className="mb-3 flex items-center gap-2.5 px-2 lg:mb-8">

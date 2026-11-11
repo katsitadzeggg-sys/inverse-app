@@ -1,3 +1,4 @@
+import FormHelpers from '@/components/form-helpers';
 import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { requireSession } from '@/lib/session';
@@ -23,6 +24,7 @@ export default async function CountLayout({ children }: LayoutProps<'/'>) {
 
   return (
     <div data-app={app} className="flex min-h-dvh flex-col bg-paper">
+      <FormHelpers />
       <header className="sticky top-0 z-10 border-b border-rule/70 bg-paper/90 backdrop-blur">
         <div className="mx-auto flex max-w-xl items-center gap-3 px-4 py-3">
           {manager ? (

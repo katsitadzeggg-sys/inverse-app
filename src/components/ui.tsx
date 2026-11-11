@@ -136,7 +136,7 @@ const BUTTON_BASE =
   'inline-flex items-center justify-center gap-2 rounded-control px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50';
 
 const BUTTON_VARIANTS = {
-  primary: 'bg-ink text-paper hover:bg-ink',
+  primary: 'btn-primary bg-ink text-paper hover:bg-ink',
   secondary: 'border border-rule-strong bg-paper-sunk text-ink hover:border-ink-faint',
   ghost: 'text-ink-soft hover:bg-paper-sunk hover:text-ink',
   danger: 'border border-mismatch/40 text-mismatch hover:bg-mismatch/10',
