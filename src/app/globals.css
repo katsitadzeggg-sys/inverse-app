@@ -965,3 +965,37 @@ select:focus {
     cursor: pointer;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Manager dashboard: a light, classic admin look (Giorgi, 11.11) — pale grey
+   ground, white rounded cards, one deep green. The same colour tokens are
+   redefined, so every page of the module follows without per-page changes.
+   --------------------------------------------------------------------------- */
+.theme-light {
+  color-scheme: light;
+  --color-paper: #f3f5f4;
+  --color-paper-sunk: #ffffff;
+  --color-rule: #e4e9e6;
+  --color-rule-strong: #cfd8d3;
+  --color-ink: #17251e;
+  --color-ink-soft: #55665d;
+  --color-ink-faint: #85948c;
+  --color-accent: #1f7a4d;
+  --color-accent-deep: #155c39;
+  --color-accent-text: #1f7a4d;
+  --color-paper-dim: #55665d;
+  --color-match: #1f9d5c;
+  --color-review: #c98a06;
+  --color-mismatch: #d64545;
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+}
+.theme-light ::selection {
+  background-color: #cde8d9;
+  color: #17251e;
+}
+/* Hatched bar (a day with little or no counting), as in the reference. */
+.bar-hatch {
+  background-image: repeating-linear-gradient(-45deg, #d7dfda 0 4px, transparent 4px 9px);
+  border: 1px solid #d7dfda;
+}

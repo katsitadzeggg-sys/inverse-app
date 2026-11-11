@@ -2,46 +2,145 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import type { ReactNode } from 'react';
 
-/** Tabs of the manager module, in the style of the dashboard. */
-export default function ManageNav({ platform }: { platform: boolean }) {
+/** Thin line icons, 20 px, drawn in currentColor. */
+const I = {
+  grid: <path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z" />,
+  list: <path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01" />,
+  plus: <path d="M12 5v14M5 12h14" />,
+  box: <path d="M3 8l9-5 9 5v8l-9 5-9-5zM3 8l9 5 9-5M12 13v8" />,
+  users: (
+    <path d="M16 19v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1M9.5 10a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM21 19v-1a4 4 0 0 0-3-3.87M16 3.13a3.5 3.5 0 0 1 0 6.75" />
+  ),
+  building: (
+    <path d="M4 21V5l8-3v19M12 8h8v13M4 21h16M8 7h.01M8 11h.01M8 15h.01M16 12h.01M16 16h.01" />
+  ),
+  phone: (
+    <path d="M8 2h8a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zM11 18h2" />
+  ),
+  logout: <path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 16l-4-4 4-4M6 12h10" />,
+};
+export function Icon({ name }: { name: keyof typeof I }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="20"
+      height="20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      {I[name]}
+    </svg>
+  );
+}
+
+type Item = {
+  href: string;
+  label: string;
+  icon: keyof typeof I;
+  active: boolean;
+  badge?: ReactNode;
+};
+
+/**
+ * The manager module's menu: a left sidebar on a wide screen, a scrolling row
+ * of tabs on a phone. The active item carries a green bar on its left.
+ */
+export default function ManageNav({ platform, open }: { platform: boolean; open: number }) {
   const pathname = usePathname();
-  const links = [
-    { href: '/manage', label: 'მთავარი', active: pathname === '/manage' },
+  const menu: Item[] = [
+    { href: '/manage', label: 'დეშბორდი', icon: 'grid', active: pathname === '/manage' },
     {
       href: '/manage/stocktakes',
-      label: '📋 ინვენტარიზაციები',
-      active: pathname === '/manage/stocktakes' || pathname === '/manage/new',
+      label: 'ინვენტარიზაციები',
+      icon: 'list',
+      active:
+        pathname === '/manage/stocktakes' ||
+        (/^\/manage\/[0-9a-f-]{36}/.test(pathname) && !pathname.startsWith('/manage/new')),
+      badge: open > 0 ? open : undefined,
     },
+    { href: '/manage/new', label: 'ახალი', icon: 'plus', active: pathname === '/manage/new' },
     {
       href: '/manage/sites',
-      label: '⚙️ მართვის პანელი',
-      active: pathname.startsWith('/manage/sites') || pathname.startsWith('/manage/team'),
+      label: 'ობიექტები',
+      icon: 'box',
+      active: pathname.startsWith('/manage/sites'),
+    },
+    {
+      href: '/manage/team',
+      label: 'გუნდი',
+      icon: 'users',
+      active: pathname.startsWith('/manage/team') || pathname.startsWith('/manage/users'),
     },
     ...(platform
       ? [
           {
             href: '/manage/platform',
-            label: '🏢 პლატფორმა',
+            label: 'პლატფორმა',
+            icon: 'building' as const,
             active: pathname.startsWith('/manage/platform'),
           },
         ]
       : []),
   ];
+  const link = (l: Item) => (
+    <Link
+      key={l.href}
+      href={l.href}
+      aria-current={l.active ? 'page' : undefined}
+      className={`relative flex items-center gap-3 whitespace-nowrap rounded-xl px-3 py-2.5 text-[15px] transition ${
+        l.active ? 'font-semibold text-ink' : 'text-ink-faint hover:bg-paper hover:text-ink'
+      }`}
+    >
+      {l.active && (
+        <span className="absolute -left-4 top-1/2 hidden h-7 w-1.5 -translate-y-1/2 rounded-r-full bg-accent lg:block" />
+      )}
+      <span className={l.active ? 'text-accent' : ''}>
+        <Icon name={l.icon} />
+      </span>
+      <span className="flex-1">{l.label}</span>
+      {l.badge != null && (
+        <span className="rounded-md bg-accent px-1.5 py-0.5 text-[11px] font-semibold text-white">
+          {l.badge}
+        </span>
+      )}
+    </Link>
+  );
   return (
-    <nav className="flex items-center gap-1 overflow-x-auto">
-      {links.map((l) => (
+    <>
+      {/* Phone / tablet: one row of tabs. */}
+      <nav className="flex gap-1 overflow-x-auto lg:hidden">{menu.map(link)}</nav>
+      {/* Desktop sidebar. */}
+      <nav className="hidden lg:grid lg:gap-1">
+        <p className="mb-1 px-3 text-xs font-medium uppercase tracking-wider text-ink-faint">
+          მენიუ
+        </p>
+        {menu.map(link)}
+        <p className="mb-1 mt-6 px-3 text-xs font-medium uppercase tracking-wider text-ink-faint">
+          ზოგადი
+        </p>
         <Link
-          key={l.href}
-          href={l.href}
-          aria-current={l.active ? 'page' : undefined}
-          className={`whitespace-nowrap rounded-control px-3 py-1.5 text-sm font-medium transition ${
-            l.active ? 'bg-white/20 text-white' : 'text-white hover:bg-white/10'
-          }`}
+          href="/count"
+          className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] text-ink-faint hover:bg-paper hover:text-ink"
         >
-          {l.label}
+          <Icon name="phone" />
+          დათვლის აპი
         </Link>
-      ))}
-    </nav>
+        <form action="/auth/signout" method="post">
+          <button
+            type="submit"
+            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] text-ink-faint hover:bg-paper hover:text-ink"
+          >
+            <Icon name="logout" />
+            გასვლა
+          </button>
+        </form>
+      </nav>
+    </>
   );
 }

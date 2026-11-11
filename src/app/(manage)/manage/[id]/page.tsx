@@ -102,10 +102,10 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
   const zShots = tally(mediaRows);
   const model = site?.model_url ?? null;
 
-  // Action buttons: raised orange keys, clearly different from the faded info tiles.
+  // Action buttons: solid green, clearly different from the info tiles.
   const btn =
-    'rounded-lg border border-[#9a3412] border-b-4 bg-gradient-to-b from-[#fb923c] to-[#ea580c] px-3 py-2.5 text-center font-semibold text-white shadow-md transition hover:brightness-110 active:translate-y-px active:border-b-2';
-  const tile = 'rounded-control border border-white/10 bg-white/[0.04] p-2 opacity-75';
+    'rounded-xl border border-[#155c39] bg-[#1f7a4d] px-3 py-2.5 text-center font-semibold text-white shadow-sm transition hover:bg-[#155c39] active:translate-y-px';
+  const tile = 'rounded-control border border-rule bg-paper-sunk p-2';
 
   return (
     <div className="grid gap-3">
@@ -164,7 +164,7 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
                   className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${st.show_book ? 'left-[22px]' : 'left-0.5'}`}
                 />
               </span>
-              <b className={st.show_book ? 'text-[#4ade80]' : 'text-[#f87171]'}>
+              <b className={st.show_book ? 'text-[#1f9d5c]' : 'text-[#d64545]'}>
                 {st.show_book ? 'კი' : 'არა'}
               </b>
             </button>
@@ -241,7 +241,7 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
       {balance && (
         <section className="grid gap-2">
           {!balance.final && balance.left.qty > 0 && (
-            <p className="rounded-control border border-[#a78bfa]/60 bg-[#7c3aed]/15 px-3 py-1.5 text-sm text-[#ddd6fe]">
+            <p className="rounded-control border border-[#a78bfa]/60 bg-[#f3efff] px-3 py-1.5 text-sm text-[#5b21b6]">
               ⏳ <b>დარჩენილი</b> —{' '}
               {balance.left.shelves > 0 && <>{balance.left.shelves} თარო ჯერ არ დახურულა · </>}
               {balance.left.skus} SKU ·{' '}

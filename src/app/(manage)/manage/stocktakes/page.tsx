@@ -19,14 +19,29 @@ const KIND_LABEL: Record<string, string> = {
 export default async function ManageHome({ searchParams }: PageProps<'/manage/stocktakes'>) {
   await requireSession();
   const sp = await searchParams;
+  // The top bar's search: number, client, branch or name, across every kind.
+  const q =
+    typeof sp.q === 'string'
+      ? sp.q
+          .trim()
+          .replace(/[,()%*]/g, ' ')
+          .trim()
+      : '';
   const kind =
-    typeof sp.kind === 'string' && ['stock', 'expiry', 'assets'].includes(sp.kind)
+    typeof sp.kind === 'string' && ['stock', 'expiry', 'assets', 'all'].includes(sp.kind)
       ? sp.kind
-      : 'stock';
+      : q
+        ? 'all'
+        : 'stock';
   const archived = sp.archived === '1';
   const supabase = await createClient();
   const all = supabase.from('stocktakes').select('*');
-  const base = kind === 'all' ? all : all.eq('kind', kind);
+  const kinded = kind === 'all' ? all : all.eq('kind', kind);
+  const base = q
+    ? kinded.or(
+        ['number', 'client_name', 'branch', 'name'].map((c) => `${c}.ilike.%${q}%`).join(','),
+      )
+    : kinded;
   const { data } = await (
     archived ? base.not('archived_at', 'is', null) : base.is('archived_at', null)
   )
@@ -86,8 +101,8 @@ export default async function ManageHome({ searchParams }: PageProps<'/manage/st
               href={`/manage/stocktakes?kind=${t.kind}${archived ? '&archived=1' : ''}`}
               className={`rounded-control border px-3 py-2 text-sm font-medium ${
                 t.kind === kind
-                  ? 'border-white bg-white text-paper'
-                  : 'border-rule-strong hover:bg-white/10'
+                  ? 'border-ink bg-ink text-paper'
+                  : 'border-rule-strong hover:bg-ink/5'
               }`}
             >
               {t.label}
@@ -99,7 +114,7 @@ export default async function ManageHome({ searchParams }: PageProps<'/manage/st
                 ? `/manage/stocktakes?kind=${kind}`
                 : `/manage/stocktakes?kind=${kind}&archived=1`
             }
-            className={`rounded-control border px-3 py-2 text-sm ${archived ? 'border-white bg-white text-paper' : 'border-rule-strong text-ink-soft hover:bg-white/10'}`}
+            className={`rounded-control border px-3 py-2 text-sm ${archived ? 'border-ink bg-ink text-paper' : 'border-rule-strong text-ink-soft hover:bg-ink/5'}`}
           >
             🗄 არქივი
           </Link>
@@ -137,11 +152,11 @@ export default async function ManageHome({ searchParams }: PageProps<'/manage/st
                     <Link
                       key={`left-${s.id}`}
                       href={`/manage/${s.id}`}
-                      className={`${cols} rounded-control border border-[#a78bfa]/60 bg-[#7c3aed]/15 px-3 py-1.5 text-sm tabular-nums text-[#ddd6fe] hover:bg-[#7c3aed]/25`}
+                      className={`${cols} rounded-control border border-[#a78bfa]/60 bg-[#f3efff] px-3 py-1.5 text-sm tabular-nums text-[#5b21b6] hover:bg-[#7c3aed]/25`}
                     >
                       <span>⏳</span>
                       <span className="font-semibold">დარჩენილი</span>
-                      <span className="text-[#c4b5fd]">{s.number}</span>
+                      <span className="text-[#6d28d9]">{s.number}</span>
                       <span className="min-w-0 truncate font-semibold">
                         {s.branch || s.client_name || s.name}
                       </span>
@@ -164,7 +179,7 @@ export default async function ManageHome({ searchParams }: PageProps<'/manage/st
                   <Link
                     key={s.id}
                     href={`/manage/${s.id}`}
-                    className={`${cols} rounded-control border border-rule/60 px-3 py-1.5 text-sm tabular-nums hover:bg-white/10`}
+                    className={`${cols} rounded-control border border-rule/60 px-3 py-1.5 text-sm tabular-nums hover:bg-ink/5`}
                   >
                     <span title={KIND_LABEL[s.kind]}>{KIND_LABEL[s.kind].split(' ')[0]}</span>
                     <span className="text-ink-faint">{s.number}</span>
@@ -192,7 +207,7 @@ export default async function ManageHome({ searchParams }: PageProps<'/manage/st
                     <span className="text-right">{t?.skus ?? 0}</span>
                     <span className="text-right">{n(t?.counted_qty ?? 0)}</span>
                     <span
-                      className="text-right text-[#60a5fa]"
+                      className="text-right text-[#2563eb]"
                       title={
                         t?.plus_nocost
                           ? `${t.plus_nocost} პროდუქტს ფასი არ აქვს — თანხაში არ ითვლება`
@@ -203,11 +218,11 @@ export default async function ManageHome({ searchParams }: PageProps<'/manage/st
                         ? `+${n(t.plus_qty)} / ${gel(t.plus_sum)}${t.plus_nocost ? ' *' : ''}`
                         : '—'}
                     </span>
-                    <span className="text-right text-[#f87171]">
+                    <span className="text-right text-[#d64545]">
                       {t?.minus_qty ? `−${n(t.minus_qty)} / ${gel(t.minus_sum)}` : '—'}
                     </span>
                     <span
-                      className={`text-right font-semibold ${diffSum < 0 ? 'text-[#f87171]' : diffSum > 0 ? 'text-[#60a5fa]' : 'text-ink-faint'}`}
+                      className={`text-right font-semibold ${diffSum < 0 ? 'text-[#d64545]' : diffSum > 0 ? 'text-[#2563eb]' : 'text-ink-faint'}`}
                     >
                       {t?.plus_qty || t?.minus_qty ? gel(diffSum) : '—'}
                     </span>

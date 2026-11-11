@@ -15,11 +15,11 @@ export function Card({
 }) {
   return (
     <section
-      className={`rounded-control border border-rule/70 bg-paper-sunk/60 shadow-sm ${className}`}
+      className={`rounded-2xl border border-rule/70 bg-paper-sunk shadow-[0_1px_2px_rgba(16,40,28,0.04)] ${className}`}
     >
       {(title || action) && (
-        <header className="flex items-center justify-between gap-4 border-b border-rule/70 px-5 py-3.5">
-          <h2 className="text-sm font-semibold tracking-wide text-ink">{title}</h2>
+        <header className="flex items-center justify-between gap-4 px-5 pt-4 pb-1">
+          <h2 className="text-base font-semibold text-ink">{title}</h2>
           {action}
         </header>
       )}
@@ -33,11 +33,16 @@ export function Stat({
   value,
   hint,
   tone = 'default',
+  featured = false,
+  href,
 }: {
   label: string;
   value: ReactNode;
   hint?: string;
   tone?: 'default' | 'match' | 'partial' | 'mismatch';
+  /** The highlighted first card: green ground, white type. */
+  featured?: boolean;
+  href?: string;
 }) {
   const toneClass = {
     default: 'text-ink',
@@ -46,12 +51,42 @@ export function Stat({
     mismatch: 'text-mismatch',
   }[tone];
 
-  return (
-    <div className="rounded-control border border-rule/70 bg-paper-sunk/60 px-5 py-4">
-      <p className="text-xs uppercase tracking-wider text-ink-faint">{label}</p>
-      <p className={`mt-1.5 text-2xl font-semibold tabular-nums ${toneClass}`}>{value}</p>
-      {hint && <p className="mt-1 text-xs text-ink-faint">{hint}</p>}
-    </div>
+  const body = (
+    <>
+      <div className="flex items-start justify-between gap-2">
+        <p className={`text-base font-medium ${featured ? 'text-white' : 'text-ink'}`}>{label}</p>
+        {href && (
+          <span
+            aria-hidden
+            className={`grid h-8 w-8 shrink-0 place-items-center rounded-full border text-sm ${
+              featured ? 'border-white/60 bg-white text-[#155c39]' : 'border-ink/60 text-ink'
+            }`}
+          >
+            ↗
+          </span>
+        )}
+      </div>
+      <p
+        className={`mt-2 text-4xl font-semibold tabular-nums ${featured ? 'text-white' : toneClass}`}
+      >
+        {value}
+      </p>
+      {hint && (
+        <p className={`mt-2 text-xs ${featured ? 'text-white/80' : 'text-ink-faint'}`}>{hint}</p>
+      )}
+    </>
+  );
+  const cls = `block rounded-2xl px-5 py-4 transition ${
+    featured
+      ? 'bg-gradient-to-br from-[#1f7a4d] to-[#0f4a2d] text-white shadow-md'
+      : 'border border-rule/70 bg-paper-sunk hover:border-rule-strong'
+  }`;
+  return href ? (
+    <a href={href} className={cls}>
+      {body}
+    </a>
+  ) : (
+    <div className={cls}>{body}</div>
   );
 }
 
@@ -115,10 +150,7 @@ export function Button({
   ...props
 }: ComponentProps<'button'> & { variant?: Variant }) {
   return (
-    <button
-      {...props}
-      className={`${BUTTON_BASE} ${BUTTON_VARIANTS[variant]} ${className}`}
-    />
+    <button {...props} className={`${BUTTON_BASE} ${BUTTON_VARIANTS[variant]} ${className}`} />
   );
 }
 
@@ -127,9 +159,7 @@ export function ButtonLink({
   className = '',
   ...props
 }: ComponentProps<typeof Link> & { variant?: Variant }) {
-  return (
-    <Link {...props} className={`${BUTTON_BASE} ${BUTTON_VARIANTS[variant]} ${className}`} />
-  );
+  return <Link {...props} className={`${BUTTON_BASE} ${BUTTON_VARIANTS[variant]} ${className}`} />;
 }
 
 export const inputClass =
@@ -171,7 +201,13 @@ export function EmptyState({
   );
 }
 
-export function Alert({ tone = 'error', children }: { tone?: 'error' | 'info'; children: ReactNode }) {
+export function Alert({
+  tone = 'error',
+  children,
+}: {
+  tone?: 'error' | 'info';
+  children: ReactNode;
+}) {
   const className =
     tone === 'error'
       ? 'border-mismatch/40 bg-mismatch/10 text-mismatch'

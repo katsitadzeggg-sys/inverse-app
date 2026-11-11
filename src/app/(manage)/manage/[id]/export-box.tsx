@@ -59,9 +59,9 @@ export default function ExportBox({
     }
   }
 
-  // Raised keys, blue: downloads (the orange ones open pages).
+  // Outlined green: downloads (the solid green ones open pages).
   const key =
-    'rounded-lg border border-[#1e3a8a] border-b-4 bg-gradient-to-b from-[#3b82f6] to-[#1d4ed8] px-4 py-2 text-center text-sm font-semibold text-white shadow-md transition hover:brightness-110 active:translate-y-px active:border-b-2 disabled:opacity-60';
+    'rounded-xl border border-[#1f7a4d] bg-white px-4 py-2 text-center text-sm font-semibold text-[#155c39] shadow-sm transition hover:bg-[#eef7f1] active:translate-y-px disabled:opacity-60';
   return (
     <div className="flex flex-wrap items-center gap-2">
       <span className="text-sm text-ink-soft">⬇ ჩამოტვირთვა:</span>
