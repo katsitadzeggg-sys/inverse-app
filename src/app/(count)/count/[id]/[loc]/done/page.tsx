@@ -5,6 +5,11 @@ import { requireSession } from '@/lib/session';
 import type { Stocktake, StocktakeZone } from '@/types/database';
 import ShelfSummaryForm from './summary-form';
 import MediaUpload from './media-upload';
+import AiCheck from './ai-check';
+import type { AiResult } from '../../../ai-actions';
+
+// The photo check waits for the vision model.
+export const maxDuration = 120;
 import { distanceM, mapsLink } from '@/lib/geo';
 
 /**
@@ -126,6 +131,18 @@ export default async function ShelfDonePage({ params }: PageProps<'/count/[id]/[
       };
     }),
   );
+  const isManager = profile.role === 'owner' || profile.role === 'admin';
+  const { data: ai } = isManager
+    ? await supabase
+        .from('shelf_ai_checks')
+        .select('result, created_at, photos')
+        .eq('stocktake_id', id)
+        .eq('location_id', loc)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle<{ result: AiResult; created_at: string; photos: number }>()
+    : { data: null };
+  const lastAi = ai ? { result: ai.result, at: ai.created_at, images: ai.photos } : null;
   // The shelf's own photos (taken at the end) apart from photos of single lines.
   const isLineShot = (m: { path: string }) => /\/product-[^/]+$/.test(m.path);
   const shelfShots = signed.filter((m) => !isLineShot(m));
@@ -243,6 +260,16 @@ export default async function ShelfDonePage({ params }: PageProps<'/count/[id]/[
           branch={st.branch}
           shelf={location.code}
           items={shelfShots}
+        />
+      )}
+
+      {isManager && !isAssets && (
+        <AiCheck
+          stocktakeId={id}
+          locationId={loc}
+          photos={shelfShots.filter((m) => m.kind === 'photo').length}
+          videos={shelfShots.filter((m) => m.kind === 'video').map((m) => m.url)}
+          last={lastAi}
         />
       )}
 
