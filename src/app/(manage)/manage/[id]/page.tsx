@@ -31,41 +31,12 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
     .maybeSingle<Stocktake>();
   if (!st) notFound();
 
-  const [{ data: zones }, { data: entries }, { data: checks }, { data: media }] = await Promise.all(
-    [
-      supabase
-        .from('stocktake_zones')
-        .select('*, locations (code), user_profiles (full_name, email)')
-        .eq('stocktake_id', id)
-        .order('started_at')
-        .returns<ZoneRow[]>(),
-      supabase
-        .from('stocktake_entries')
-        .select('location_id')
-        .eq('stocktake_id', id)
-        .limit(20000)
-        .returns<{ location_id: string }[]>(),
-      supabase
-        .from('stocktake_checks')
-        .select('location_id, status')
-        .eq('stocktake_id', id)
-        .neq('status', 'ok')
-        .returns<{ location_id: string; status: string }[]>(),
-      supabase
-        .from('stocktake_media')
-        .select('location_id')
-        .eq('stocktake_id', id)
-        .returns<{ location_id: string }[]>(),
-    ],
-  );
-  const count = (rows: { location_id: string }[] | null) => {
-    const m = new Map<string, number>();
-    for (const r of rows ?? []) m.set(r.location_id, (m.get(r.location_id) ?? 0) + 1);
-    return m;
-  };
-  const lines = count(entries);
-  const diffs = count(checks);
-  const shots = count(media);
+  const { data: zones } = await supabase
+    .from('stocktake_zones')
+    .select('*, locations (code), user_profiles (full_name, email)')
+    .eq('stocktake_id', id)
+    .order('started_at')
+    .returns<ZoneRow[]>();
   const list = zones ?? [];
   const [{ count: regCount }, { count: foundCount }] =
     st.kind === 'assets'
@@ -224,86 +195,8 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
         />
       )}
 
-      <section className="grid gap-2">
-        <h2 className="font-semibold">თაროები</h2>
-        {list.length === 0 ? (
-          <p className="text-sm text-ink-soft">ჯერ არცერთი თარო არ გახსნილა.</p>
-        ) : (
-          <div className="max-h-[45vh] overflow-auto rounded-control border border-rule/70">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 z-10 bg-paper-sunk text-left text-xs text-ink-faint">
-                <tr>
-                  <th className="px-2 py-1">თარო</th>
-                  <th className="px-2 py-1">აღწერის თანამშრომელი</th>
-                  <th className="px-2 py-1">სტატუსი</th>
-                  <th className="px-2 py-1 text-right">ჩანაწ.</th>
-                  <th className="px-2 py-1 text-right">სხვაობა</th>
-                  <th className="px-2 py-1">📷</th>
-                  <th className="px-2 py-1">📍</th>
-                  <th className="px-2 py-1">კომენტარი</th>
-                </tr>
-              </thead>
-              <tbody>
-                {list.map((z) => (
-                  <tr key={z.id} className="border-t border-rule/60 align-top">
-                    <td className="px-2 py-1 font-semibold">
-                      <Link href={`/count/${id}/${z.location_id}/done`} className="underline">
-                        {z.locations?.code}
-                      </Link>
-                    </td>
-                    <td className="px-2 py-1">
-                      {z.user_profiles?.full_name ?? z.user_profiles?.email}
-                    </td>
-                    <td
-                      className={`px-2 py-1 ${z.status === 'done' ? 'text-match' : 'text-review'}`}
-                    >
-                      {z.status === 'done'
-                        ? `✓ ${new Date(z.done_at ?? z.started_at).toLocaleTimeString('ka-GE', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tbilisi' })}`
-                        : 'ითვლება'}
-                    </td>
-                    <td className="px-2 py-1 text-right tabular-nums">
-                      {lines.get(z.location_id) ?? 0}
-                    </td>
-                    <td
-                      className={`px-2 py-1 text-right tabular-nums ${diffs.get(z.location_id) ? 'font-semibold text-mismatch' : ''}`}
-                    >
-                      {diffs.get(z.location_id) ?? 0}
-                    </td>
-                    <td className="px-2 py-1">{shots.get(z.location_id) ?? ''}</td>
-                    <td className="px-2 py-1">
-                      {z.lat != null && z.lng != null ? (
-                        <a
-                          href={mapsLink(z.lat, z.lng)}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="underline"
-                        >
-                          რუკა
-                        </a>
-                      ) : (
-                        ''
-                      )}
-                    </td>
-                    <td className="px-2 py-1 text-ink-soft">{z.note}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
       {balance && (
         <section className="grid gap-2">
-          <div className="flex flex-wrap items-center gap-x-3">
-            <h2 className="font-semibold">📒 დათვლილი — ბალანსის ფორმით</h2>
-            <span className="text-sm text-ink-faint">
-              {balance.lines.length} პოზიცია · სრული აქტი ნაშთის ყველა ხაზით —{' '}
-              <Link href={`/manage/${id}/act`} className="underline">
-                🖨 აქტი
-              </Link>
-            </span>
-          </div>
           {balance.lines.length ? (
             <div className="overflow-hidden rounded-md border border-[#c5ccd6]">
               <BalanceTable id={id} lines={balance.lines} hasCost={balance.hasCost} scroll />

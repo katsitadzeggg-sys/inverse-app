@@ -52,6 +52,7 @@ export default function BalanceTable({
             <th className={th}>ჯგუფი</th>
             <th className={th}>ბარკოდი</th>
             <th className={th}>ერთ.</th>
+            <th className={th}>თარო</th>
             {hasCost && <th className={`${th} text-right`}>ფასი</th>}
             <th className={`${th} text-right`}>ფაქტ. რაოდენობა</th>
             <th className={`${th} text-right`}>ბუღალტრული ნაშთი</th>
@@ -70,6 +71,9 @@ export default function BalanceTable({
               <td className={`${td} text-[#4a5568]`}>{l.group}</td>
               <td className={`${td} tabular-nums`}>{l.barcode}</td>
               <td className={td}>{l.unit}</td>
+              <td className={`${td} whitespace-nowrap`}>
+                {l.shelves.map((sh) => sh.code).join(', ')}
+              </td>
               {hasCost && (
                 <td className={`${td} text-right tabular-nums`}>
                   {l.cost != null ? money(l.cost) : ''}
@@ -107,7 +111,7 @@ export default function BalanceTable({
         </tbody>
         <tfoot className="bg-[#eef1f5] font-semibold">
           <tr>
-            <td className={td} colSpan={hasCost ? 7 : 6}>
+            <td className={td} colSpan={hasCost ? 8 : 7}>
               სულ
             </td>
             <td className={`${td} text-right tabular-nums`}>{q4(t.counted)}</td>
