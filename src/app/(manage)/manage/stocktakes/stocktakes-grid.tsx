@@ -121,7 +121,7 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
           p.data?.review ? (
             <b
               className="text-[#b45309]"
-              title={`ნაშთიდან გაქრა დაუთვლელი: ${p.data.zeroed ?? 0} · დათვლის დღეს ბრუნვა ჰქონდა: ${p.data.moved ?? 0}`}
+              title={`ნაშთიდან გაქრა დაუთვლელი: ${p.data.zeroed ?? 0} · დათვლის დღეს ნაშთი შეეცვალა: ${p.data.moved ?? 0}`}
             >
               გადასამოწმებელი
             </b>
