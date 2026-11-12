@@ -1494,3 +1494,22 @@ export async function shelfMedia(stocktakeId: string, locationId: string): Promi
     caption: m.caption,
   }));
 }
+
+/** Where else this product is counted: another shelf here, or another stocktake of the warehouse. */
+export async function countedElsewhere(
+  stocktakeId: string,
+  locationId: string,
+  productId: string,
+): Promise<{ number: string; shelf: string; qty: number }[]> {
+  await requireSession();
+  const supabase = await createClient();
+  const { data } = await supabase.rpc('counted_elsewhere', {
+    p_stocktake: stocktakeId,
+    p_location: locationId,
+    p_product: productId,
+  });
+  return ((data ?? []) as { number: string; shelf: string; qty: number }[]).map((r) => ({
+    ...r,
+    qty: Number(r.qty),
+  }));
+}

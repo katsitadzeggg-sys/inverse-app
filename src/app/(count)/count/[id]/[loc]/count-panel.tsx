@@ -8,6 +8,7 @@ import Scanner from '../../scanner';
 import {
   addEntry,
   bookShelves,
+  countedElsewhere,
   shelfCodeList,
   findProducts,
   productCatalog,
@@ -243,6 +244,9 @@ export default function CountPanel({
     }, 50);
   }
 
+  // The product last asked "counted elsewhere?" (a late answer for another one is dropped).
+  const askedElsewhere = useRef<string | null>(null);
+
   // A scanned product starts at 1 piece; each repeat scan adds one.
   function choose(p: ProductHit, exp: string | null = null) {
     setEditing(false);
@@ -267,6 +271,19 @@ export default function CountPanel({
         ? `უკვე დასკანერებულია: ${before} ${unitLabel(p.unit)}.\nახალი რაოდენობა დაემატება.`
         : null,
     );
+    // Counted on another shelf, or in another stocktake of this warehouse: say where.
+    askedElsewhere.current = p.id;
+    if (!isOffline())
+      countedElsewhere(stocktakeId, locationId, p.id)
+        .then((rows) => {
+          if (!rows.length || askedElsewhere.current !== p.id) return;
+          const list = rows.map((r) => `${r.number} · ${r.shelf} — ${r.qty}`).join('\n');
+          setDup(
+            (d) =>
+              `${d ? `${d}\n\n` : ''}ეს პროდუქტი სხვაგანაც დაითვალა:\n${list}\nაქაც დაითვალე, რაც აქ დევს — შედარებისას ერთად დაჯამდება.`,
+          );
+        })
+        .catch(() => {});
     focusQty();
   }
 
