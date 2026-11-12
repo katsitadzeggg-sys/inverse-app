@@ -136,6 +136,8 @@ export default async function StocktakesView({
     plus_sum: number;
     minus_qty: number;
     minus_sum: number;
+    zeroed_skus: number;
+    moved_skus: number;
   };
   const wh = (s: Stocktake) => s.branch || s.client_name || s.name;
   const groups = new Map<string, string[]>();
@@ -168,6 +170,9 @@ export default async function StocktakesView({
         id: `review-${name}`,
         warehouse: label,
         review: true,
+        ids,
+        zeroed: Number(p.zeroed_skus),
+        moved: Number(p.moved_skus),
         skus: Number(p.review_skus),
         plusQty: Number(p.plus_qty),
         plusSum: Number(p.plus_sum),

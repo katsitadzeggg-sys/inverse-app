@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react';
 import readXlsxFile from 'read-excel-file';
 import { Alert } from '@/components/ui';
 import { parseDate } from '@/lib/expiry';
-import { importBook, type BookRow } from '../../actions';
+import { importBook, spreadBook, type BookRow } from '../../actions';
 
 type Field =
   | 'barcode'
@@ -349,9 +349,11 @@ export default function BookImport({
                   created += res.created ?? 0;
                   shelves += res.shelves ?? 0;
                 }
+                // The same balance to the other open stocktakes of the warehouse.
+                const spread = await spreadBook(stocktakeId);
                 setMsg({
-                  tone: 'info',
-                  text: `ჩაიტვირთა ${lines} ხაზი. ახალი პროდუქტი: ${created}, ახალი თარო: ${shelves}.`,
+                  tone: spread.warn ? 'error' : 'info',
+                  text: `ჩაიტვირთა ${lines} ხაზი. ახალი პროდუქტი: ${created}, ახალი თარო: ${shelves}.${spread.notice ? `\n${spread.notice}` : ''}${spread.warn ? `\n${spread.warn}` : ''}`,
                 });
               })
             }
@@ -362,7 +364,11 @@ export default function BookImport({
         </>
       )}
 
-      {msg && <Alert tone={msg.tone}>{msg.text}</Alert>}
+      {msg && (
+        <Alert tone={msg.tone}>
+          <span className="whitespace-pre-line">{msg.text}</span>
+        </Alert>
+      )}
     </div>
   );
 }

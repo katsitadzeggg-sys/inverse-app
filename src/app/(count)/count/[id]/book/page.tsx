@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
 import type { Stocktake } from '@/types/database';
 import BookImport from './book-import';
+import MovesImport from './moves-import';
 
 export default async function BookPage({ params }: PageProps<'/count/[id]/book'>) {
   const { id } = await params;
@@ -35,6 +36,10 @@ export default async function BookPage({ params }: PageProps<'/count/[id]/book'>
     if (!data || data.length < 1000) break;
   }
   const count = lines.length;
+  const { count: moves } = await supabase
+    .from('stocktake_moves')
+    .select('id', { count: 'exact', head: true })
+    .eq('stocktake_id', id);
   const byShelf = new Map<string, Line[]>();
   for (const l of lines) {
     const k = l.locations?.code ?? 'თაროს გარეშე';
@@ -68,7 +73,19 @@ export default async function BookPage({ params }: PageProps<'/count/[id]/book'>
       <a href="/templates/nashti-shabloni.xlsx" download className="w-fit text-sm underline">
         ⬇ შაბლონი (Excel): დასახელება, შტრიხკოდი, ჯგუფი, რაოდენობა, თაროს ნომერი
       </a>
-      <BookImport stocktakeId={id} expiry={stocktake.kind === 'expiry'} />
+      {stocktake.status === 'open' ? (
+        <BookImport stocktakeId={id} expiry={stocktake.kind === 'expiry'} />
+      ) : (
+        <p className="rounded-control border border-rule/70 p-3 text-sm text-ink-soft">
+          ინვენტარიზაცია დახურულია — ნაშთი მისი დღისაა და აღარ იცვლება. დღევანდელი ნაშთი ღია
+          ინვენტარიზაციაში ჩატვირთე.
+        </p>
+      )}
+      <p className="text-xs text-ink-faint">
+        ღია ინვენტარიზაციაში ჩატვირთული ნაშთი ავტომატურად განახლდება ამავე საწყობის სხვა ღია
+        ინვენტარიზაციებშიც; დახურულები ხელუხლებელი რჩება.
+      </p>
+      <MovesImport stocktakeId={id} loaded={moves ?? 0} />
 
       {count > 0 && (
         <details className="rounded-control border border-accent/50 bg-accent/5 p-4">

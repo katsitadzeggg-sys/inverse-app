@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useMemo, useState, useTransition } from 'react';
 import type { ColDef, ICellRendererParams } from 'ag-grid-community';
 import DataGrid from '@/components/data-grid';
-import { openMissedForm } from './actions';
+import { openPoolForm } from './actions';
 
 export type StRow = {
   id: string;
@@ -32,10 +32,13 @@ export type StRow = {
   ids?: string[];
   /** 'missed' / 'review': a form made from the pinned rows. */
   formKind?: string | null;
+  /** On the review row: why — gone from the balance uncounted / moved on the count day. */
+  zeroed?: number;
+  moved?: number;
 };
 
-/** "Open the form" on the missed row: made once, then the same one opens. */
-function MissedButton({ ids }: { ids: string[] }) {
+/** "Open the form" on a pinned row: made once, then the same one opens. */
+function FormButton({ ids, kind }: { ids: string[]; kind: 'missed' | 'review' }) {
   const [pending, start] = useTransition();
   const [err, setErr] = useState<string | null>(null);
   return (
@@ -45,11 +48,11 @@ function MissedButton({ ids }: { ids: string[] }) {
         disabled={pending}
         onClick={() =>
           start(async () => {
-            const r = await openMissedForm(ids);
+            const r = await openPoolForm(ids, kind);
             if (r?.error) setErr(r.error);
           })
         }
-        className="rounded-full px-2.5 py-1 text-xs font-semibold text-[#5b21b6] hover:bg-[#ece5ff] disabled:opacity-50"
+        className={`rounded-full px-2.5 py-1 text-xs font-semibold disabled:opacity-50 ${kind === 'missed' ? 'text-[#5b21b6] hover:bg-[#ece5ff]' : 'text-[#b45309] hover:bg-[#ffe8cc]'}`}
       >
         {pending ? 'იხსნება…' : '📋 ფორმის გახსნა'}
       </button>
@@ -70,8 +73,11 @@ const span = (a: string, b: string | null) =>
   `${dayOf(a)} ${hm(a)}${b ? ` → ${dayOf(b) === dayOf(a) ? hm(b) : `${dayOf(b)} ${hm(b)}`}` : ''}`;
 
 function Actions({ data }: ICellRendererParams<StRow>) {
-  if (!data || data.review) return null;
-  if (data.left) return data.ids?.length ? <MissedButton ids={data.ids} /> : null;
+  if (!data) return null;
+  if (data.left || data.review)
+    return data.ids?.length ? (
+      <FormButton ids={data.ids} kind={data.left ? 'missed' : 'review'} />
+    ) : null;
   const a = 'rounded-full px-2.5 py-1 text-xs font-medium hover:bg-[#e8f3ed]';
   return (
     <span className="flex h-full items-center gap-1">
@@ -113,7 +119,12 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
         pinned: 'left',
         cellRenderer: (p: ICellRendererParams<StRow>) =>
           p.data?.review ? (
-            <b className="text-[#b45309]">გადასამოწმებელი</b>
+            <b
+              className="text-[#b45309]"
+              title={`ნაშთიდან გაქრა დაუთვლელი: ${p.data.zeroed ?? 0} · დათვლის დღეს ბრუნვა ჰქონდა: ${p.data.moved ?? 0}`}
+            >
+              გადასამოწმებელი
+            </b>
           ) : p.data?.left ? (
             <b className="text-[#5b21b6]">გამორჩენილი</b>
           ) : (
@@ -125,6 +136,11 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
               {p.data?.formKind === 'missed' && (
                 <span className="ml-1 rounded-full bg-[#ece5ff] px-1.5 text-[10px] text-[#5b21b6]">
                   გამორჩენილი
+                </span>
+              )}
+              {p.data?.formKind === 'review' && (
+                <span className="ml-1 rounded-full bg-[#ffe8cc] px-1.5 text-[10px] text-[#b45309]">
+                  გადამოწმება
                 </span>
               )}
             </Link>

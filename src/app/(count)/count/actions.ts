@@ -796,6 +796,14 @@ export async function importBook(
 
   const supabase = await createClient();
   const company = session.company.id;
+  // A closed stocktake keeps the balance of its day.
+  const { data: st } = await supabase
+    .from('stocktakes')
+    .select('status')
+    .eq('id', stocktakeId)
+    .maybeSingle<{ status: string }>();
+  if (!st) return { error: 'ინვენტარიზაცია ვერ მოიძებნა.' };
+  if (st.status !== 'open') return { error: 'დახურულ ინვენტარიზაციაში ნაშთი არ იცვლება.' };
 
   // Products: match by SKU, then by barcode; create the rest.
   const codes = [...new Set(clean.flatMap((r) => [r.code, r.barcode]).filter(Boolean))];
@@ -991,6 +999,8 @@ export async function importBook(
   }
 
   if (!append) {
+    // The previous balance is kept in the log ("it was in the first balance").
+    await supabase.rpc('log_book', { p_stocktake: stocktakeId });
     const { error: delError } = await supabase
       .from('stocktake_book')
       .delete()
@@ -1013,6 +1023,97 @@ export async function importBook(
     created: missing.length,
     shelves: newShelves,
   };
+}
+
+/**
+ * The balance just loaded into an open stocktake goes to the other open
+ * stocktakes of the same warehouse (closed ones keep the balance of their day).
+ * Warns about open ones counted before today: their count now meets today's balance.
+ */
+export async function spreadBook(stocktakeId: string): Promise<{ notice?: string; warn?: string }> {
+  const session = await requireSession();
+  if (!isManager(session.profile.role)) return {};
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc('spread_book', { p_from: stocktakeId });
+  if (error) return { warn: `სხვა ღია ინვენტარიზაციებში ვერ განახლდა: ${error.message}` };
+  const rows = (data ?? []) as { number: string; stale: boolean }[];
+  const others = rows.length - 1;
+  const stale = rows.filter((r) => r.stale).map((r) => r.number);
+  return {
+    notice: others > 0 ? `იგივე ნაშთი განახლდა ამ საწყობის კიდევ ${others} ღია ინვენტარიზაციაში.` : undefined,
+    warn: stale.length
+      ? `⚠ ღიაა და წინა დღეებში დათვლილი აქვს: ${stale.join(', ')} — მათი დათვლა ახლა დღევანდელ ნაშთს ედარება. დათვლილი დღის ბოლოს დახურე.`
+      : undefined,
+  };
+}
+
+/** One product's turnover on one day (from a sales / movement report). */
+export type MoveRow = { barcode: string; code: string; day: string; qty: number };
+
+/**
+ * Loads the turnover of the counting days. A product counted on a day it also
+ * moved goes to "to re-check". The first part replaces the old turnover.
+ */
+export async function importMoves(
+  stocktakeId: string,
+  rows: MoveRow[],
+  append = false,
+): Promise<FormState & { lines?: number; unknown?: number }> {
+  const session = await requireSession();
+  if (!isManager(session.profile.role)) return { error: 'ბრუნვას მხოლოდ მენეჯერი ტვირთავს.' };
+  const clean = rows
+    .map((r) => ({ ...r, barcode: r.barcode.trim(), code: r.code.trim() }))
+    .filter((r) => (r.barcode || r.code) && /^\d{4}-\d{2}-\d{2}$/.test(r.day) && Number(r.qty));
+  if (clean.length > 50000) return { error: 'ერთ ჯერზე მაქსიმუმ 50 000 ხაზი.' };
+  const supabase = await createClient();
+  const company = session.company.id;
+  const codes = [...new Set(clean.flatMap((r) => [r.barcode, r.code]).filter(Boolean))];
+  const products = new Map<string, string>();
+  for (let i = 0; i < codes.length; i += 500) {
+    const chunk = codes.slice(i, i + 500);
+    const [{ data: bySku }, { data: byBarcode }, { data: alt }] = await Promise.all([
+      supabase.from('products').select('id, sku').eq('company_id', company).in('sku', chunk),
+      supabase.from('products').select('id, barcode').eq('company_id', company).in('barcode', chunk),
+      supabase
+        .from('product_barcodes')
+        .select('product_id, barcode')
+        .eq('company_id', company)
+        .in('barcode', chunk),
+    ]);
+    for (const a of alt ?? []) products.set(a.barcode as string, a.product_id as string);
+    for (const p of bySku ?? []) products.set(p.sku, p.id);
+    for (const p of byBarcode ?? []) if (p.barcode) products.set(p.barcode, p.id);
+  }
+  const merged = new Map<string, { product_id: string; day: string; qty: number }>();
+  let unknown = 0;
+  for (const r of clean) {
+    const pid = (r.barcode && products.get(r.barcode)) || (r.code && products.get(r.code));
+    if (!pid) {
+      unknown++;
+      continue;
+    }
+    const k = `${pid}|${r.day}`;
+    const prev = merged.get(k);
+    if (prev) prev.qty += Number(r.qty);
+    else merged.set(k, { product_id: pid, day: r.day, qty: Number(r.qty) });
+  }
+  if (!append) {
+    const { error } = await supabase.from('stocktake_moves').delete().eq('stocktake_id', stocktakeId);
+    if (error) return { error: error.message };
+  }
+  const lines = [...merged.values()].map((m) => ({
+    ...m,
+    company_id: company,
+    stocktake_id: stocktakeId,
+  }));
+  for (let i = 0; i < lines.length; i += 1000) {
+    const { error } = await supabase
+      .from('stocktake_moves')
+      .upsert(lines.slice(i, i + 1000), { onConflict: 'stocktake_id,product_id,day' });
+    if (error) return { error: error.message };
+  }
+  revalidatePath(`/count/${stocktakeId}/book`);
+  return { lines: lines.length, unknown };
 }
 
 /** Signed links for the shelf photos/videos, for the ZIP download. */
