@@ -101,6 +101,7 @@ export default async function StocktakesView({
       minusSum: Number(t?.minus_sum ?? 0),
       diffSum: Number(t?.plus_sum ?? 0) - Number(t?.minus_sum ?? 0),
       status: s.status === 'open' ? 'open' : 'closed',
+      formKind: s.form_kind,
     };
   });
   // On top, two pinned rows per warehouse:
@@ -156,6 +157,7 @@ export default async function StocktakesView({
         id: `missed-${name}`,
         warehouse: label,
         left: true,
+        ids,
         skus: Number(p.missed_skus),
         counted: Number(p.missed_qty),
         diffSum: Number(p.missed_sum),

@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo } from 'react';
+import { useMemo, useState, useTransition } from 'react';
 import type { ColDef, ICellRendererParams } from 'ag-grid-community';
 import DataGrid from '@/components/data-grid';
+import { openMissedForm } from './actions';
 
 export type StRow = {
   id: string;
@@ -27,9 +28,35 @@ export type StRow = {
   left?: boolean;
   /** The pinned "to re-check" row (გადასამოწმებელი): differences of all stocktakes. */
   review?: boolean;
-  /** Where the pinned row's action goes. */
-  href?: string;
+  /** Stocktakes behind a pinned row (one warehouse). */
+  ids?: string[];
+  /** 'missed' / 'review': a form made from the pinned rows. */
+  formKind?: string | null;
 };
+
+/** "Open the form" on the missed row: made once, then the same one opens. */
+function MissedButton({ ids }: { ids: string[] }) {
+  const [pending, start] = useTransition();
+  const [err, setErr] = useState<string | null>(null);
+  return (
+    <span className="flex h-full items-center gap-1">
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() =>
+          start(async () => {
+            const r = await openMissedForm(ids);
+            if (r?.error) setErr(r.error);
+          })
+        }
+        className="rounded-full px-2.5 py-1 text-xs font-semibold text-[#5b21b6] hover:bg-[#ece5ff] disabled:opacity-50"
+      >
+        {pending ? 'იხსნება…' : '📋 ფორმის გახსნა'}
+      </button>
+      {err && <span className="text-xs text-[#d64545]">{err}</span>}
+    </span>
+  );
+}
 
 const KIND: Record<string, string> = { stock: '📦', expiry: '⏳', assets: '🏷' };
 const n = (v: number) => Number(v).toLocaleString('ka-GE', { maximumFractionDigits: 2 });
@@ -43,16 +70,9 @@ const span = (a: string, b: string | null) =>
   `${dayOf(a)} ${hm(a)}${b ? ` → ${dayOf(b) === dayOf(a) ? hm(b) : `${dayOf(b)} ${hm(b)}`}` : ''}`;
 
 function Actions({ data }: ICellRendererParams<StRow>) {
-  if (!data || data.left || data.review) return null;
+  if (!data || data.review) return null;
+  if (data.left) return data.ids?.length ? <MissedButton ids={data.ids} /> : null;
   const a = 'rounded-full px-2.5 py-1 text-xs font-medium hover:bg-[#e8f3ed]';
-  if (data.left)
-    return (
-      <span className="flex h-full items-center">
-        <Link href={data.href ?? '/manage/stocktakes'} className={`${a} text-[#5b21b6]`}>
-          დათვლა →
-        </Link>
-      </span>
-    );
   return (
     <span className="flex h-full items-center gap-1">
       <Link href={`/manage/${data.id}`} className={`${a} text-[#155c39]`}>
@@ -102,6 +122,11 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
               className="font-medium text-[#155c39] hover:underline"
             >
               {p.value}
+              {p.data?.formKind === 'missed' && (
+                <span className="ml-1 rounded-full bg-[#ece5ff] px-1.5 text-[10px] text-[#5b21b6]">
+                  გამორჩენილი
+                </span>
+              )}
             </Link>
           ),
       },

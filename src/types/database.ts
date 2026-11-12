@@ -193,6 +193,8 @@ export type Stocktake = {
   archived_at: string | null;
   /** Counters see the book quantity of the shelf while counting. */
   show_book: boolean;
+  /** A form made from a warehouse's stocktakes: 'missed' or 'review'. */
+  form_kind?: 'missed' | 'review' | null;
 };
 
 export type StocktakeZone = {
