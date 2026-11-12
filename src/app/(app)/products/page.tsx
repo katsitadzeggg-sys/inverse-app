@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
 import { Card, EmptyState, ButtonLink } from '@/components/ui';
@@ -69,6 +70,15 @@ export default async function ProductsPage({ searchParams }: PageProps<'/product
         </div>
         <LocationFilter locations={locationList} location={locationFilter} query={query} />
       </div>
+
+      {canWrite && (
+        <Link
+          href="/products/labels"
+          className="inline-flex w-fit rounded-control border border-rule-strong px-4 py-2 text-sm font-medium"
+        >
+          🏷 Barcode labels
+        </Link>
+      )}
 
       {canWrite && <NewProductForm locations={locationList} />}
 

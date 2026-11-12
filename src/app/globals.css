@@ -1028,6 +1028,10 @@ select:focus {
   background-color: #f3efff;
   color: #5b21b6;
 }
+.ag-row.st-review-row {
+  background-color: #fff4e5;
+  color: #b45309;
+}
 /* Main buttons in the dashboard are its green, white type. */
 .theme-light .btn-primary {
   background-color: var(--color-accent);

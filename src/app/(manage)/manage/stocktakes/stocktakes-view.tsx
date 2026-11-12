@@ -103,24 +103,77 @@ export default async function StocktakesView({
       status: s.status === 'open' ? 'open' : 'closed',
     };
   });
-  // On top, in violet: what is still to count in each open stocktake.
-  const leftRows: StRow[] = list
-    .filter((s) => s.status === 'open' && Number(stats.get(s.id)?.left_qty ?? 0) > 0)
-    .map((s) => {
-      const t = stats.get(s.id)!;
-      return {
-        ...rows.find((r) => r.id === s.id)!,
+  // On top, two pinned rows per warehouse:
+  // "გამორჩენილი" (violet) — in the balance, counted in none of its stocktakes;
+  // "გადასამოწმებელი" (amber) — counted, but the total over all of them differs.
+  const blank: StRow = {
+    id: '',
+    kind: '',
+    number: '',
+    opened: '',
+    closed: null,
+    warehouse: '',
+    shelves: 0,
+    shelvesDone: 0,
+    skus: 0,
+    counted: 0,
+    plusQty: 0,
+    plusSum: 0,
+    plusNocost: 0,
+    minusQty: 0,
+    minusSum: 0,
+    diffSum: 0,
+    status: 'open',
+  };
+  // The stocktakes of one warehouse are one count: book once, counts summed.
+  type Pool = {
+    missed_skus: number;
+    missed_qty: number;
+    missed_sum: number;
+    review_skus: number;
+    plus_qty: number;
+    plus_sum: number;
+    minus_qty: number;
+    minus_sum: number;
+  };
+  const wh = (s: Stocktake) => s.branch || s.client_name || s.name;
+  const groups = new Map<string, string[]>();
+  for (const s of list)
+    if (s.kind !== 'assets') groups.set(wh(s), [...(groups.get(wh(s)) ?? []), s.id]);
+  const pools = await Promise.all(
+    [...groups].map(async ([name, ids]) => {
+      const { data: r } = await supabase.rpc('stocktake_pool_stats', { p_ids: ids });
+      return { name, ids, p: ((r ?? []) as Pool[])[0] };
+    }),
+  );
+  const pinned: StRow[] = [];
+  for (const { name, ids, p } of pools) {
+    if (!p) continue;
+    const label = `${name} · ${ids.length} ინვ.`;
+    if (Number(p.missed_skus) > 0)
+      pinned.push({
+        ...blank,
+        id: `missed-${name}`,
+        warehouse: label,
         left: true,
-        shelves: t.left_shelves,
-        skus: t.left_skus,
-        counted: Number(t.left_qty),
-        plusQty: 0,
-        plusSum: 0,
-        minusQty: 0,
-        minusSum: 0,
-        diffSum: Number(t.left_sum),
-      };
-    });
+        skus: Number(p.missed_skus),
+        counted: Number(p.missed_qty),
+        diffSum: Number(p.missed_sum),
+      });
+    if (Number(p.review_skus) > 0)
+      pinned.push({
+        ...blank,
+        id: `review-${name}`,
+        warehouse: label,
+        review: true,
+        skus: Number(p.review_skus),
+        plusQty: Number(p.plus_qty),
+        plusSum: Number(p.plus_sum),
+        minusQty: Number(p.minus_qty),
+        minusSum: Number(p.minus_sum),
+        diffSum: Number(p.plus_sum) - Number(p.minus_sum),
+      });
+  }
 
   return (
     <div className="grid gap-6 rounded-2xl bg-paper-sunk p-5">
@@ -153,7 +206,7 @@ export default async function StocktakesView({
           )}
         </div>
         {list.length === 0 && <p className="text-ink-soft">ჯერ არცერთი არ არის.</p>}
-        {list.length > 0 && <StocktakesGrid rows={rows} left={leftRows} />}
+        {list.length > 0 && <StocktakesGrid rows={rows} left={pinned} />}
       </section>
     </div>
   );

@@ -136,8 +136,8 @@ export default function CountPanel({
   } | null>(null);
   // "Already counted on this shelf" — a notice on the screen until Next.
   const [dup, setDup] = useState<string | null>(null);
-  // Lines saved here that are not a known product yet (new products), for the shelf total.
-  const [extra, setExtra] = useState({ sku: 0, pcs: 0 });
+  // Lines saved here that are not a known product yet (new products): listed and counted for the shelf.
+  const [extraLines, setExtraLines] = useState<{ key: string; name: string; qty: number }[]>([]);
   // Products kept on the phone, so a scan is recognised with no connection.
   const [catalog, setCatalog] = useState<ProductHit[]>([]);
   // Shelf codes of the company: a shelf label read by the camera is ignored.
@@ -604,7 +604,11 @@ export default function CountPanel({
             : (newBarcode ?? '');
         const sum = (product ? (counted[product.id] ?? 0) : 0) + total;
         if (product) setCounted((c) => ({ ...c, [product.id]: sum }));
-        else setExtra((x) => ({ sku: x.sku + 1, pcs: x.pcs + total }));
+        else
+          setExtraLines((xs) => [
+            ...xs,
+            { key: `${Date.now()}-${xs.length}`, name: savedName || savedCode || '—', qty: total },
+          ]);
         setLast({ code: savedCode, name: savedName, qty: sum, product: product ?? undefined });
         // Remember the order of saves, so "← Back" can step back through them.
         if (product && savedStack.current.at(-1)?.id !== product.id)
@@ -719,8 +723,9 @@ export default function CountPanel({
         {(() => {
           // Counted on this shelf so far: products (SKU) and pieces.
           const vals = Object.values(counted).filter((q) => q > 0);
-          const sku = vals.length + extra.sku;
-          const pcs = vals.reduce((a, q) => a + q, 0) + extra.pcs;
+          const sku = vals.length + extraLines.length;
+          const pcs =
+            vals.reduce((a, q) => a + q, 0) + extraLines.reduce((a, x) => a + x.qty, 0);
           return sku > 0 ? (
             <p className="-mt-1 text-right text-sm font-semibold text-ink">
               ამ თაროზე დათვლილია: <span className="text-match">{sku} SKU</span> ·{' '}
@@ -747,7 +752,7 @@ export default function CountPanel({
             )}
           </button>
         )}
-        {Object.keys(counted).length > 0 && (
+        {(Object.keys(counted).length > 0 || extraLines.length > 0) && (
           // Everything counted on this shelf, each line can be corrected.
           <details className="min-w-0 rounded-control border border-accent/50 bg-accent/5 px-3 py-2">
             <summary className="cursor-pointer text-sm font-semibold text-accent">
@@ -778,6 +783,16 @@ export default function CountPanel({
                     </li>
                   );
                 })}
+              {/* New products saved here (no catalog id yet): listed, not editable from here. */}
+              {extraLines.map((x) => (
+                <li
+                  key={x.key}
+                  className="flex w-full items-center gap-2 rounded-control border border-rule/70 px-3 py-2 text-sm"
+                >
+                  <span className="min-w-0 flex-1 truncate">{x.name}</span>
+                  <b className="text-match tabular-nums">{x.qty}</b>
+                </li>
+              ))}
             </ul>
           </details>
         )}

@@ -23,8 +23,12 @@ export type StRow = {
   minusSum: number;
   diffSum: number;
   status: 'open' | 'closed';
-  /** Set on the pinned "still to count" rows only. */
+  /** The pinned "still to count" row (დარჩენილი). */
   left?: boolean;
+  /** The pinned "to re-check" row (გადასამოწმებელი): differences of all stocktakes. */
+  review?: boolean;
+  /** Where the pinned row's action goes. */
+  href?: string;
 };
 
 const KIND: Record<string, string> = { stock: '📦', expiry: '⏳', assets: '🏷' };
@@ -39,12 +43,12 @@ const span = (a: string, b: string | null) =>
   `${dayOf(a)} ${hm(a)}${b ? ` → ${dayOf(b) === dayOf(a) ? hm(b) : `${dayOf(b)} ${hm(b)}`}` : ''}`;
 
 function Actions({ data }: ICellRendererParams<StRow>) {
-  if (!data) return null;
+  if (!data || data.left || data.review) return null;
   const a = 'rounded-full px-2.5 py-1 text-xs font-medium hover:bg-[#e8f3ed]';
   if (data.left)
     return (
       <span className="flex h-full items-center">
-        <Link href={`/manage/${data.id}`} className={`${a} text-[#5b21b6]`}>
+        <Link href={data.href ?? '/manage/stocktakes'} className={`${a} text-[#5b21b6]`}>
           დათვლა →
         </Link>
       </span>
@@ -78,7 +82,8 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
         width: 48,
         minWidth: 48,
         pinned: 'left',
-        valueFormatter: (p) => (p.data?.left ? '⏳' : (KIND[p.value] ?? '')),
+        valueFormatter: (p) =>
+          p.data?.review ? '🔎' : p.data?.left ? '⏳' : (KIND[p.value] ?? ''),
         filter: false,
       },
       {
@@ -87,8 +92,10 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
         width: 140,
         pinned: 'left',
         cellRenderer: (p: ICellRendererParams<StRow>) =>
-          p.data?.left ? (
-            <b className="text-[#5b21b6]">დარჩენილი</b>
+          p.data?.review ? (
+            <b className="text-[#b45309]">გადასამოწმებელი</b>
+          ) : p.data?.left ? (
+            <b className="text-[#5b21b6]">გამორჩენილი</b>
           ) : (
             <Link
               href={`/manage/${p.data?.id}`}
@@ -103,7 +110,8 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
         field: 'opened',
         width: 175,
         filter: 'agDateColumnFilter',
-        valueFormatter: (p) => (p.data ? span(p.data.opened, p.data.closed) : ''),
+        valueFormatter: (p) =>
+          p.data && !p.data.left && !p.data.review ? span(p.data.opened, p.data.closed) : '',
         filterParams: {
           comparator: (d: Date, v: string) => {
             const t = new Date(v);
@@ -125,8 +133,9 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
         width: 80,
         type: 'numericColumn',
         filter: 'agNumberColumnFilter',
+        valueFormatter: (p) => (p.data?.left || p.data?.review ? '—' : String(p.value)),
         tooltipValueGetter: (p) =>
-          p.data?.left ? 'ჯერ დაუხურავი' : `დასრულებული ${p.data?.shelvesDone ?? 0} / ${p.value}`,
+          p.data?.left || p.data?.review ? undefined : `დასრულებული ${p.data?.shelvesDone ?? 0} / ${p.value}`,
       },
       {
         headerName: 'SKU',
@@ -141,7 +150,7 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
         width: 100,
         type: 'numericColumn',
         filter: 'agNumberColumnFilter',
-        valueFormatter: (p) => n(p.value),
+        valueFormatter: (p) => (p.data?.review ? '—' : n(p.value)),
       },
       {
         headerName: 'მეტობა ₾',
@@ -176,9 +185,10 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
         type: 'numericColumn',
         filter: 'agNumberColumnFilter',
         cellClassRules: {
-          'text-[#d64545] font-semibold': (p) => !p.data?.left && p.value < 0,
-          'text-[#2563eb] font-semibold': (p) => !p.data?.left && p.value > 0,
+          'text-[#d64545] font-semibold': (p) => !p.data?.left && !p.data?.review && p.value < 0,
+          'text-[#2563eb] font-semibold': (p) => !p.data?.left && !p.data?.review && p.value > 0,
           'text-[#5b21b6] font-semibold': (p) => !!p.data?.left,
+          'text-[#b45309] font-semibold': (p) => !!p.data?.review,
         },
         valueFormatter: (p) =>
           p.data?.left ? gel(p.value) : p.data?.plusQty || p.data?.minusQty ? gel(p.value) : '—',
@@ -189,7 +199,9 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
         width: 105,
         cellRenderer: (p: ICellRendererParams<StRow>) =>
           p.data?.left ? (
-            <span className="text-xs text-[#5b21b6]">დასათვლელი</span>
+            <span className="text-xs text-[#5b21b6]">ფორმა დასათვლელად</span>
+          ) : p.data?.review ? (
+            <span className="text-xs text-[#b45309]">შესამოწმებელი</span>
           ) : p.value === 'open' ? (
             <span className="rounded-full bg-[#fdf3dc] px-2 py-0.5 text-xs font-medium text-[#8a5a00]">
               მიმდინარე
@@ -222,7 +234,9 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
       rowId={(r) => r.id}
       fileName="inventarizaciebi"
       height={Math.min(720, 140 + (rows.length + left.length) * 40)}
-      rowClass={(p) => (p.data?.left ? 'st-left-row' : undefined)}
+      rowClass={(p) =>
+        p.data?.left ? 'st-left-row' : p.data?.review ? 'st-review-row' : undefined
+      }
     />
   );
 }
