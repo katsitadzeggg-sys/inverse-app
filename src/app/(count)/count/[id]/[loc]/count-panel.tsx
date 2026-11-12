@@ -277,11 +277,9 @@ export default function CountPanel({
       countedElsewhere(stocktakeId, locationId, p.id)
         .then((rows) => {
           if (!rows.length || askedElsewhere.current !== p.id) return;
-          const list = rows.map((r) => `${r.number} · ${r.shelf} — ${r.qty}`).join('\n');
-          setDup(
-            (d) =>
-              `${d ? `${d}\n\n` : ''}ეს პროდუქტი სხვაგანაც დაითვალა:\n${list}\nაქაც დაითვალე, რაც აქ დევს — შედარებისას ერთად დაჯამდება.`,
-          );
+          const unit = unitLabel(p.unit);
+          const list = rows.map((r) => `${r.shelf} — ${r.qty} ${unit} ${r.number}`).join('\n');
+          setDup((d) => `${d ? `${d}\n\n` : ''}ეს პროდუქტი დაითვალა:\n${list}`);
         })
         .catch(() => {});
     focusQty();
