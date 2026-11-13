@@ -5,6 +5,7 @@ import type { Stocktake } from '@/types/database';
 import StocktakesGrid, { type StRow } from './stocktakes-grid';
 import AddDrawer from '@/components/add-drawer';
 import NewStocktakeForm from '../new-stocktake-form';
+import { cycleLabel } from '@/lib/cycles';
 
 const KINDS = [
   { kind: 'all', label: 'ყველა' },
@@ -140,19 +141,33 @@ export default async function StocktakesView({
     moved_skus: number;
   };
   const wh = (s: Stocktake) => s.branch || s.client_name || s.name;
-  const groups = new Map<string, string[]>();
-  for (const s of list)
-    if (s.kind !== 'assets') groups.set(wh(s), [...(groups.get(wh(s)) ?? []), s.id]);
+  // Only the current (open) cycle of a warehouse is one count: a closed
+  // quarter's stocktakes never mix into the new one's missed / to re-check.
+  const cycleIds = [...new Set(list.map((s) => s.cycle_id).filter((x): x is string => !!x))];
+  const { data: cycles } = cycleIds.length
+    ? await supabase.from('count_cycles').select('id, started_at, closed_at').in('id', cycleIds)
+    : { data: [] };
+  const cycleOf = new Map((cycles ?? []).map((c) => [c.id as string, c]));
+  const groups = new Map<string, { name: string; since?: string; ids: string[] }>();
+  for (const s of list) {
+    if (s.kind === 'assets') continue;
+    const c = s.cycle_id ? cycleOf.get(s.cycle_id) : undefined;
+    if (c?.closed_at) continue;
+    const key = s.cycle_id ?? wh(s);
+    const g = groups.get(key) ?? { name: wh(s), since: c?.started_at, ids: [] as string[] };
+    g.ids.push(s.id);
+    groups.set(key, g);
+  }
   const pools = await Promise.all(
-    [...groups].map(async ([name, ids]) => {
+    [...groups.values()].map(async ({ name, since, ids }) => {
       const { data: r } = await supabase.rpc('stocktake_pool_stats', { p_ids: ids });
-      return { name, ids, p: ((r ?? []) as Pool[])[0] };
+      return { name, since, ids, p: ((r ?? []) as Pool[])[0] };
     }),
   );
   const pinned: StRow[] = [];
-  for (const { name, ids, p } of pools) {
+  for (const { name, since, ids, p } of pools) {
     if (!p) continue;
-    const label = `${name} · ${ids.length} ინვ.`;
+    const label = `${name}${since ? ` · ${cycleLabel(since)}` : ''} · ${ids.length} ინვ.`;
     if (Number(p.missed_skus) > 0)
       pinned.push({
         ...blank,

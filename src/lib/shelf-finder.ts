@@ -25,19 +25,22 @@ export type FoundProduct = {
 export async function warehousePool(db: Db, stocktakeId: string) {
   const { data: st } = await db
     .from('stocktakes')
-    .select('id, branch, client_name, name, kind, company_id')
+    .select('id, branch, client_name, name, kind, company_id, cycle_id')
     .eq('id', stocktakeId)
     .maybeSingle();
   if (!st) return null;
   const key = st.branch || st.client_name || st.name;
   if (st.kind === 'assets') return { key, ids: [st.id] };
-  const { data } = await db
+  let q = db
     .from('stocktakes')
     .select('id, branch, client_name, name')
     .eq('company_id', st.company_id)
     .neq('kind', 'assets')
     .is('archived_at', null)
     .limit(500);
+  // Within the same count cycle only: a closed quarter does not mix in.
+  if (st.cycle_id) q = q.eq('cycle_id', st.cycle_id);
+  const { data } = await q;
   const ids = (data ?? [])
     .filter((s) => (s.branch || s.client_name || s.name) === key)
     .map((s) => s.id as string);

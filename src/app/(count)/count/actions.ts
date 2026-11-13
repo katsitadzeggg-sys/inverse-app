@@ -1040,7 +1040,10 @@ export async function spreadBook(stocktakeId: string): Promise<{ notice?: string
   const others = rows.length - 1;
   const stale = rows.filter((r) => r.stale).map((r) => r.number);
   return {
-    notice: others > 0 ? `იგივე ნაშთი განახლდა ამ საწყობის კიდევ ${others} ღია ინვენტარიზაციაში.` : undefined,
+    notice:
+      others > 0
+        ? `იგივე ნაშთი განახლდა ამ საწყობის კიდევ ${others} ღია ინვენტარიზაციაში.`
+        : undefined,
     warn: stale.length
       ? `⚠ ღიაა და წინა დღეებში დათვლილი აქვს: ${stale.join(', ')} — მათი დათვლა ახლა დღევანდელ ნაშთს ედარება. დათვლილი დღის ბოლოს დახურე.`
       : undefined,
@@ -1102,6 +1105,18 @@ export async function setStocktakeStatus(
   const session = await requireSession();
   if (!isManager(session.profile.role)) return;
   const supabase = await createClient();
+  // A stocktake of a closed count cycle stays closed: its result is frozen.
+  if (status === 'open') {
+    const { data: st } = await supabase
+      .from('stocktakes')
+      .select('cycle_id, count_cycles (closed_at)')
+      .eq('id', stocktakeId)
+      .maybeSingle<{
+        cycle_id: string | null;
+        count_cycles: { closed_at: string | null } | null;
+      }>();
+    if (st?.count_cycles?.closed_at) return;
+  }
   await supabase
     .from('stocktakes')
     .update({ status, closed_at: status === 'closed' ? new Date().toISOString() : null })

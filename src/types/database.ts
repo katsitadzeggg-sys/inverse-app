@@ -195,6 +195,35 @@ export type Stocktake = {
   show_book: boolean;
   /** A form made from a warehouse's stocktakes: 'missed' or 'review'. */
   form_kind?: 'missed' | 'review' | null;
+  /** The count cycle (e.g. a quarter) of its warehouse; null for fixed assets. */
+  cycle_id?: string | null;
+};
+
+/** A warehouse's count cycle: its stocktakes are one count until it is closed. */
+export type CountCycle = {
+  id: string;
+  company_id: string;
+  warehouse: string;
+  started_at: string;
+  closed_at: string | null;
+  closed_by: string | null;
+  summary: CycleSummary | null;
+};
+export type CycleSummary = {
+  stocktakes: number;
+  closed_open: number;
+  products: number;
+  ok: number;
+  missed: number;
+  review: number;
+  book_qty: number;
+  book_value: number;
+  counted_qty: number;
+  shortage_qty: number;
+  shortage_value: number;
+  surplus_qty: number;
+  surplus_value: number;
+  shelves: number;
 };
 
 export type StocktakeZone = {
