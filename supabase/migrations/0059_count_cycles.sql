@@ -23,6 +23,7 @@ create unique index if not exists count_cycles_one_open
   on public.count_cycles (company_id, warehouse) where closed_at is null;
 create index if not exists count_cycles_company_idx on public.count_cycles (company_id, warehouse, started_at);
 alter table public.count_cycles enable row level security;
+drop policy if exists count_cycles_select on public.count_cycles;
 create policy count_cycles_select on public.count_cycles
   for select to authenticated using (company_id = public.auth_company_id());
 
@@ -39,6 +40,7 @@ create table if not exists public.count_cycle_lines (
 );
 create index if not exists count_cycle_lines_product_idx on public.count_cycle_lines (company_id, product_id);
 alter table public.count_cycle_lines enable row level security;
+drop policy if exists count_cycle_lines_select on public.count_cycle_lines;
 create policy count_cycle_lines_select on public.count_cycle_lines
   for select to authenticated using (company_id = public.auth_company_id());
 
