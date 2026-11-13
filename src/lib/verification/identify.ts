@@ -10,10 +10,14 @@ export const IDENTIFY_MODEL = 'claude-sonnet-5-5';
 export const IdentifySchema = z.object({
   label_text: z
     .string()
-    .describe('The main text printed on the product, as written (brand, name, size). Empty if none.'),
+    .describe(
+      'The main text printed on the product, as written (brand, name, size). Empty if none.',
+    ),
   name_guess: z
     .string()
-    .describe('A short product name to search a warehouse list with, e.g. "ზედაზენი ლიმონათი 0.5ლ".'),
+    .describe(
+      'A short product name to search a warehouse list with, e.g. "ზედაზენი ლიმონათი 0.5ლ".',
+    ),
   barcode_digits: z
     .string()
     .describe('Barcode digits if they are readable under the bars, else empty string.'),
@@ -24,7 +28,9 @@ export const IdentifySchema = z.object({
         confidence: z.number().min(0).max(1),
       }),
     )
-    .describe('Up to 3 candidates from the list that this could be, best first. Empty if none fit.'),
+    .describe(
+      'Up to 3 candidates from the list that this could be, best first. Empty if none fit.',
+    ),
 });
 export type Identify = z.infer<typeof IdentifySchema>;
 

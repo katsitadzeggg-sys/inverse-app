@@ -16,6 +16,7 @@ const I = {
   building: (
     <path d="M4 21V5l8-3v19M12 8h8v13M4 21h16M8 7h.01M8 11h.01M8 15h.01M16 12h.01M16 16h.01" />
   ),
+  chat: <path d="M4 5h16v11H9l-5 4zM8 9h8M8 12h5" />,
   phone: (
     <path d="M8 2h8a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zM11 18h2" />
   ),
@@ -76,6 +77,12 @@ export default function ManageNav({ platform, open }: { platform: boolean; open:
       label: 'არქივი',
       icon: 'archive',
       active: pathname.startsWith('/manage/archive'),
+    },
+    {
+      href: '/manage/assistant',
+      label: 'AI ასისტენტი',
+      icon: 'chat',
+      active: pathname.startsWith('/manage/assistant'),
     },
   ];
   // Administration: people, their roles, the platform — at the bottom left.
