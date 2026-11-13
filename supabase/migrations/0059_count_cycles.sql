@@ -4,6 +4,12 @@
 -- re-check products start from scratch and never mix with the old ones.
 
 -- 1) -------------------------------------------------------------------------
+-- How often the company counts: it only names the cycles (2026 ნოემბერი /
+-- 2026 Q4 / 2026 H2 / 2026); a cycle still ends when the manager closes it.
+alter table public.companies
+  add column if not exists cycle_period text not null default 'quarter'
+  check (cycle_period in ('month', 'quarter', 'half', 'year'));
+
 create table if not exists public.count_cycles (
   id          uuid primary key default gen_random_uuid(),
   company_id  uuid not null references public.companies (id) on delete cascade,

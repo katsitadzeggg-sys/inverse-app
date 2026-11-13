@@ -167,7 +167,7 @@ export default async function StocktakesView({
   const pinned: StRow[] = [];
   for (const { name, since, ids, p } of pools) {
     if (!p) continue;
-    const label = `${name}${since ? ` · ${cycleLabel(since)}` : ''} · ${ids.length} ინვ.`;
+    const label = `${name}${since ? ` · ${cycleLabel(since, company.cycle_period)}` : ''} · ${ids.length} ინვ.`;
     if (Number(p.missed_skus) > 0)
       pinned.push({
         ...blank,

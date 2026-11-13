@@ -4,6 +4,7 @@ import { requireSession } from '@/lib/session';
 import { cycleLabel } from '@/lib/cycles';
 import type { CountCycle, CycleSummary } from '@/types/database';
 import CloseCycleButton from './close-button';
+import PeriodSelect from './period-select';
 
 export const metadata = { title: 'ციკლები' };
 
@@ -70,7 +71,8 @@ const accuracy = (s: CycleSummary) => (s.products ? (s.ok / s.products) * 100 : 
  * time, and which products come up short again and again.
  */
 export default async function CyclesPage() {
-  const { profile } = await requireSession();
+  const { profile, company } = await requireSession();
+  const period = company.cycle_period ?? 'quarter';
   const manager = profile.role === 'owner' || profile.role === 'admin';
   const supabase = await createClient();
   const [{ data: cyc }, { data: sts }] = await Promise.all([
@@ -170,11 +172,15 @@ export default async function CyclesPage() {
   return (
     <div className="grid gap-5 rounded-2xl bg-paper-sunk p-5">
       <div>
-        <h1 className="text-xl font-semibold">აღწერის ციკლები</h1>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h1 className="text-xl font-semibold">აღწერის ციკლები</h1>
+          {manager && <PeriodSelect value={period} />}
+        </div>
         <p className="text-sm text-ink-soft">
-          ციკლი = ერთი აღწერა საწყობში (მაგ. კვარტალი). ღია ციკლის ყველა ინვენტარიზაცია ერთად
-          ითვლება — გამორჩენილი და გადასამოწმებელი მხოლოდ მისია. დახურვისას შედეგი ფიქსირდება, ხოლო
-          შემდეგი ინვენტარიზაცია ახალ ციკლს იწყებს.
+          ციკლი = ერთი აღწერა საწყობში (თვე, კვარტალი ან წელი — როგორც ითვლით). იწყება პირველივე
+          ინვენტარიზაციით, მთავრდება, როცა დახურავ. ღია ციკლის ყველა ინვენტარიზაცია ერთად ითვლება —
+          გამორჩენილი და გადასამოწმებელი მხოლოდ მისია. დახურვისას შედეგი ფიქსირდება, ხოლო შემდეგი
+          ინვენტარიზაცია ახალ ციკლს იწყებს.
         </p>
       </div>
       {warehouses.length === 0 && <p className="text-ink-soft">ჯერ არცერთი ციკლი არ არის.</p>}
@@ -218,7 +224,7 @@ export default async function CyclesPage() {
                     return (
                       <tr key={c.id} className="border-t border-rule/70 align-middle">
                         <td className="py-2 pr-3 font-semibold">
-                          {cycleLabel(c.started_at)}
+                          {cycleLabel(c.started_at, period)}
                           {!c.closed_at && (
                             <span className="ml-2 rounded-full bg-match/15 px-2 py-0.5 text-xs font-medium text-match">
                               მიმდინარე
@@ -259,7 +265,7 @@ export default async function CyclesPage() {
                           {!c.closed_at && manager && (byCycle.get(c.id) ?? []).length > 0 && (
                             <CloseCycleButton
                               cycleId={c.id}
-                              label={`${wh} · ${cycleLabel(c.started_at)}`}
+                              label={`${wh} · ${cycleLabel(c.started_at, period)}`}
                               open={openSt}
                             />
                           )}

@@ -26,3 +26,19 @@ export async function closeCycle(cycleId: string): Promise<{ error?: string }> {
   revalidatePath('/manage');
   return {};
 }
+
+/** How often the company counts — only names its cycles. */
+export async function setCyclePeriod(period: string): Promise<{ error?: string }> {
+  const { profile } = await requireSession();
+  if (profile.role !== 'owner' && profile.role !== 'admin') return { error: 'მხოლოდ მენეჯერი.' };
+  if (!['month', 'quarter', 'half', 'year'].includes(period)) return { error: 'პერიოდი?' };
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('companies')
+    .update({ cycle_period: period })
+    .eq('id', profile.company_id);
+  if (error) return { error: error.message };
+  revalidatePath('/manage/cycles');
+  revalidatePath('/manage/stocktakes');
+  return {};
+}

@@ -8,6 +8,8 @@ export type LocationKind = 'warehouse' | 'shelf' | 'store' | 'transit' | 'other'
 export type CheckStatus = 'pending' | 'analyzing' | 'completed' | 'failed';
 export type MatchStatus = 'match' | 'partial' | 'mismatch' | 'unknown';
 
+export type CyclePeriod = 'month' | 'quarter' | 'half' | 'year';
+
 export type Company = {
   id: string;
   name: string;
@@ -17,6 +19,8 @@ export type Company = {
   currency: string;
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
+  /** How often it counts: names the count cycles. */
+  cycle_period?: CyclePeriod;
   created_at: string;
   updated_at: string;
 };
