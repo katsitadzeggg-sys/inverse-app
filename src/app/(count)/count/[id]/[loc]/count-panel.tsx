@@ -19,6 +19,7 @@ import {
   shelfCounts,
   type ProductHit,
 } from '../../actions';
+import { identifyByPhoto } from '../../ai-actions';
 import { isOffline, keepCatalog, pendingEntries, queueEntry, storedCatalog } from '@/lib/outbox';
 import ComboInput from '@/components/combo-input';
 import SerialField from './serial-field';
@@ -228,6 +229,11 @@ export default function CountPanel({
   const [expiryDate, setExpiryDate] = useState('');
   const [expiryUnknown, setExpiryUnknown] = useState(false);
   const [reading, setReading] = useState<string | null>(null);
+  // Barcode won't read: a photo of the product, recognised by AI. The name it read is kept
+  // for the new-product form in case none of the suggestions is right.
+  const photoRef = useRef<HTMLInputElement>(null);
+  const [photoGuess, setPhotoGuess] = useState<string | null>(null);
+  const [identifying, setIdentifying] = useState(false);
   const status = expiryUnknown
     ? 'unknown'
     : expiryDate
@@ -259,6 +265,7 @@ export default function CountPanel({
     setNewBarcode(null);
     setNewOpen(false);
     setHits(null);
+    setPhotoGuess(null);
     // Counted before on this shelf: say so; the new quantity is added to it.
     const before = counted[p.id];
     setMessage(null);
@@ -367,11 +374,59 @@ export default function CountPanel({
         return choose(exact, gs1?.expiry ?? null);
       }
       setHits(found);
+      setPhotoGuess(null);
       setProduct(null);
       // Not found, or several to pick from: the camera steps aside for the form / the list.
       if (!found.length) openNew(q.trim());
       setCloseCamera((k) => k + 1);
     });
+  }
+
+  /** A photo of the product → the likeliest products to pick from. */
+  async function findByPhoto(file: File) {
+    if (isOffline()) {
+      setMessage({ tone: 'error', text: 'ფოტოთი ძებნას ინტერნეტი სჭირდება.' });
+      return;
+    }
+    scanned.current = false;
+    pendingScan.current = null;
+    setIdentifying(true);
+    setMessage({ tone: 'info', text: 'ფოტოს ვკითხულობ…' });
+    try {
+      const blob = await shrinkPhoto(file);
+      const url = await new Promise<string>((ok, no) => {
+        const r = new FileReader();
+        r.onload = () => ok(String(r.result));
+        r.onerror = () => no(new Error('photo'));
+        r.readAsDataURL(blob);
+      });
+      const res = await identifyByPhoto(stocktakeId, locationId, url);
+      if (res.error) {
+        setMessage({ tone: 'error', text: res.error });
+        return;
+      }
+      setProduct(null);
+      if (res.hits.length) {
+        setHits(res.hits);
+        setPhotoGuess(res.guess);
+        setMessage({
+          tone: 'info',
+          text: `ფოტოზე: ${res.guess || '—'}\nაირჩიე სწორი პროდუქტი.`,
+        });
+      } else {
+        setPhotoGuess(null);
+        openNew(res.guess);
+        setMessage({
+          tone: 'info',
+          text: 'სიაში ვერ ვიპოვე — ახალი პროდუქტია? დასახელება ფოტოდან ჩავწერე, გადაამოწმე.',
+        });
+      }
+    } catch {
+      setMessage({ tone: 'error', text: 'ფოტო ვერ გაიგზავნა. სცადე თავიდან.' });
+    } finally {
+      setIdentifying(false);
+      if (photoRef.current) photoRef.current.value = '';
+    }
   }
 
   /** Nothing found: the new-product form, the code or the name already filled in. */
@@ -392,6 +447,7 @@ export default function CountPanel({
     setNewBarcode(null);
     setUnknown(null);
     setHits(null);
+    setPhotoGuess(null);
     setMessage(null);
     setNewOpen(true);
   }
@@ -482,6 +538,7 @@ export default function CountPanel({
     setNewName('');
     setQuery('');
     setHits(null);
+    setPhotoGuess(null);
     setQty('');
     setExpiryDate('');
     setExpiryUnknown(false);
@@ -845,6 +902,27 @@ export default function CountPanel({
           <button type="submit" className="rounded-control border border-rule-strong px-4">
             🔍
           </button>
+          <button
+            type="button"
+            onClick={() => photoRef.current?.click()}
+            disabled={identifying}
+            title="შტრიხი არ იკითხება? გადაუღე ფოტო"
+            aria-label="ფოტოთი ძებნა"
+            className="rounded-control border border-rule-strong px-4 disabled:opacity-60"
+          >
+            {identifying ? '…' : '📷'}
+          </button>
+          <input
+            ref={photoRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            hidden
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) findByPhoto(f);
+            }}
+          />
         </form>
 
         {hits && hits.length > 0 && !product && (
@@ -861,6 +939,21 @@ export default function CountPanel({
                 </button>
               </li>
             ))}
+            {photoGuess !== null && (
+              <li>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const g = photoGuess;
+                    setPhotoGuess(null);
+                    openNew(g);
+                  }}
+                  className="w-full rounded-control border border-dashed border-rule-strong px-3 py-2 text-left text-sm"
+                >
+                  არცერთი — ახალი პროდუქტი
+                </button>
+              </li>
+            )}
           </ul>
         )}
 

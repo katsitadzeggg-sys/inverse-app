@@ -6,6 +6,8 @@ import { requireSession } from '@/lib/session';
 import { analyzeShelfImages, type ShelfImage } from '@/lib/verification/analyze';
 import type { CatalogueEntry } from '@/lib/verification/prompt';
 import { grade } from '@/lib/verification/grade';
+import { identifyProduct, type Candidate } from '@/lib/verification/identify';
+import { findProducts, type ProductHit } from './actions';
 
 export type AiItem = {
   name: string;
@@ -168,4 +170,83 @@ export async function aiCheckShelf(
   }
   revalidatePath(`/count/${stocktakeId}/${locationId}/done`);
   return {};
+}
+
+const MAX_CANDIDATES = 250;
+
+export type PhotoMatch = {
+  hits: ProductHit[];
+  /** A name read from the package, for the new-product form when nothing fits. */
+  guess: string;
+  error?: string;
+};
+
+/**
+ * The barcode won't read: a photo of the product instead. The model reads the
+ * package and picks from what is booked on this shelf (then the rest of the
+ * stocktake); a name search with what it read covers everything else.
+ * The counter always picks — nothing is chosen for them.
+ */
+export async function identifyByPhoto(
+  stocktakeId: string,
+  locationId: string,
+  photo: string,
+): Promise<PhotoMatch> {
+  await requireSession();
+  if (!process.env.ANTHROPIC_API_KEY)
+    return { hits: [], guess: '', error: 'AI-ს გასაღები (ANTHROPIC_API_KEY) Vercel-ში ჯერ არ ჩაწერილა.' };
+  const b64 = photo.replace(/^data:image\/jpeg;base64,/, '');
+  if (b64.length < 100) return { hits: [], guess: '', error: 'ფოტო ვერ წავიკითხე.' };
+  const supabase = await createClient();
+
+  // This shelf's booked products first, then the rest of the stocktake's.
+  const { data: book } = await supabase
+    .from('stocktake_book')
+    .select('product_id, location_id')
+    .eq('stocktake_id', stocktakeId)
+    .limit(5000);
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  for (const pass of [true, false])
+    for (const b of book ?? []) {
+      const id = b.product_id as string;
+      if (!id || seen.has(id) || (b.location_id === locationId) !== pass) continue;
+      seen.add(id);
+      ids.push(id);
+    }
+  const pick = ids.slice(0, MAX_CANDIDATES);
+  const { data: prods } = pick.length
+    ? await supabase
+        .from('products')
+        .select('id, sku, barcode, name, variant, unit, brand, visual_notes')
+        .in('id', pick)
+        .eq('active', true)
+    : { data: [] };
+  const refs = new Map<string, ProductHit>();
+  const candidates: Candidate[] = (prods ?? []).map((p, i) => {
+    const ref = `P${i + 1}`;
+    refs.set(ref, { id: p.id, sku: p.sku, barcode: p.barcode, name: p.name, variant: p.variant, unit: p.unit });
+    return { ref, name: p.name, brand: p.brand, variant: p.variant, notes: p.visual_notes };
+  });
+
+  try {
+    const r = await identifyProduct({
+      image: Buffer.from(b64, 'base64'),
+      mediaType: 'image/jpeg',
+      candidates,
+    });
+    const hits: ProductHit[] = [];
+    const add = (p: ProductHit | undefined) => {
+      if (p && !hits.some((h) => h.id === p.id)) hits.push(p);
+    };
+    for (const m of r.matches) if (m.confidence >= 0.3) add(refs.get(m.ref));
+    const digits = r.barcode_digits.replace(/\D/g, '');
+    if (digits.length >= 8) for (const p of await findProducts(digits).catch(() => [])) add(p);
+    if (hits.length < 3 && r.name_guess.trim())
+      for (const p of (await findProducts(r.name_guess).catch(() => [])).slice(0, 5)) add(p);
+    return { hits: hits.slice(0, 6), guess: r.name_guess.trim() || r.label_text.trim() };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { hits: [], guess: '', error: `ამოცნობა ვერ მოხერხდა: ${msg.slice(0, 200)}` };
+  }
 }
