@@ -76,7 +76,16 @@ function Actions({ data }: ICellRendererParams<StRow>) {
   if (!data) return null;
   if (data.left || data.review)
     return data.ids?.length ? (
-      <FormButton ids={data.ids} kind={data.left ? 'missed' : 'review'} />
+      <span className="flex h-full items-center gap-1">
+        <FormButton ids={data.ids} kind={data.left ? 'missed' : 'review'} />
+        {/* Where these products are: their shelves lit on the warehouse map. */}
+        <Link
+          href={`/manage/${data.ids[0]}/map?view=3d&focus=${data.left ? 'missed' : 'review'}`}
+          className={`rounded-full px-2.5 py-1 text-xs font-semibold ${data.left ? 'text-[#5b21b6] hover:bg-[#ece5ff]' : 'text-[#b45309] hover:bg-[#ffe8cc]'}`}
+        >
+          🗺 რუკაზე
+        </Link>
+      </span>
     ) : null;
   const a = 'rounded-full px-2.5 py-1 text-xs font-medium hover:bg-[#e8f3ed]';
   return (
@@ -176,7 +185,9 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
         filter: 'agNumberColumnFilter',
         valueFormatter: (p) => (p.data?.left || p.data?.review ? '—' : String(p.value)),
         tooltipValueGetter: (p) =>
-          p.data?.left || p.data?.review ? undefined : `დასრულებული ${p.data?.shelvesDone ?? 0} / ${p.value}`,
+          p.data?.left || p.data?.review
+            ? undefined
+            : `დასრულებული ${p.data?.shelvesDone ?? 0} / ${p.value}`,
       },
       {
         headerName: 'SKU',
@@ -257,7 +268,7 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
       {
         headerName: 'მოქმედება',
         colId: 'actions',
-        width: 190,
+        width: 235,
         sortable: false,
         cellStyle: { display: 'flex', alignItems: 'center' },
         filter: false,

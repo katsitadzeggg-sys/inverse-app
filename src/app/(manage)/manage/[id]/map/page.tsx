@@ -3,40 +3,27 @@ import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
 import type { Stocktake } from '@/types/database';
+import { productShelves, warehousePool, type FoundProduct } from '@/lib/shelf-finder';
 import AutoRefresh from './auto-refresh';
-import Map3D from './map-3d';
-
-type State = 'idle' | 'counting' | 'ok' | 'diff';
-
-const STYLE: Record<State, string> = {
-  idle: 'border-rule bg-paper-sunk text-ink-faint',
-  counting: 'border-review bg-review/15 text-ink',
-  ok: 'border-match bg-match/15 text-ink',
-  diff: 'border-mismatch bg-mismatch/15 text-ink',
-};
-const LABEL: Record<State, string> = {
-  idle: 'არ გახსნილა',
-  counting: 'ითვლება',
-  ok: 'დათვლილია, ემთხვევა',
-  diff: 'სხვაობაა',
-};
-
-/** Groups shelf codes by their leading letters: A-01, A-02 → row "A". */
-const rowOf = (code: string) => (code.match(/^[^\d]+/)?.[0] ?? '#').replace(/[-\s.]+$/, '') || '#';
-const natural = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true });
+import MapView, { type MapTile } from './map-view';
 
 /**
- * Live map of the stocktake: every shelf (or room) as a tile, coloured by
- * state — not opened yet, being counted (and by whom), done and matching,
- * done with differences. Shelves in the book that nobody opened show grey.
- * Refreshes itself every 30 seconds.
+ * Live map of a warehouse: every shelf as a tile, coloured by state — not
+ * opened yet, being counted (and by whom), done and matching, done with
+ * differences. By default all stocktakes of the warehouse together (they are
+ * one count); "this stocktake" narrows it. A search finds a shelf by its code
+ * or by a product on it; ?focus=missed|review marks the shelves of the
+ * warehouse's missed / to-re-check products.
  */
 export default async function StocktakeMap({
   params,
   searchParams,
 }: PageProps<'/manage/[id]/map'>) {
   const { id } = await params;
-  const view3d = (await searchParams).view === '3d';
+  const sp = await searchParams;
+  const view3d = sp.view === '3d';
+  const focus: 'missed' | 'review' | null =
+    sp.focus === 'missed' || sp.focus === 'review' ? sp.focus : null;
   await requireSession();
   const supabase = await createClient();
   const { data: st } = await supabase
@@ -46,13 +33,22 @@ export default async function StocktakeMap({
     .maybeSingle<Stocktake>();
   if (!st) notFound();
 
+  const pool = (await warehousePool(supabase, id)) ?? { key: st.name, ids: [id] };
+  const whole = sp.scope !== 'one' && pool.ids.length > 1;
+  const ids = whole || focus ? pool.ids : [id];
+
   const [{ data: zones }, { data: checks }, { data: book }] = await Promise.all([
     supabase
       .from('stocktake_zones')
-      .select('location_id, status, locations (code), user_profiles (full_name, email)')
-      .eq('stocktake_id', id)
+      .select(
+        'stocktake_id, location_id, status, started_at, locations (code), user_profiles (full_name, email)',
+      )
+      .in('stocktake_id', ids)
+      .order('started_at', { ascending: true })
+      .limit(20000)
       .returns<
         {
+          stocktake_id: string;
           location_id: string;
           status: string;
           locations: { code: string } | null;
@@ -61,131 +57,157 @@ export default async function StocktakeMap({
       >(),
     supabase
       .from('stocktake_checks')
-      .select('location_id, status')
-      .eq('stocktake_id', id)
+      .select('stocktake_id, location_id, status')
+      .in('stocktake_id', ids)
       .neq('status', 'ok')
-      .returns<{ location_id: string; status: string }[]>(),
+      .limit(20000)
+      .returns<{ stocktake_id: string; location_id: string; status: string }[]>(),
     supabase
       .from('stocktake_book')
       .select('location_id, locations (code)')
-      .eq('stocktake_id', id)
+      .in('stocktake_id', ids)
       .not('location_id', 'is', null)
-      .limit(20000)
+      .limit(50000)
       .returns<{ location_id: string; locations: { code: string } | null }[]>(),
   ]);
 
-  const diffs = new Set((checks ?? []).map((c) => c.location_id));
-  const tiles = new Map<string, { code: string; state: State; who?: string; href?: string }>();
+  const diffs = new Set((checks ?? []).map((c) => `${c.stocktake_id}:${c.location_id}`));
+  const tiles = new Map<string, MapTile>();
   for (const b of book ?? [])
-    if (b.locations) tiles.set(b.location_id, { code: b.locations.code, state: 'idle' });
+    if (b.locations)
+      tiles.set(b.location_id, { id: b.location_id, code: b.locations.code, state: 'idle' });
+  // Oldest first: the latest stocktake's state of a shelf wins.
   for (const z of zones ?? []) {
-    const state: State =
-      z.status !== 'done' ? 'counting' : diffs.has(z.location_id) ? 'diff' : 'ok';
+    const state: MapTile['state'] =
+      z.status !== 'done'
+        ? 'counting'
+        : diffs.has(`${z.stocktake_id}:${z.location_id}`)
+          ? 'diff'
+          : 'ok';
     tiles.set(z.location_id, {
+      id: z.location_id,
       code: z.locations?.code ?? '?',
       state,
       who: z.user_profiles?.full_name ?? z.user_profiles?.email,
-      href: `/count/${id}/${z.location_id}/done`,
+      href: `/count/${z.stocktake_id}/${z.location_id}/done`,
     });
   }
-  const rows = new Map<string, typeof tiles extends Map<string, infer T> ? T[] : never>();
-  for (const t of tiles.values()) rows.set(rowOf(t.code), [...(rows.get(rowOf(t.code)) ?? []), t]);
-  const ordered = [...rows.entries()].sort((a, b) => natural(a[0], b[0]));
-  const counts = (s: State) => [...tiles.values()].filter((t) => t.state === s).length;
-  const all = tiles.size;
+
+  // The warehouse's missed / to-re-check products and where they are.
+  let focused: FoundProduct[] = [];
+  if (focus) {
+    const { data: lines } = await supabase.rpc('pool_lines', { p_ids: pool.ids });
+    const pids = ((lines ?? []) as { product_id: string; status: string }[])
+      .filter((l) => l.status === focus)
+      .map((l) => l.product_id)
+      .slice(0, 2000);
+    const [where, prods] = await Promise.all([
+      productShelves(supabase, pool.ids, pids),
+      (async () => {
+        const all: {
+          id: string;
+          name: string;
+          sku: string;
+          barcode: string | null;
+          unit: string | null;
+        }[] = [];
+        for (let i = 0; i < pids.length; i += 300) {
+          const { data } = await supabase
+            .from('products')
+            .select('id, name, sku, barcode, unit')
+            .in('id', pids.slice(i, i + 300));
+          all.push(...(data ?? []));
+        }
+        return all;
+      })(),
+    ]);
+    focused = prods
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        code: p.barcode ?? p.sku,
+        unit: p.unit,
+        status: focus,
+        shelves: where.get(p.id) ?? [],
+      }))
+      .sort(
+        (a, b) =>
+          (a.shelves[0]?.code ?? '￿').localeCompare(b.shelves[0]?.code ?? '￿', undefined, {
+            numeric: true,
+          }) || a.name.localeCompare(b.name, 'ka'),
+      );
+    for (const p of focused)
+      for (const s of p.shelves)
+        if (!tiles.has(s.locationId))
+          tiles.set(s.locationId, { id: s.locationId, code: s.code, state: 'idle' });
+  }
+
+  const base = `/manage/${id}/map`;
+  const q = (o: Record<string, string | null>) => {
+    const u = new URLSearchParams();
+    const merged = { view: view3d ? '3d' : null, scope: whole ? null : 'one', focus, ...o };
+    for (const [k, v] of Object.entries(merged)) if (v) u.set(k, v);
+    const s = u.toString();
+    return s ? `${base}?${s}` : base;
+  };
+  const tab = (on: boolean) =>
+    `rounded-control border px-3 py-2 ${on ? 'border-ink bg-ink text-paper' : 'border-rule-strong'}`;
 
   return (
     <div className="grid gap-5">
       <AutoRefresh />
       <div>
         <Link
-          href={`/manage/${id}`}
+          href={focus ? '/manage/stocktakes' : `/manage/${id}`}
           className="inline-flex w-fit items-center gap-2 rounded-control border border-rule-strong px-4 py-2 text-base font-medium text-ink"
         >
           ← დაბრუნება
         </Link>
-        <h1 className="mt-1 text-xl font-semibold">რუკა · {st.client_name ?? st.name}</h1>
+        <h1 className="mt-1 text-xl font-semibold">
+          რუკა ·{' '}
+          {whole || focus ? `${pool.key} (${pool.ids.length} ინვ.)` : (st.client_name ?? st.name)}
+        </h1>
         <p className="text-sm text-ink-soft">
-          ახლდება ყოველ 30 წამში. დააჭირე თაროს — გაიხსნება მისი შედეგი.
+          ახლდება ყოველ 30 წამში. მოძებნე თარო ან პროდუქტი — თარო აინთება. დააჭირე თაროს — გაიხსნება
+          მისი შედეგი.
         </p>
-        <div className="mt-2 flex gap-2 text-sm">
-          <Link
-            href={`/manage/${id}/map`}
-            className={`rounded-control border px-3 py-2 ${!view3d ? 'border-ink bg-ink text-paper' : 'border-rule-strong'}`}
-          >
+        <div className="mt-2 flex flex-wrap gap-2 text-sm">
+          <Link href={q({ view: null })} className={tab(!view3d)}>
             ▦ ბადე
           </Link>
-          <Link
-            href={`/manage/${id}/map?view=3d`}
-            className={`rounded-control border px-3 py-2 ${view3d ? 'border-ink bg-ink text-paper' : 'border-rule-strong'}`}
-          >
+          <Link href={q({ view: '3d' })} className={tab(view3d)}>
             🧊 3D
           </Link>
+          {pool.ids.length > 1 && !focus && (
+            <>
+              <span className="mx-1 w-px bg-rule" />
+              <Link href={q({ scope: null })} className={tab(whole)}>
+                მთელი საწყობი
+              </Link>
+              <Link href={q({ scope: 'one' })} className={tab(!whole)}>
+                მხოლოდ ეს ინვენტარიზაცია
+              </Link>
+            </>
+          )}
+          {focus && (
+            <Link
+              href={q({ focus: null })}
+              className="rounded-control border border-rule-strong px-3 py-2"
+            >
+              ✕ {focus === 'missed' ? 'გამორჩენილის' : 'გადასამოწმებლის'} მონიშვნის მოხსნა
+            </Link>
+          )}
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
-        {(['ok', 'diff', 'counting', 'idle'] as State[]).map((s) => (
-          <div key={s} className={`rounded-control border-2 p-3 ${STYLE[s]}`}>
-            <p className="text-2xl font-semibold">{counts(s)}</p>
-            {LABEL[s]}
-          </div>
-        ))}
-      </div>
-      {all > 0 && (
-        <div className="flex h-3 overflow-hidden rounded-full bg-paper-sunk">
-          <div className="bg-match" style={{ width: `${(counts('ok') / all) * 100}%` }} />
-          <div className="bg-mismatch" style={{ width: `${(counts('diff') / all) * 100}%` }} />
-          <div className="bg-review" style={{ width: `${(counts('counting') / all) * 100}%` }} />
-        </div>
-      )}
-
-      {all > 0 && view3d ? (
-        <Map3D
-          rows={ordered.map(([row, list]) => ({
-            row,
-            tiles: [...list].sort((a, b) => natural(a.code, b.code)),
-          }))}
-        />
-      ) : all === 0 ? (
-        <p className="text-sm text-ink-soft">
-          ჯერ არცერთი თარო არ არის: ჩატვირთე ნაშთი თაროს სვეტით ან დაიწყე დათვლა.
-        </p>
-      ) : (
-        <div className="grid gap-3">
-          {ordered.map(([row, list]) => (
-            <section key={row} className="grid grid-cols-[3rem_1fr] items-start gap-2">
-              <p className="pt-2 text-lg font-semibold text-ink-soft">{row}</p>
-              <div className="flex flex-wrap gap-1.5">
-                {list
-                  .sort((a, b) => natural(a.code, b.code))
-                  .map((t) => {
-                    const tile = (
-                      <span
-                        title={`${t.code} · ${LABEL[t.state]}${t.who ? ` · ${t.who}` : ''}`}
-                        className={`grid min-w-14 place-items-center rounded-md border-2 px-2 py-2 text-sm font-semibold tabular-nums ${STYLE[t.state]}`}
-                      >
-                        {t.code}
-                        {t.state === 'counting' && t.who && (
-                          <span className="max-w-20 truncate text-[10px] font-normal">
-                            {t.who.split(' ')[0]}
-                          </span>
-                        )}
-                      </span>
-                    );
-                    return t.href ? (
-                      <Link key={t.code} href={t.href}>
-                        {tile}
-                      </Link>
-                    ) : (
-                      <span key={t.code}>{tile}</span>
-                    );
-                  })}
-              </div>
-            </section>
-          ))}
-        </div>
-      )}
+      <MapView
+        stocktakeId={id}
+        tiles={[...tiles.values()]}
+        view3d={view3d}
+        focus={focus}
+        focused={focused}
+        initialQuery={typeof sp.find === 'string' ? sp.find : ''}
+      />
     </div>
   );
 }
