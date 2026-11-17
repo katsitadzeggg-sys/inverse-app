@@ -1574,3 +1574,75 @@ export async function clearBook(stocktakeId: string): Promise<FormState> {
   revalidatePath(`/manage/${stocktakeId}`);
   return { notice: '✓ ნაშთი წაიშალა. ახლა სწორი ფაილი ატვირთე.' };
 }
+
+/**
+ * The balance's shelves were wrong (e.g. the whole file on one shelf, or a
+ * column read as the shelf by mistake): the balance is kept, its shelves are
+ * dropped, so it is compared product by product over the whole warehouse.
+ */
+export async function dropBookShelves(stocktakeId: string): Promise<FormState> {
+  const session = await requireSession();
+  if (!isManager(session.profile.role)) return { error: 'მხოლოდ მენეჯერს შეუძლია.' };
+  const supabase = await createClient();
+  const { data: st } = await supabase
+    .from('stocktakes')
+    .select('status')
+    .eq('id', stocktakeId)
+    .eq('company_id', session.company.id)
+    .maybeSingle<{ status: string }>();
+  if (!st) return { error: 'ინვენტარიზაცია ვერ მოიძებნა.' };
+  if (st.status !== 'open') return { error: 'დახურულ ინვენტარიზაციაში ნაშთი არ იცვლება.' };
+  // A product on several shelves becomes one line (one per expiry batch):
+  // read all, merge, then replace — an update would hit the unique line key.
+  type L = {
+    company_id: string;
+    product_id: string;
+    book_qty: number;
+    unit_cost: number | null;
+    expiry_date: string | null;
+  };
+  const all: L[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase
+      .from('stocktake_book')
+      .select('company_id, product_id, book_qty, unit_cost, expiry_date')
+      .eq('stocktake_id', stocktakeId)
+      .range(from, from + 999)
+      .returns<L[]>();
+    if (error) return { error: error.message };
+    all.push(...(data ?? []));
+    if (!data || data.length < 1000) break;
+  }
+  const merged = new Map<string, L>();
+  for (const l of all) {
+    const k = `${l.product_id}|${l.expiry_date ?? ''}`;
+    const m = merged.get(k);
+    if (m) {
+      m.book_qty = Number(m.book_qty) + Number(l.book_qty);
+      m.unit_cost = m.unit_cost ?? l.unit_cost;
+    } else merged.set(k, { ...l, book_qty: Number(l.book_qty) });
+  }
+  const rows = [...merged.values()].map((l) => ({
+    ...l,
+    stocktake_id: stocktakeId,
+    location_id: null,
+  }));
+  const { error: delError } = await supabase
+    .from('stocktake_book')
+    .delete()
+    .eq('stocktake_id', stocktakeId);
+  if (delError) return { error: delError.message };
+  for (let i = 0; i < rows.length; i += 1000) {
+    const { error } = await supabase.from('stocktake_book').insert(rows.slice(i, i + 1000));
+    if (error)
+      return {
+        error: `ჩაიწერა ${i} ხაზი ${rows.length}-დან (${error.message}) — ატვირთე ფაილი თავიდან, თაროს სვეტის გარეშე.`,
+      };
+  }
+  revalidatePath(`/count/${stocktakeId}`, 'layout');
+  revalidatePath(`/manage/${stocktakeId}`);
+  revalidatePath('/manage/stocktakes');
+  return {
+    notice: `✓ ${all.length} ხაზს თარო მოეხსნა — ნაშთი ახლა პროდუქტებით, მთელ საწყობზე შედარდება.`,
+  };
+}

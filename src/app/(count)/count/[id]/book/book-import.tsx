@@ -218,6 +218,12 @@ export default function BookImport({
   const warn: [number, string, 'error' | 'warn'][] = (
     [
       [sum.miss.badQty, 'ხაზი ნაშთის გარეშე / არარიცხვითი ნაშთით — არ ჩაიტვირთება', 'error'],
+      // Every line on one shelf: almost surely not the shelf column.
+      [
+        map.location >= 0 && sum.shelves === 1 && valid.length > 20 ? valid.length : 0,
+        'ყველა ხაზი ერთ თაროზეა — ალბათ სხვა სვეტი აირჩა თაროდ. თუ თაროები ფაილში არ გაქვს, „თაროს ნომერი“ ქვემოთ „—“-ზე დააყენე',
+        'error',
+      ],
       [sum.miss.name, 'დასახელების გარეშე', 'warn'],
       [map.barcode >= 0 ? sum.miss.barcode : 0, 'შტრიხკოდის გარეშე (კოდით ჩაიტვირთება)', 'warn'],
       [map.cost >= 0 ? sum.miss.cost : 0, 'ფასის გარეშე (თანხაში არ ითვლება)', 'warn'],

@@ -36,6 +36,19 @@ export default async function BookPage({ params }: PageProps<'/count/[id]/book'>
     if (!data || data.length < 1000) break;
   }
   const count = lines.length;
+  // The balance's shelves vs the shelves counted: none in common = a wrong
+  // shelf column (every counted item would show as surplus).
+  const { data: zoneRows } = await supabase
+    .from('stocktake_zones')
+    .select('locations (code)')
+    .eq('stocktake_id', id)
+    .returns<{ locations: { code: string } | null }[]>();
+  const counted = new Set((zoneRows ?? []).map((z) => z.locations?.code).filter(Boolean));
+  const bookShelves = new Set(lines.map((l) => l.locations?.code).filter(Boolean) as string[]);
+  const shelfMismatch =
+    bookShelves.size > 0 && counted.size > 0 && ![...bookShelves].some((c) => counted.has(c))
+      ? `ნაშთის თაროები (${[...bookShelves].slice(0, 3).join(', ')}${bookShelves.size > 3 ? '…' : ''}) არცერთი არ ემთხვევა დათვლილ თაროებს (${[...counted].slice(0, 3).join(', ')}${counted.size > 3 ? '…' : ''}) — ამიტომ ყველა დათვლილი მეტობად ჩანს.`
+      : null;
   // Units overwritten by a price column (bare numbers): offered a repair.
   const { count: badUnits } = await supabase
     .from('products')
@@ -84,7 +97,12 @@ export default async function BookPage({ params }: PageProps<'/count/[id]/book'>
         </span>
       </a>
       {stocktake.status === 'open' && (
-        <BookFixes stocktakeId={id} hasBook={count > 0} badUnits={badUnits ?? 0} />
+        <BookFixes
+          stocktakeId={id}
+          hasBook={count > 0}
+          badUnits={badUnits ?? 0}
+          shelfMismatch={shelfMismatch}
+        />
       )}
       {stocktake.status === 'open' ? (
         <BookImport stocktakeId={id} expiry={stocktake.kind === 'expiry'} />

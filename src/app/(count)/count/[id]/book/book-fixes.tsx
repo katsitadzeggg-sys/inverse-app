@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { Alert } from '@/components/ui';
-import { clearBook, repairNumericUnits } from '../../actions';
+import { clearBook, dropBookShelves, repairNumericUnits } from '../../actions';
 
 /**
  * Ways out of a wrong upload: empty the balance and load the right file, and
@@ -12,10 +12,13 @@ export default function BookFixes({
   stocktakeId,
   hasBook,
   badUnits,
+  shelfMismatch,
 }: {
   stocktakeId: string;
   hasBook: boolean;
   badUnits: number;
+  /** The balance's shelves and the counted shelves have nothing in common. */
+  shelfMismatch: string | null;
 }) {
   const [ask, setAsk] = useState(false);
   const [msg, setMsg] = useState<{ error?: string; notice?: string } | null>(null);
@@ -24,6 +27,7 @@ export default function BookFixes({
   return (
     <div className="grid gap-2 rounded-control border border-[#d64545]/30 bg-[#d64545]/5 p-4 text-sm">
       <p className="font-semibold">🔧 არასწორი ფაილი ჩაიტვირთა?</p>
+      {shelfMismatch && <p className="font-semibold text-mismatch">⚠ {shelfMismatch}</p>}
       <ul className="grid list-disc gap-1 pl-5 text-ink-soft">
         <li>
           უბრალოდ ატვირთე სწორი ფაილი — ძველ ნაშთს ჩაანაცვლებს (ამავე საწყობის ღია
@@ -62,6 +66,16 @@ export default function BookFixes({
               🗑 ნაშთის წაშლა
             </button>
           ))}
+        {shelfMismatch && (
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => start(async () => setMsg(await dropBookShelves(stocktakeId)))}
+            className="rounded-full bg-[#1f7a4d] px-3 py-1 font-semibold text-white"
+          >
+            📍 თაროები ნაშთიდან მოხსნა — შედარება პროდუქტებით
+          </button>
+        )}
         {badUnits > 0 && (
           <button
             type="button"
