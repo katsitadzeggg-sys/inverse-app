@@ -46,11 +46,12 @@ export async function aiCheckShelf(
   if (!process.env.ANTHROPIC_API_KEY)
     return { error: 'AI-ს გასაღები (ANTHROPIC_API_KEY) Vercel-ში ჯერ არ ჩაწერილა.' };
   const supabase = await createClient();
-  // A counter's own closed shelf is checked on its own when the company has
-  // the switch on; otherwise only a manager runs the check.
+  // A counter checks only a shelf they counted (by hand, or on its own when
+  // the company has the switch on). They never see the balance: the book is
+  // not readable for them, so only what they counted is compared.
   if (!manager) {
-    if (!auto || !session.company.ai_shelf_check)
-      return { error: 'შემოწმებას მხოლოდ მენეჯერი უშვებს.' };
+    if (auto && !session.company.ai_shelf_check)
+      return { error: 'ავტომატური შემოწმება გამორთულია.' };
     const { data: z } = await supabase
       .from('stocktake_zones')
       .select('counter_id, status')
