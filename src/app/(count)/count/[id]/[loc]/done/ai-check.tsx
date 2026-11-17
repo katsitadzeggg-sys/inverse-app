@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { aiCheckShelf, type AiResult } from '../../../ai-actions';
 
 /** A few frames cut from a video in the browser (JPEG data URLs, long side ≤ 1024 px). */
-async function videoFrames(url: string, count: number): Promise<string[]> {
+export async function videoFrames(url: string, count: number): Promise<string[]> {
   const v = document.createElement('video');
   v.crossOrigin = 'anonymous';
   v.muted = true;

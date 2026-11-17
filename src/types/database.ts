@@ -21,6 +21,8 @@ export type Company = {
   stripe_subscription_id: string | null;
   /** How often it counts: names the count cycles. */
   cycle_period?: CyclePeriod;
+  /** Automatic photo check when a counter closes a shelf. */
+  ai_shelf_check?: boolean;
   created_at: string;
   updated_at: string;
 };

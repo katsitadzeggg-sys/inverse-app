@@ -1,5 +1,6 @@
 'use client';
 
+import { photoQuality } from '@/lib/photo-quality';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
@@ -63,6 +64,17 @@ export default function MediaUpload({
   const [added, setAdded] = useState<Item[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // A photo that looks too blurred / dark: retake, or keep it anyway.
+  const [weak, setWeak] = useState<{ file: File; reason: string } | null>(null);
+
+  async function takePhoto(file: File) {
+    setWeak(null);
+    setBusy('ვამოწმებ ფოტოს ხარისხს…');
+    const q = await photoQuality(file);
+    setBusy(null);
+    if (!q.ok) return setWeak({ file, reason: q.reason });
+    upload(file, 'photo');
+  }
 
   async function upload(file: File, kind: 'photo' | 'video') {
     setError(null);
@@ -205,7 +217,7 @@ export default function MediaUpload({
             onChange={(e) => {
               const f = e.target.files?.[0];
               e.target.value = '';
-              if (f) upload(f, 'photo');
+              if (f) takePhoto(f);
             }}
           />
         </label>
@@ -225,6 +237,40 @@ export default function MediaUpload({
           />
         </label>
       </div>
+      {weak && (
+        <div className="grid gap-2 rounded-control border-2 border-review p-3 text-center">
+          <p className="font-semibold text-review">
+            ⚠ {weak.reason} — ასეთ ფოტოზე AI პროდუქტს ვერ გაარჩევს.
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <label className={`${button} border-review`}>
+              📷 თავიდან გადაღება
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = '';
+                  if (f) takePhoto(f);
+                }}
+              />
+            </label>
+            <button
+              type="button"
+              onClick={() => {
+                const f = weak.file;
+                setWeak(null);
+                upload(f, 'photo');
+              }}
+              className="rounded-control border border-rule-strong px-3 py-3 text-sm"
+            >
+              მაინც შენახვა
+            </button>
+          </div>
+        </div>
+      )}
       {busy && <p className="text-center text-sm text-ink-soft">{busy}</p>}
       {error && <p className="text-sm text-mismatch">{error}</p>}
       {!showItems && compact && items.length + added.length > 0 && (

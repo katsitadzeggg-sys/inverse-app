@@ -19,6 +19,9 @@ export type AiItem = {
   needsBarcode: boolean;
   notes: string;
 };
+/** What a counter is told after the automatic check: recount these. */
+export type AiWarning = { name: string; counted: number; detected: number };
+
 export type AiResult = {
   summary: string;
   quality: 'good' | 'fair' | 'poor';
@@ -36,13 +39,26 @@ export async function aiCheckShelf(
   stocktakeId: string,
   locationId: string,
   frames: string[],
-): Promise<{ error?: string }> {
+  auto = false,
+): Promise<{ error?: string; warnings?: AiWarning[] }> {
   const session = await requireSession();
-  if (session.profile.role !== 'owner' && session.profile.role !== 'admin')
-    return { error: 'შემოწმებას მხოლოდ მენეჯერი უშვებს.' };
+  const manager = session.profile.role === 'owner' || session.profile.role === 'admin';
   if (!process.env.ANTHROPIC_API_KEY)
     return { error: 'AI-ს გასაღები (ANTHROPIC_API_KEY) Vercel-ში ჯერ არ ჩაწერილა.' };
   const supabase = await createClient();
+  // A counter's own closed shelf is checked on its own when the company has
+  // the switch on; otherwise only a manager runs the check.
+  if (!manager) {
+    if (!auto || !session.company.ai_shelf_check)
+      return { error: 'შემოწმებას მხოლოდ მენეჯერი უშვებს.' };
+    const { data: z } = await supabase
+      .from('stocktake_zones')
+      .select('counter_id, status')
+      .eq('stocktake_id', stocktakeId)
+      .eq('location_id', locationId)
+      .maybeSingle<{ counter_id: string | null; status: string }>();
+    if (!z || z.counter_id !== session.userId) return { error: 'ეს თარო შენ არ დაგითვლია.' };
+  }
 
   const [{ data: location }, { data: entries }, { data: book }, { data: media }] =
     await Promise.all([
@@ -113,6 +129,7 @@ export async function aiCheckShelf(
     if (b64.length > 20) images.push({ data: Buffer.from(b64, 'base64'), mediaType: 'image/jpeg' });
   }
   if (!images.length) return { error: 'ამ თაროს ფოტო ან ვიდეო არ აქვს.' };
+  let warnings: AiWarning[] = [];
 
   try {
     const { analysis, model, inputTokens, outputTokens } = await analyzeShelfImages({
@@ -163,13 +180,19 @@ export async function aiCheckShelf(
       input_tokens: inputTokens,
       output_tokens: outputTokens,
     });
-    if (error) return { error: error.message };
+    // A counter's result may not be storable (policy); the warnings still go back.
+    if (error && manager) return { error: error.message };
+    // For the counter: only counted products the photos show in another
+    // quantity — never the balance, never unknown packs from the next shelf.
+    warnings = items
+      .filter((i) => i.status === 'mismatch' && (i.counted ?? 0) > 0 && i.code)
+      .map((i) => ({ name: i.name, counted: i.counted ?? 0, detected: i.detected }));
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return { error: `შემოწმება ვერ შესრულდა: ${msg.slice(0, 200)}` };
   }
   revalidatePath(`/count/${stocktakeId}/${locationId}/done`);
-  return {};
+  return { warnings };
 }
 
 const MAX_CANDIDATES = 250;
@@ -194,7 +217,11 @@ export async function identifyByPhoto(
 ): Promise<PhotoMatch> {
   await requireSession();
   if (!process.env.ANTHROPIC_API_KEY)
-    return { hits: [], guess: '', error: 'AI-ს გასაღები (ANTHROPIC_API_KEY) Vercel-ში ჯერ არ ჩაწერილა.' };
+    return {
+      hits: [],
+      guess: '',
+      error: 'AI-ს გასაღები (ANTHROPIC_API_KEY) Vercel-ში ჯერ არ ჩაწერილა.',
+    };
   const b64 = photo.replace(/^data:image\/jpeg;base64,/, '');
   if (b64.length < 100) return { hits: [], guess: '', error: 'ფოტო ვერ წავიკითხე.' };
   const supabase = await createClient();
@@ -225,7 +252,14 @@ export async function identifyByPhoto(
   const refs = new Map<string, ProductHit>();
   const candidates: Candidate[] = (prods ?? []).map((p, i) => {
     const ref = `P${i + 1}`;
-    refs.set(ref, { id: p.id, sku: p.sku, barcode: p.barcode, name: p.name, variant: p.variant, unit: p.unit });
+    refs.set(ref, {
+      id: p.id,
+      sku: p.sku,
+      barcode: p.barcode,
+      name: p.name,
+      variant: p.variant,
+      unit: p.unit,
+    });
     return { ref, name: p.name, brand: p.brand, variant: p.variant, notes: p.visual_notes };
   });
 

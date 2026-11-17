@@ -6,6 +6,7 @@ import type { Stocktake, StocktakeZone } from '@/types/database';
 import ShelfSummaryForm from './summary-form';
 import MediaUpload from './media-upload';
 import AiCheck from './ai-check';
+import AutoCheck from './auto-check';
 import type { AiResult } from '../../../ai-actions';
 
 // The photo check waits for the vision model.
@@ -274,7 +275,17 @@ export default async function ShelfDonePage({ params }: PageProps<'/count/[id]/[
         />
       )}
 
-      {isManager && !isAssets && (
+      {/* Counter: the automatic check, when the company has it on. */}
+      {!isManager && !isAssets && company.ai_shelf_check && zone.counter_id === userId && (
+        <AutoCheck
+          stocktakeId={id}
+          locationId={loc}
+          photos={shelfShots.filter((m) => m.kind === 'photo').length}
+          videos={shelfShots.filter((m) => m.kind === 'video').map((m) => m.url)}
+        />
+      )}
+
+      {isManager && !isAssets && shelfShots.length > 0 && (
         <AiCheck
           stocktakeId={id}
           locationId={loc}

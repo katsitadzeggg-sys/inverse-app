@@ -43,3 +43,12 @@ export async function updateMyName(formData: FormData): Promise<void> {
   await supabase.from('user_profiles').update({ full_name: name }).eq('id', userId);
   revalidatePath('/manage', 'layout');
 }
+
+/** The company's switch: automatic photo check when a counter closes a shelf. */
+export async function setAiShelfCheck(on: boolean): Promise<void> {
+  const { company, profile } = await requireSession();
+  if (profile.role !== 'owner' && profile.role !== 'admin') return;
+  const supabase = await createClient();
+  await supabase.from('companies').update({ ai_shelf_check: on }).eq('id', company.id);
+  revalidatePath('/manage/team');
+}
