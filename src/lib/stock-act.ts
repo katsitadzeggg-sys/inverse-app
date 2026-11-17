@@ -122,38 +122,39 @@ export async function stockActData(supabase: SupabaseClient, id: string): Promis
     (zones ?? []).filter((z) => z.status === 'done').map((z) => z.location_id),
   );
   const onClosed = (lid: string | null) => final || (!!lid && doneShelves.has(lid));
-  // Book lines with no shelf: the object's book is what counts. Once a product
-  // has been counted on a closed shelf its whole book is compared (a shortage
-  // shows at once); one not counted anywhere yet stays "remaining".
-  const unshelved = new Map<string, number>();
-  for (const b of book)
-    if (!b.location_id)
-      unshelved.set(b.product_id, (unshelved.get(b.product_id) ?? 0) + Number(b.book_qty));
+  // The difference comes from the product's whole balance (every shelf): it
+  // is compared as soon as the product is counted on a closed shelf, or one
+  // of its balance shelves is closed (not found there = shortage), or the
+  // stocktake is closed. Until then it is "remaining". Booked on X, counted on
+  // Y, 3 and 3 = no difference. (Same rule as stocktake_stats4, 0062.)
+  const total = new Map<string, number>();
+  const bookDone = new Set<string>();
+  for (const b of book) {
+    total.set(b.product_id, (total.get(b.product_id) ?? 0) + Number(b.book_qty));
+    if (b.location_id && onClosed(b.location_id)) bookDone.add(b.product_id);
+  }
   const countedDone = new Set<string>();
   for (const e of entries)
     if (e.product_id && onClosed(e.location_id)) countedDone.add(e.product_id);
+  const engaged = (pid: string) => final || countedDone.has(pid) || bookDone.has(pid);
   const matched = new Map<string, number>();
-  for (const [pid, q] of unshelved) matched.set(pid, final || countedDone.has(pid) ? q : 0);
+  for (const [pid, q] of total) matched.set(pid, engaged(pid) ? q : 0);
   const left = { qty: 0, sum: 0, shelves: 0, skus: 0 };
   {
     const leftShelves = new Set<string>();
     const leftSkus = new Set<string>();
     const cost = new Map<string, number>();
     for (const b of book) if (b.unit_cost != null) cost.set(b.product_id, Number(b.unit_cost));
-    const add = (pid: string, q: number) => {
-      if (!q) return;
-      left.qty += q;
-      left.sum += q * (cost.get(pid) ?? 0);
-      leftSkus.add(pid);
-    };
-    if (!final) {
-      for (const b of book)
-        if (b.location_id && !onClosed(b.location_id)) {
-          add(b.product_id, Number(b.book_qty));
-          leftShelves.add(b.location_id);
-        }
-      for (const [pid, q] of unshelved) add(pid, q - (matched.get(pid) ?? 0));
-    }
+    if (!final)
+      for (const b of book) {
+        if (engaged(b.product_id)) continue;
+        const q = Number(b.book_qty);
+        if (!q) continue;
+        left.qty += q;
+        left.sum += q * (cost.get(b.product_id) ?? 0);
+        leftSkus.add(b.product_id);
+        if (b.location_id) leftShelves.add(b.location_id);
+      }
     left.shelves = leftShelves.size;
     left.skus = leftSkus.size;
   }
@@ -191,12 +192,6 @@ export async function stockActData(supabase: SupabaseClient, id: string): Promis
   // booked on a shelf still open).
   const price = new Map<string, number>();
   for (const b of book) if (b.unit_cost != null) price.set(b.product_id, Number(b.unit_cost));
-  for (const b of book) {
-    if (!b.location_id || !onClosed(b.location_id)) continue;
-    const r = row(b.product_id);
-    r.book += Number(b.book_qty);
-    r.cost = b.unit_cost ?? r.cost;
-  }
   for (const [pid, q] of matched) {
     if (!q) continue;
     const r = row(pid);
