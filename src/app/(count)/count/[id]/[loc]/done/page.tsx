@@ -167,6 +167,11 @@ export default async function ShelfDonePage({ params }: PageProps<'/count/[id]/[
     }));
   }
 
+  // Lines that are only "moved" (booked on another shelf, the whole product
+  // matches): a note, not a difference.
+  const moved = diffs.filter((d) => d.diff === 0 && d.home);
+  diffs = diffs.filter((d) => d.diff !== 0);
+
   const canEdit =
     zone.counter_id === userId || profile.role === 'owner' || profile.role === 'admin';
 
@@ -215,38 +220,44 @@ export default async function ShelfDonePage({ params }: PageProps<'/count/[id]/[
           </p>
         </div>
       ) : diffs.length === 0 ? (
-        <p className="rounded-control border-2 border-match/60 p-4 text-center text-xl font-semibold text-match">
-          ✓ სხვაობა არ არის
-        </p>
+        <>
+          <p className="rounded-control border-2 border-match/60 p-4 text-center text-xl font-semibold text-match">
+            ✓ სხვაობა არ არის
+          </p>
+          <MovedList moved={moved} />
+        </>
       ) : (
-        <section className="grid gap-2 rounded-control border-2 border-mismatch/50 p-3">
-          <p className="text-lg font-semibold">სხვაობები: {diffs.length}</p>
-          <ul className="grid gap-1.5">
-            {diffs.map((d, i) => (
-              <li
-                key={i}
-                className="flex items-center justify-between gap-3 border-t border-rule/60 pt-1.5"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-base font-medium leading-tight">{d.name}</p>
-                  <p className="text-xs text-ink-faint">{d.code}</p>
-                </div>
-                <p
-                  className={`max-w-[45%] shrink-0 text-right text-xl font-semibold tabular-nums ${d.diff > 0 ? 'text-review' : 'text-mismatch'}`}
+        <>
+          <section className="grid gap-2 rounded-control border-2 border-mismatch/50 p-3">
+            <p className="text-lg font-semibold">სხვაობები: {diffs.length}</p>
+            <ul className="grid gap-1.5">
+              {diffs.map((d, i) => (
+                <li
+                  key={i}
+                  className="flex items-center justify-between gap-3 border-t border-rule/60 pt-1.5"
                 >
-                  {d.diff > 0 ? `+${d.diff}` : d.diff}
-                  <span className="block break-words text-xs font-normal">
-                    {d.diff > 0
-                      ? d.home
-                        ? `${shortHome(d.home)}-დან გადმოსატანი`
-                        : 'მეტობა'
-                      : 'დანაკლისი'}
-                  </span>
-                </p>
-              </li>
-            ))}
-          </ul>
-        </section>
+                  <div className="min-w-0">
+                    <p className="truncate text-base font-medium leading-tight">{d.name}</p>
+                    <p className="text-xs text-ink-faint">{d.code}</p>
+                  </div>
+                  <p
+                    className={`max-w-[45%] shrink-0 text-right text-xl font-semibold tabular-nums ${d.diff > 0 ? 'text-review' : 'text-mismatch'}`}
+                  >
+                    {d.diff > 0 ? `+${d.diff}` : d.diff}
+                    <span className="block break-words text-xs font-normal">
+                      {d.diff > 0
+                        ? d.home
+                          ? `${shortHome(d.home)}-დან გადმოსატანი`
+                          : 'მეტობა'
+                        : 'დანაკლისი'}
+                    </span>
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </section>
+          <MovedList moved={moved} />
+        </>
       )}
 
       {canEdit && !isAssets && (
@@ -319,5 +330,25 @@ export default async function ShelfDonePage({ params }: PageProps<'/count/[id]/[
         zone.note && <p className="rounded-control border border-rule/70 p-3">💬 {zone.note}</p>
       )}
     </div>
+  );
+}
+
+/** Found here, booked on another shelf, whole quantity right: only to move. */
+function MovedList({ moved }: { moved: { name: string; code: string; home?: string | null }[] }) {
+  if (!moved.length) return null;
+  return (
+    <section className="grid gap-1.5 rounded-control border border-review/50 p-3">
+      <p className="text-sm font-semibold text-review">📦 სხვა თაროზეა ჩაწერილი — გადმოსატანი</p>
+      <ul className="grid gap-1">
+        {moved.map((d, i) => (
+          <li key={i} className="flex items-center justify-between gap-3 text-sm">
+            <span className="min-w-0 truncate">
+              {d.name} <span className="text-xs text-ink-faint">{d.code}</span>
+            </span>
+            <span className="shrink-0 text-xs text-review">{shortHome(d.home ?? '')}-დან</span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
