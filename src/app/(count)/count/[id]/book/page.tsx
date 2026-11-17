@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
 import type { Stocktake } from '@/types/database';
 import BookImport from './book-import';
+import BookFixes from './book-fixes';
 
 export default async function BookPage({ params }: PageProps<'/count/[id]/book'>) {
   const { id } = await params;
@@ -35,6 +36,12 @@ export default async function BookPage({ params }: PageProps<'/count/[id]/book'>
     if (!data || data.length < 1000) break;
   }
   const count = lines.length;
+  // Units overwritten by a price column (bare numbers): offered a repair.
+  const { count: badUnits } = await supabase
+    .from('products')
+    .select('id', { count: 'exact', head: true })
+    .eq('company_id', stocktake.company_id)
+    .filter('unit', 'match', '^[0-9]+([.,][0-9]+)?$');
   const byShelf = new Map<string, Line[]>();
   for (const l of lines) {
     const k = l.locations?.code ?? 'თაროს გარეშე';
@@ -76,6 +83,9 @@ export default async function BookPage({ params }: PageProps<'/count/[id]/book'>
           (დასახელება, შტრიხკოდი, ჯგუფი, რაოდენობა, თარო, ერთეულის ფასი)
         </span>
       </a>
+      {stocktake.status === 'open' && (
+        <BookFixes stocktakeId={id} hasBook={count > 0} badUnits={badUnits ?? 0} />
+      )}
       {stocktake.status === 'open' ? (
         <BookImport stocktakeId={id} expiry={stocktake.kind === 'expiry'} />
       ) : (

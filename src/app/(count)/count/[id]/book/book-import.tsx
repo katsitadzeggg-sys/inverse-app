@@ -131,7 +131,9 @@ export default function BookImport({
             // "შტრიხკოდი" also contains "კოდ": a barcode column is not the article code;
             // and the main barcode is not the second one.
             !(f === 'code' && GUESS.barcode.test(c)) &&
-            !(f === 'barcode' && GUESS.barcode2.test(c)),
+            !(f === 'barcode' && GUESS.barcode2.test(c)) &&
+            // "ერთეულის ფასი" (unit price) is the price, not the unit of measure.
+            !(f === 'unit' && GUESS.cost.test(c)),
         ),
       ]),
     ) as Record<Field, number>;
@@ -145,7 +147,8 @@ export default function BookImport({
   const cell = (r: string[], f: Field) => (map[f] >= 0 ? (r[map[f]] ?? '') : '');
   const preview: BookRow[] = body.map((r) => ({
     barcode: cell(r, 'barcode'),
-    unit: cell(r, 'unit'),
+    // A number is never a unit of measure (a price column picked by mistake).
+    unit: /^[\d.,\s]+$/.test(cell(r, 'unit')) ? '' : cell(r, 'unit'),
     code: map.code >= 0 ? (r[map.code] ?? '') : '',
     name: map.name >= 0 ? (r[map.name] ?? '') : '',
     location: map.location >= 0 ? (r[map.location] ?? '') : '',
@@ -204,6 +207,11 @@ export default function BookImport({
     }
     return { skus: skus.size, shelves: shelves.size, qty, money, miss };
   })();
+  // One column feeds one field: two fields on the same column is a wrong match.
+  const clash = (Object.keys(LABELS) as Field[])
+    .filter((f) => map[f] >= 0 && (expiry || f !== 'expiry'))
+    .reduce((m, f) => m.set(map[f], [...(m.get(map[f]) ?? []), f]), new Map<number, Field[]>());
+  const clashes = [...clash.entries()].filter(([, fs]) => fs.length > 1);
   const required: Field[] = ['name', 'barcode', 'qty'];
   const lacking = required.filter((f) => map[f] < 0 && !(f === 'barcode' && map.code >= 0));
   const n = (v: number) => v.toLocaleString('ka-GE', { maximumFractionDigits: 2 });
@@ -263,6 +271,12 @@ export default function BookImport({
                 </div>
               ))}
             </div>
+            {clashes.map(([col, fs]) => (
+              <p key={col} className="text-sm font-semibold text-mismatch">
+                ✗ ერთი სვეტი „{header[col] || `სვეტი ${col + 1}`}“ მიბმულია რამდენიმე ველზე:{' '}
+                {fs.map((f) => LABELS[f].replace(' *', '')).join(', ')} — ქვემოთ გაასწორე.
+              </p>
+            ))}
             {lacking.length > 0 && (
               <p className="text-sm font-semibold text-mismatch">
                 ✗ ვერ ვიპოვე სვეტი: {lacking.map((f) => LABELS[f].replace(' *', '')).join(', ')} —
@@ -295,7 +309,10 @@ export default function BookImport({
             )}
           </div>
 
-          <details open={lacking.length > 0} className="rounded-control border border-rule/70 p-4">
+          <details
+            open={lacking.length > 0 || clashes.length > 0}
+            className="rounded-control border border-rule/70 p-4"
+          >
             <summary className="cursor-pointer text-sm font-semibold">
               სვეტები — ავტომატურად ამოცნობილი (შეცვლა)
             </summary>
@@ -324,7 +341,7 @@ export default function BookImport({
 
           <button
             type="button"
-            disabled={pending || !valid.length}
+            disabled={pending || !valid.length || clashes.length > 0}
             onClick={() =>
               start(async () => {
                 // Sent in parts of 1 000 rows: a big file does not fit in one request.

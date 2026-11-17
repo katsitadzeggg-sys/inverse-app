@@ -747,6 +747,8 @@ export type BookRow = {
 };
 
 /** Units as people write them → one spelling. Pieces are the default. */
+const NUMERIC = /^[\d.,\s]+$/;
+
 function normUnit(u: string): string {
   const v = u.trim().toLowerCase().replace(/\.$/, '');
   if (!v || ['ც', 'ცალი', 'pcs', 'pc', 'шт', 'ea', 'unit'].includes(v)) return 'ცალი';
@@ -785,8 +787,9 @@ export async function importBook(
         name: r.name.trim(),
         // "0" or a bare dash in the file means the item has no shelf.
         location: /^(0+|[-–—]+)$/.test(r.location.trim()) ? '' : r.location.trim(),
-        unit: normUnit(r.unit),
-        unitGiven: r.unit.trim() !== '',
+        // A number in the unit column is a price picked by mistake, not a unit.
+        unit: NUMERIC.test(r.unit) ? 'ცალი' : normUnit(r.unit),
+        unitGiven: r.unit.trim() !== '' && !NUMERIC.test(r.unit),
       };
     })
     .filter((r) => r.code && Number.isFinite(r.qty));
@@ -1527,4 +1530,47 @@ export async function countedElsewhere(
     ...r,
     qty: Number(r.qty),
   }));
+}
+
+/**
+ * Products whose unit of measure is a bare number: a price column read as the
+ * unit by mistake (the 17.11 template, "ერთეულის ფასი"). They go back to "ცალი".
+ */
+export async function repairNumericUnits(): Promise<FormState> {
+  const session = await requireSession();
+  if (!isManager(session.profile.role)) return { error: 'მხოლოდ მენეჯერს შეუძლია.' };
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('products')
+    .update({ unit: 'ცალი' })
+    .eq('company_id', session.company.id)
+    .filter('unit', 'match', '^[0-9]+([.,][0-9]+)?$')
+    .select('id');
+  if (error) return { error: error.message };
+  revalidatePath('/count', 'layout');
+  return { notice: `✓ გასწორდა ${data?.length ?? 0} პროდუქტის ერთეული („ცალი“).` };
+}
+
+/**
+ * A wrong file: the stocktake's balance is emptied (kept in the log) so the
+ * right one can be loaded. Only while the stocktake is open; counts stay.
+ */
+export async function clearBook(stocktakeId: string): Promise<FormState> {
+  const session = await requireSession();
+  if (!isManager(session.profile.role)) return { error: 'მხოლოდ მენეჯერს შეუძლია.' };
+  const supabase = await createClient();
+  const { data: st } = await supabase
+    .from('stocktakes')
+    .select('status')
+    .eq('id', stocktakeId)
+    .eq('company_id', session.company.id)
+    .maybeSingle<{ status: string }>();
+  if (!st) return { error: 'ინვენტარიზაცია ვერ მოიძებნა.' };
+  if (st.status !== 'open') return { error: 'დახურულ ინვენტარიზაციაში ნაშთი არ იცვლება.' };
+  await supabase.rpc('log_book', { p_stocktake: stocktakeId });
+  const { error } = await supabase.from('stocktake_book').delete().eq('stocktake_id', stocktakeId);
+  if (error) return { error: error.message };
+  revalidatePath(`/count/${stocktakeId}`, 'layout');
+  revalidatePath(`/manage/${stocktakeId}`);
+  return { notice: '✓ ნაშთი წაიშალა. ახლა სწორი ფაილი ატვირთე.' };
 }
