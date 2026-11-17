@@ -258,10 +258,26 @@ export async function openZone(
         return {
           error: `${location.code} უკვე დახურულია. ხელახლა გახსნა მხოლოდ მენეჯერს შეუძლია.`,
         };
-      await supabase
+      const { error: reErr } = await supabase
         .from('stocktake_zones')
         .update({ status: 'counting', done_at: null, ...position })
         .eq('id', zone.id);
+      // One shelf at a time per person: another of theirs is still open.
+      if (reErr) {
+        const { data: mine } = await supabase
+          .from('stocktake_zones')
+          .select('locations (code)')
+          .eq('stocktake_id', stocktakeId)
+          .eq('counter_id', session.userId)
+          .eq('status', 'counting')
+          .maybeSingle<{ locations: { code: string } | null }>();
+        return {
+          error:
+            reErr.code === '23505'
+              ? `ჯერ დახურე ღია თარო${mine?.locations?.code ? ` ${mine.locations.code}` : ''} — ერთდროულად ერთი თარო.`
+              : reErr.message,
+        };
+      }
     } else if ('lat' in position) {
       await supabase.from('stocktake_zones').update(position).eq('id', zone.id);
     }
