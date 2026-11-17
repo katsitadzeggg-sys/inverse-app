@@ -285,7 +285,7 @@ export default async function ShelfDonePage({ params }: PageProps<'/count/[id]/[
         />
       )}
 
-      {isManager && !isAssets && shelfShots.length > 0 && (
+      {(isManager || zone.counter_id === userId) && !isAssets && shelfShots.length > 0 && (
         <AiCheck
           stocktakeId={id}
           locationId={loc}

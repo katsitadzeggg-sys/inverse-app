@@ -54,7 +54,7 @@ export default function AiCheck({
   locationId,
   videos,
   photos,
-  last,
+  last: stored,
 }: {
   stocktakeId: string;
   locationId: string;
@@ -65,6 +65,9 @@ export default function AiCheck({
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
   const router = useRouter();
+  // A counter cannot read stored checks: their own run is shown from its answer.
+  const [fresh, setFresh] = useState<{ result: AiResult; at: string; images: number } | null>(null);
+  const last = fresh ?? stored;
 
   function run() {
     setMsg(videos.length ? 'ვიდეოებიდან კადრებს ვჭრი…' : 'ფოტოებს ვამოწმებ…');
@@ -82,8 +85,15 @@ export default function AiCheck({
       setMsg('ფოტოებს ვამოწმებ… (წუთამდე)');
       const r = await aiCheckShelf(stocktakeId, locationId, frames.slice(0, 16)).catch((e) => ({
         error: String(e).slice(0, 200),
+        result: undefined,
       }));
       if (r.error) return setMsg(r.error);
+      if (r.result)
+        setFresh({
+          result: r.result,
+          at: new Date().toISOString(),
+          images: photos + frames.length,
+        });
       setMsg(lost ? `მზადაა. ${lost} ვიდეოდან კადრი ვერ ამოვიღე.` : null);
       router.refresh();
     });

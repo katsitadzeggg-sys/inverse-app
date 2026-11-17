@@ -40,7 +40,7 @@ export async function aiCheckShelf(
   locationId: string,
   frames: string[],
   auto = false,
-): Promise<{ error?: string; warnings?: AiWarning[] }> {
+): Promise<{ error?: string; warnings?: AiWarning[]; result?: AiResult }> {
   const session = await requireSession();
   const manager = session.profile.role === 'owner' || session.profile.role === 'admin';
   if (!process.env.ANTHROPIC_API_KEY)
@@ -130,6 +130,7 @@ export async function aiCheckShelf(
   }
   if (!images.length) return { error: 'ამ თაროს ფოტო ან ვიდეო არ აქვს.' };
   let warnings: AiWarning[] = [];
+  let result: AiResult | undefined;
 
   try {
     const { analysis, model, inputTokens, outputTokens } = await analyzeShelfImages({
@@ -169,7 +170,7 @@ export async function aiCheckShelf(
         });
     const order = { mismatch: 0, unknown: 1, partial: 2, match: 3 };
     items.sort((a, b) => order[a.status] - order[b.status] || a.name.localeCompare(b.name, 'ka'));
-    const result: AiResult = { summary: analysis.summary, quality: analysis.image_quality, items };
+    result = { summary: analysis.summary, quality: analysis.image_quality, items };
     const { error } = await supabase.from('shelf_ai_checks').insert({
       company_id: session.company.id,
       stocktake_id: stocktakeId,
@@ -192,7 +193,7 @@ export async function aiCheckShelf(
     return { error: `შემოწმება ვერ შესრულდა: ${msg.slice(0, 200)}` };
   }
   revalidatePath(`/count/${stocktakeId}/${locationId}/done`);
-  return { warnings };
+  return { warnings, result };
 }
 
 const MAX_CANDIDATES = 250;
