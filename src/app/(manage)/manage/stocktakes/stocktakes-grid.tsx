@@ -10,6 +10,9 @@ export type StRow = {
   id: string;
   kind: string;
   number: string;
+  /** The cycle's name and code ("C4", shown beside the number). */
+  cycle?: string;
+  cycleCode?: string;
   opened: string;
   closed: string | null;
   warehouse: string;
@@ -137,7 +140,7 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
       {
         headerName: 'ინვენტარიზაციის N',
         field: 'number',
-        width: 140,
+        width: 175,
         pinned: 'left',
         cellRenderer: (p: ICellRendererParams<StRow>) =>
           p.data?.review ? (
@@ -155,6 +158,11 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
               className="font-medium text-[#155c39] hover:underline"
             >
               {p.value}
+              {p.data?.cycleCode && (
+                <span className="ml-1 text-xs font-normal text-ink-faint" title={p.data.cycle}>
+                  · {p.data.cycleCode}
+                </span>
+              )}
               {p.data?.formKind === 'missed' && (
                 <span className="ml-1 rounded-full bg-[#ece5ff] px-1.5 text-[10px] text-[#5b21b6]">
                   გამორჩენილი
@@ -189,6 +197,13 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
         flex: 1,
         minWidth: 140,
         cellClass: 'font-semibold',
+      },
+      {
+        headerName: 'ციკლი',
+        colId: 'cycle',
+        valueGetter: (p) =>
+          p.data?.cycle ? `${p.data.cycle}${p.data.cycleCode ? ` · ${p.data.cycleCode}` : ''}` : '',
+        width: 170,
       },
       {
         headerName: 'თარო',

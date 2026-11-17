@@ -40,10 +40,24 @@ export async function createStocktake(_prev: FormState, formData: FormData): Pro
   if (!branch) return { error: 'ჩაწერე საწყობი ან ფილიალი.' };
 
   const supabase = await createClient();
+  // The manager names the warehouse's new cycle when none is open there
+  // (otherwise the stocktake joins the open one).
+  let cycleId: string | undefined;
+  const cycleName = String(formData.get('cycle_name') ?? '').trim();
+  if (manager && kind !== 'assets' && cycleName) {
+    const { data: made, error: cErr } = await supabase.rpc('create_count_cycle', {
+      p_warehouse: branch,
+      p_name: cycleName,
+    });
+    if (cErr && !/open cycle exists/.test(cErr.message))
+      return { error: `ციკლი ვერ შეიქმნა: ${cErr.message.slice(0, 150)}` };
+    if (made) cycleId = made as string;
+  }
   const { data, error } = await supabase
     .from('stocktakes')
     .insert({
       company_id: session.company.id,
+      ...(cycleId ? { cycle_id: cycleId } : {}),
       name: `${client} · ${branch}`,
       client_name: client,
       branch,

@@ -37,3 +37,14 @@ export function cycleLabel(startedAt: string, period: CyclePeriod = 'quarter'): 
   if (period === 'year') return `${y}`;
   return `${y} Q${Math.floor(month / 3) + 1}`;
 }
+
+/** A cycle's name: the manager's, else by its period. */
+export function cycleName(
+  c: { name: string | null; started_at: string },
+  period: CyclePeriod = 'quarter',
+): string {
+  return c.name?.trim() || cycleLabel(c.started_at, period);
+}
+
+/** The short code shown beside a stocktake number: "C4". */
+export const cycleCode = (code: number | null | undefined) => (code ? `C${code}` : '');

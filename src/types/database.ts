@@ -212,6 +212,11 @@ export type CountCycle = {
   closed_at: string | null;
   closed_by: string | null;
   summary: CycleSummary | null;
+  /** The manager's name for it; without one it is named by its period. */
+  name: string | null;
+  /** Company-wide number: "C4" beside the stocktake number. */
+  code: number | null;
+  archived_at: string | null;
 };
 export type CycleSummary = {
   stocktakes: number;

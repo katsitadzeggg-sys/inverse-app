@@ -35,6 +35,8 @@ export default function NewStocktakeForm({
   sites,
   allowNewSite = true,
   fixed = false,
+  openCycles,
+  newCycleName = '',
 }: {
   kind?: string;
   kinds?: string[];
@@ -43,10 +45,16 @@ export default function NewStocktakeForm({
   allowNewSite?: boolean;
   /** Counter's form: company, module and date shown as fixed facts. */
   fixed?: boolean;
+  /** Manager's form: each warehouse's open cycle ("2026 ბოლო აღწერა · C4"). */
+  openCycles?: Record<string, string>;
+  /** The suggested name of a new cycle (by the company's period). */
+  newCycleName?: string;
 }) {
   const options = KINDS.filter(([k]) => !kinds || kinds.includes(k));
   const [state, action, pending] = useActionState(createStocktake, EMPTY);
-  const [chosen, setChosen] = useState(options[0]?.[0] ?? 'stock');
+  const [chosen, setChosen] = useState(
+    (fixed ? undefined : options.find(([k]) => k === kind)?.[0]) ?? options[0]?.[0] ?? 'stock',
+  );
   const [siteId, setSiteId] = useState(sites.length ? sites[0].id : 'new');
   const [branch, setBranch] = useState(sites[0]?.name ?? '');
   const [address, setAddress] = useState(sites[0]?.address ?? '');
@@ -183,7 +191,8 @@ export default function NewStocktakeForm({
             მოდული
             <select
               name="kind"
-              defaultValue={options.some(([k]) => k === kind) ? kind : options[0]?.[0]}
+              value={chosen}
+              onChange={(e) => setChosen(e.target.value)}
               className={inputClass}
             >
               {options.map(([k, label]) => (
@@ -251,6 +260,31 @@ export default function NewStocktakeForm({
       ) : (
         <input type="hidden" name="branch" value={branch} />
       )}
+
+      {/* Manager: the stocktake's cycle — the warehouse's open one, or a new one named here. */}
+      {openCycles &&
+        chosen !== 'assets' &&
+        branch.trim() &&
+        (openCycles[branch.trim()] ? (
+          <p className="rounded-control bg-paper-sunk px-3 py-2 text-sm">
+            ციკლი: <b>{openCycles[branch.trim()]}</b>
+            <span className="block text-xs text-ink-faint">
+              ახალი ციკლისთვის ჯერ ეს დახურე „ციკლებში“.
+            </span>
+          </p>
+        ) : (
+          <label className="grid gap-1 text-sm">
+            ახალი ციკლის სახელი
+            <input
+              key={branch}
+              name="cycle_name"
+              required
+              defaultValue={newCycleName}
+              placeholder="მაგ. 2026 წლის ბოლო აღწერა"
+              className={field}
+            />
+          </label>
+        ))}
 
       {stockUi ? (
         // Stock app: the address in a big white field and one large location button.

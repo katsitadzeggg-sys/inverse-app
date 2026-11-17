@@ -1,11 +1,12 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
-import { cycleLabel } from '@/lib/cycles';
+import { cycleCode, cycleLabel, cycleName } from '@/lib/cycles';
 import { allPoolLines } from '@/lib/pool-lines';
 import type { CountCycle, CycleSummary } from '@/types/database';
 import CloseCycleButton from './close-button';
 import PeriodSelect from './period-select';
+import { ArchiveCycle, CycleNameEdit, NewCycleForm } from './cycle-controls';
 
 export const metadata = { title: 'ციკლები' };
 
@@ -71,7 +72,8 @@ const accuracy = (s: CycleSummary) => (s.products ? (s.ok / s.products) * 100 : 
  * result; the closed ones side by side show how the warehouse is doing over
  * time, and which products come up short again and again.
  */
-export default async function CyclesPage() {
+export default async function CyclesPage({ searchParams }: PageProps<'/manage/cycles'>) {
+  const showArchived = (await searchParams).archived === '1';
   const { profile, company } = await requireSession();
   const period = company.cycle_period ?? 'quarter';
   const manager = profile.role === 'owner' || profile.role === 'admin';
@@ -95,7 +97,21 @@ export default async function CyclesPage() {
   for (const s of sts ?? [])
     byCycle.set(s.cycle_id as string, [...(byCycle.get(s.cycle_id as string) ?? []), s]);
   // An open cycle with no live stocktake (all archived) is noise: not shown.
-  const cycles = (cyc ?? []).filter((c) => c.closed_at || byCycle.has(c.id));
+  // Archived cycles only on request ("არქივი").
+  const all = (cyc ?? []).filter((c) => c.closed_at || byCycle.has(c.id));
+  const archivedCount = all.filter((c) => c.archived_at).length;
+  const cycles = all.filter((c) => !!c.archived_at === showArchived);
+  // Warehouses that can start a new cycle: known ones with none open.
+  const { data: siteRows } = await supabase.from('sites').select('name');
+  const openWh = new Set((cyc ?? []).filter((c) => !c.closed_at).map((c) => c.warehouse));
+  const startable = [
+    ...new Set([
+      ...(siteRows ?? []).map((s) => s.name as string),
+      ...(cyc ?? []).map((c) => c.warehouse),
+    ]),
+  ]
+    .filter((w) => w && !openWh.has(w))
+    .sort((a, b) => a.localeCompare(b, 'ka'));
 
   // Live figures of the open cycles.
   const live = new Map<string, CycleSummary>();
@@ -166,13 +182,28 @@ export default async function CyclesPage() {
       <div>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h1 className="text-xl font-semibold">აღწერის ციკლები</h1>
-          {manager && <PeriodSelect value={period} />}
+          <div className="flex flex-wrap items-center gap-2">
+            {manager && !showArchived && (
+              <NewCycleForm
+                warehouses={startable}
+                suggested={cycleLabel(new Date().toISOString(), period)}
+              />
+            )}
+            {manager && <PeriodSelect value={period} />}
+            <Link
+              href={showArchived ? '/manage/cycles' : '/manage/cycles?archived=1'}
+              className="rounded-full border border-rule-strong px-3 py-1.5 text-sm hover:bg-ink/5"
+            >
+              {showArchived ? '← ციკლები' : `🗄 არქივი${archivedCount ? ` (${archivedCount})` : ''}`}
+            </Link>
+          </div>
         </div>
         <p className="text-sm text-ink-soft">
-          ციკლი = ერთი აღწერა საწყობში (თვე, კვარტალი ან წელი — როგორც ითვლით). იწყება პირველივე
-          ინვენტარიზაციით, მთავრდება, როცა დახურავ. ღია ციკლის ყველა ინვენტარიზაცია ერთად ითვლება —
-          გამორჩენილი და გადასამოწმებელი მხოლოდ მისია. დახურვისას შედეგი ფიქსირდება, ხოლო შემდეგი
-          ინვენტარიზაცია ახალ ციკლს იწყებს.
+          ციკლი = ერთი აღწერა საწყობში (მაგ. „2026 წლის ბოლო აღწერა“). მენეჯერი ქმნის სახელით („+
+          ახალი ციკლი“ ან ახალი ინვენტარიზაციის გახსნისას); კოდი (C4) ინვენტარიზაციის ნომრის გვერდით
+          ჩანს. სტატუსი: მიმდინარე → დახურული → არქივი. მთავრდება, როცა დახურავ. ღია ციკლის ყველა
+          ინვენტარიზაცია ერთად ითვლება — გამორჩენილი და გადასამოწმებელი მხოლოდ მისია. დახურვისას
+          შედეგი ფიქსირდება, ხოლო შემდეგი ინვენტარიზაცია ახალ ციკლს იწყებს.
         </p>
       </div>
       {warehouses.length === 0 && <p className="text-ink-soft">ჯერ არცერთი ციკლი არ არის.</p>}
@@ -216,7 +247,12 @@ export default async function CyclesPage() {
                     return (
                       <tr key={c.id} className="border-t border-rule/70 align-middle">
                         <td className="py-2 pr-3 font-semibold">
-                          {cycleLabel(c.started_at, period)}
+                          <CycleNameEdit
+                            cycleId={c.id}
+                            name={cycleName(c, period)}
+                            code={cycleCode(c.code)}
+                            editable={manager}
+                          />
                           {!c.closed_at && (
                             <span className="ml-2 rounded-full bg-match/15 px-2 py-0.5 text-xs font-medium text-match">
                               მიმდინარე
@@ -257,9 +293,12 @@ export default async function CyclesPage() {
                           {!c.closed_at && manager && (byCycle.get(c.id) ?? []).length > 0 && (
                             <CloseCycleButton
                               cycleId={c.id}
-                              label={`${wh} · ${cycleLabel(c.started_at, period)}`}
+                              label={`${wh} · ${cycleName(c, period)}`}
                               open={openSt}
                             />
+                          )}
+                          {c.closed_at && manager && (
+                            <ArchiveCycle cycleId={c.id} archived={!!c.archived_at} />
                           )}
                         </td>
                       </tr>

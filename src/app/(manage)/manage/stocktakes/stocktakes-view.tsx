@@ -5,6 +5,7 @@ import type { Stocktake } from '@/types/database';
 import StocktakesGrid, { type StRow } from './stocktakes-grid';
 import AddDrawer from '@/components/add-drawer';
 import NewStocktakeForm from '../new-stocktake-form';
+import { cycleCode, cycleName } from '@/lib/cycles';
 import { cycleLabel } from '@/lib/cycles';
 
 const KINDS = [
@@ -82,8 +83,27 @@ export default async function StocktakesView({
     .returns<
       { id: string; name: string; address: string | null; lat: number | null; lng: number | null }[]
     >();
+  // Each stocktake's cycle (name and code), and every warehouse's open cycle for the form.
+  const cycleIds = [...new Set(list.map((s) => s.cycle_id).filter((x): x is string => !!x))];
+  const [{ data: cycles }, { data: openCycleRows }] = await Promise.all([
+    cycleIds.length
+      ? supabase
+          .from('count_cycles')
+          .select('id, started_at, closed_at, name, code')
+          .in('id', cycleIds)
+      : Promise.resolve({ data: [] as never[] }),
+    supabase.from('count_cycles').select('warehouse, name, code, started_at').is('closed_at', null),
+  ]);
+  const cycleOf = new Map((cycles ?? []).map((c) => [c.id as string, c]));
+  const openCycles = Object.fromEntries(
+    (openCycleRows ?? []).map((c) => [
+      c.warehouse as string,
+      `${cycleName(c, company.cycle_period)} · ${cycleCode(c.code)}`,
+    ]),
+  );
   const rows: StRow[] = list.map((s) => {
     const t = stats.get(s.id);
+    const cy = s.cycle_id ? cycleOf.get(s.cycle_id) : undefined;
     return {
       id: s.id,
       kind: s.kind,
@@ -103,6 +123,8 @@ export default async function StocktakesView({
       diffSum: Number(t?.plus_sum ?? 0) - Number(t?.minus_sum ?? 0),
       status: s.status === 'open' ? 'open' : 'closed',
       formKind: s.form_kind,
+      cycle: cy ? cycleName(cy, company.cycle_period) : undefined,
+      cycleCode: cy ? cycleCode(cy.code) : undefined,
     };
   });
   // On top, two pinned rows per warehouse:
@@ -143,11 +165,6 @@ export default async function StocktakesView({
   const wh = (s: Stocktake) => s.branch || s.client_name || s.name;
   // Only the current (open) cycle of a warehouse is one count: a closed
   // quarter's stocktakes never mix into the new one's missed / to re-check.
-  const cycleIds = [...new Set(list.map((s) => s.cycle_id).filter((x): x is string => !!x))];
-  const { data: cycles } = cycleIds.length
-    ? await supabase.from('count_cycles').select('id, started_at, closed_at').in('id', cycleIds)
-    : { data: [] };
-  const cycleOf = new Map((cycles ?? []).map((c) => [c.id as string, c]));
   const groups = new Map<string, { name: string; since?: string; ids: string[] }>();
   // The archive is a plain register: no pinned missed / re-check rows (they
   // filled the table so it would not scroll, and search could not hide them).
@@ -156,7 +173,11 @@ export default async function StocktakesView({
     const c = s.cycle_id ? cycleOf.get(s.cycle_id) : undefined;
     if (c?.closed_at) continue;
     const key = s.cycle_id ?? wh(s);
-    const g = groups.get(key) ?? { name: wh(s), since: c?.started_at, ids: [] as string[] };
+    const g = groups.get(key) ?? {
+      name: wh(s),
+      since: c ? cycleName(c, company.cycle_period) : undefined,
+      ids: [] as string[],
+    };
     g.ids.push(s.id);
     groups.set(key, g);
   }
@@ -169,7 +190,7 @@ export default async function StocktakesView({
   const pinned: StRow[] = [];
   for (const { name, since, ids, p } of pools) {
     if (!p) continue;
-    const label = `${name}${since ? ` · ${cycleLabel(since, company.cycle_period)}` : ''} · ${ids.length} ინვენტარიზაცია`;
+    const label = `${name}${since ? ` · ${since}` : ''} · ${ids.length} ინვენტარიზაცია`;
     if (Number(p.missed_skus) > 0)
       pinned.push({
         ...blank,
@@ -224,6 +245,8 @@ export default async function StocktakesView({
                   kind={kind === 'all' ? 'stock' : kind}
                   companyName={company.name}
                   sites={sites ?? []}
+                  openCycles={openCycles}
+                  newCycleName={cycleLabel(new Date().toISOString(), company.cycle_period)}
                 />
               </AddDrawer>
             </div>

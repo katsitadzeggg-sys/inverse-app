@@ -1,3 +1,4 @@
+import { cycleCode, cycleName } from '@/lib/cycles';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
@@ -21,7 +22,7 @@ type ZoneRow = StocktakeZone & {
  */
 export default async function ManageStocktake({ params }: PageProps<'/manage/[id]'>) {
   const { id } = await params;
-  await requireSession();
+  const { company } = await requireSession();
   const supabase = await createClient();
 
   const { data: st } = await supabase
@@ -30,6 +31,14 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
     .eq('id', id)
     .maybeSingle<Stocktake>();
   if (!st) notFound();
+  // Its cycle, shown beside the number ("· C4 2026 წლის ბოლო აღწერა").
+  const { data: cy } = st.cycle_id
+    ? await supabase
+        .from('count_cycles')
+        .select('name, code, started_at')
+        .eq('id', st.cycle_id)
+        .maybeSingle<{ name: string | null; code: number | null; started_at: string }>()
+    : { data: null };
 
   const { data: zones } = await supabase
     .from('stocktake_zones')
@@ -112,6 +121,12 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
         <span className="text-sm text-ink-faint">
           {st.number} · {new Date(st.count_date).toLocaleDateString('ka-GE')} ·{' '}
           {st.kind === 'expiry' ? '⏳' : st.kind === 'assets' ? '🏷' : '📦'}
+          {cy && (
+            <Link href="/manage/cycles" className="hover:underline">
+              {' '}
+              · {cycleCode(cy.code)} {cycleName(cy, company.cycle_period)}
+            </Link>
+          )}
         </span>
         <h1 className="text-xl font-semibold">
           {st.client_name ?? st.name}
