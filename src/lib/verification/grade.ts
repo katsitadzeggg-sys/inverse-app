@@ -37,6 +37,13 @@ export function grade(observation: ShelfObservation, expected: number | null): G
     return { ...base, status: 'unknown' };
   }
 
+  // The photo shows exactly what was counted: that is a match, even when the
+  // model was unsure or the variants look alike (Giorgi, 18.11 — 26 Perwoll
+  // clearly on the photo were marked "?" because the back rows overlap).
+  if (observation.detected_quantity === expected) {
+    return { ...base, status: 'match' };
+  }
+
   // Visually identical variants: vision alone cannot settle this, whatever the count.
   if (!observation.identifiable) {
     return { ...base, status: 'partial' };

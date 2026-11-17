@@ -30,14 +30,14 @@ test('low confidence never produces a mismatch, even when the numbers differ', (
 });
 
 test('look-alike variants are flagged for a barcode instead of graded', () => {
-  const result = grade(observation({ identifiable: false }), 12);
+  const result = grade(observation({ identifiable: false, detected_quantity: 10 }), 12);
   assert.equal(result.status, 'partial');
   assert.equal(result.needsBarcode, true);
 });
 
-test('a look-alike stays flagged even when the count happens to agree', () => {
-  const result = grade(observation({ identifiable: false, confidence: 0.99 }), 12);
-  assert.equal(result.status, 'partial');
+test('the photo showing exactly the counted quantity is a match, sure or not', () => {
+  assert.equal(grade(observation({ identifiable: false, confidence: 0.3 }), 12).status, 'match');
+  assert.equal(grade(observation({ confidence: 0.4 }), 12).status, 'match');
 });
 
 test('an item absent from the record is unknown, not a mismatch', () => {
@@ -54,7 +54,7 @@ test('tally counts each verdict', () => {
   const items = [
     grade(observation(), 12),
     grade(observation({ detected_quantity: 9 }), 12),
-    grade(observation({ identifiable: false }), 12),
+    grade(observation({ identifiable: false, detected_quantity: 10 }), 12),
     grade(observation({ sku: 'UNKNOWN' }), null),
   ];
   const result = tally(items);
