@@ -61,7 +61,6 @@ export async function signUp(_prev: AuthState, formData: FormData): Promise<Auth
   if (password.length < 8) return { error: 'პაროლი მინიმუმ 8 სიმბოლო უნდა იყოს.' };
   if (password !== String(formData.get('password2') ?? ''))
     return { error: 'პაროლები ერთმანეთს არ ემთხვევა.' };
-  if (!companyName) return { error: 'ჩაწერე კომპანიის სახელი.' };
 
   const origin = await originOf();
   const supabase = await createClient();

@@ -80,7 +80,10 @@ function Form({
           </label>
           <label className="block">
             <span className="label">კომპანია</span>
-            <input name="company_name" required autoComplete="organization" className={FIELD} />
+            <input name="company_name" autoComplete="organization" className={FIELD} />
+            <span className="mt-2 block text-xs text-ink-faint">
+              თუ მოწვევით შემოდიხარ, შეგიძლია ცარიელი დატოვო.
+            </span>
           </label>
         </>
       )}

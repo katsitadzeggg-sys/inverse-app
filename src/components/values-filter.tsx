@@ -15,16 +15,15 @@ export default function ValuesFilter({ model, onModelChange, api, getValue }: Cu
   const [q, setQ] = useState('');
   const valueOf = useCallback((node: IRowNode) => text(getValue(node)), [getValue]);
 
-  // Every value in the column, counted; recomputed when the menu opens.
-  const values = useMemo(() => {
-    const m = new Map<string, number>();
-    api.forEachNode((node) => {
-      if (!node.data) return;
-      const v = valueOf(node);
-      m.set(v, (m.get(v) ?? 0) + 1);
-    });
-    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0], 'ka'));
-  }, [api, valueOf]);
+  // Every value in the column, counted — read afresh on each render, so rows
+  // replaced after a save show up too.
+  const counts = new Map<string, number>();
+  api.forEachNode((node) => {
+    if (!node.data) return;
+    const v = valueOf(node);
+    counts.set(v, (counts.get(v) ?? 0) + 1);
+  });
+  const values = [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0], 'ka'));
 
   const chosen = useMemo(() => new Set<string>(model ?? []), [model]);
   const doesFilterPass = useCallback(

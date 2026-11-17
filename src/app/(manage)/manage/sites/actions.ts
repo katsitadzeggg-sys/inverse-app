@@ -57,8 +57,9 @@ export async function deleteSite(id: string): Promise<FormState> {
 }
 
 /**
- * Rename a warehouse / change its address. Its stocktakes name it by text
- * (branch), so they are renamed with it, or the list and map would lose them.
+ * Change a warehouse's address, or its name while nothing refers to it yet.
+ * Stocktakes and count cycles name their warehouse by text, so a warehouse
+ * already counted keeps its name (renaming it would split its count in two).
  */
 export async function editSite(id: string, formData: FormData): Promise<FormState> {
   const { company, profile } = await requireSession();
@@ -76,12 +77,24 @@ export async function editSite(id: string, formData: FormData): Promise<FormStat
     .maybeSingle();
   if (!site) return { error: 'ვერ მოიძებნა.' };
   if (name !== site.name) {
-    const { count } = await supabase
-      .from('sites')
-      .select('id', { count: 'exact', head: true })
-      .eq('company_id', company.id)
-      .eq('name', name);
-    if (count) return { error: `„${name}“ უკვე არსებობს.` };
+    const old = site.name.replace(/"/g, '\\"');
+    const [{ count: taken }, { count: used }] = await Promise.all([
+      supabase
+        .from('sites')
+        .select('id', { count: 'exact', head: true })
+        .eq('company_id', company.id)
+        .eq('name', name),
+      supabase
+        .from('stocktakes')
+        .select('id', { count: 'exact', head: true })
+        .eq('company_id', company.id)
+        .or(`branch.eq."${old}",client_name.eq."${old}",name.eq."${old}"`),
+    ]);
+    if (taken) return { error: `„${name}“ უკვე არსებობს.` };
+    if (used)
+      return {
+        error: `„${site.name}“-ზე უკვე ${used} ინვენტარიზაციაა — სახელის შეცვლა მათ დათვლას გაყოფს. მისამართი შეგიძლია შეცვალო.`,
+      };
   }
   const { error } = await supabase
     .from('sites')
@@ -89,16 +102,6 @@ export async function editSite(id: string, formData: FormData): Promise<FormStat
     .eq('id', id)
     .eq('company_id', company.id);
   if (error) return { error: error.message };
-  if (name !== site.name) {
-    const { error: e2 } = await supabase
-      .from('stocktakes')
-      .update({ branch: name })
-      .eq('company_id', company.id)
-      .eq('branch', site.name);
-    if (e2)
-      return { error: `სახელი შეიცვალა, მაგრამ ინვენტარიზაციები ვერ განახლდა: ${e2.message}` };
-  }
   revalidatePath('/manage/sites');
-  revalidatePath('/manage/stocktakes');
   return { notice: '✓ შეინახა' };
 }
