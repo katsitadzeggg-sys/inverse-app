@@ -32,7 +32,9 @@ export async function markAllRead(): Promise<void> {
 
 /** The person's own name. */
 export async function updateMyName(formData: FormData): Promise<void> {
-  const { userId } = await requireSession();
+  const { userId, profile } = await requireSession();
+  // Staff do not rename themselves (the name is on acts and logs); only the owner.
+  if (profile.role !== 'owner') return;
   const name = String(formData.get('full_name') ?? '')
     .trim()
     .slice(0, 120);

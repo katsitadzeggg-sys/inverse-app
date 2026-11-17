@@ -149,7 +149,9 @@ export default async function StocktakesView({
     : { data: [] };
   const cycleOf = new Map((cycles ?? []).map((c) => [c.id as string, c]));
   const groups = new Map<string, { name: string; since?: string; ids: string[] }>();
-  for (const s of list) {
+  // The archive is a plain register: no pinned missed / re-check rows (they
+  // filled the table so it would not scroll, and search could not hide them).
+  for (const s of archived ? [] : list) {
     if (s.kind === 'assets') continue;
     const c = s.cycle_id ? cycleOf.get(s.cycle_id) : undefined;
     if (c?.closed_at) continue;

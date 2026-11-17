@@ -20,26 +20,34 @@ export default async function ProfilePage() {
   return (
     <div className="grid max-w-2xl gap-4 rounded-2xl bg-paper-sunk p-5">
       <h1 className="text-xl font-semibold tracking-tight">ჩემი პროფილი</h1>
-      <form action={updateMyName} className={row}>
-        <label htmlFor="full_name" className="text-sm text-ink-soft">
-          სახელი და გვარი
-        </label>
-        <div className="flex gap-2">
-          <input
-            id="full_name"
-            name="full_name"
-            defaultValue={profile.full_name ?? ''}
-            required
-            className={`${inputClass} flex-1`}
-          />
-          <button
-            type="submit"
-            className="rounded-full bg-[#1f7a4d] px-4 text-sm font-semibold text-white hover:bg-[#155c39]"
-          >
-            შენახვა
-          </button>
+      {/* Staff cannot rename themselves (the name stands on acts and logs); the owner can. */}
+      {profile.role === 'owner' ? (
+        <form action={updateMyName} className={row}>
+          <label htmlFor="full_name" className="text-sm text-ink-soft">
+            სახელი და გვარი
+          </label>
+          <div className="flex gap-2">
+            <input
+              id="full_name"
+              name="full_name"
+              defaultValue={profile.full_name ?? ''}
+              required
+              className={`${inputClass} flex-1`}
+            />
+            <button
+              type="submit"
+              className="rounded-full bg-[#1f7a4d] px-4 text-sm font-semibold text-white hover:bg-[#155c39]"
+            >
+              შენახვა
+            </button>
+          </div>
+        </form>
+      ) : (
+        <div className={row}>
+          <span className="text-sm text-ink-soft">სახელი და გვარი</span>
+          <span title="შესაცვლელად მიმართე კომპანიის მფლობელს">{profile.full_name || '—'}</span>
         </div>
-      </form>
+      )}
       <div className={row}>
         <span className="text-sm text-ink-soft">ელ-ფოსტა</span>
         <span>{profile.email}</span>
