@@ -59,7 +59,6 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
       ? null
       : await stockActData(supabase, id).then((d) => ({
           hasCost: d.hasCost,
-          left: d.left,
           final: d.final,
           // Counted lines; while open also the shortages of closed shelves.
           lines: d.lines
@@ -67,31 +66,25 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
             .map((l, i) => ({ ...l, n: i + 1 })),
         }));
   // The shelves: who counted, when closed, lines, open differences, photos.
-  const [{ data: entryRows }, { data: checkRows }, { data: mediaRows }, { data: site }] =
-    await Promise.all([
-      supabase
-        .from('stocktake_entries')
-        .select('location_id')
-        .eq('stocktake_id', id)
-        .limit(20000)
-        .returns<{ location_id: string }[]>(),
-      supabase
-        .from('stocktake_checks')
-        .select('location_id')
-        .eq('stocktake_id', id)
-        .neq('status', 'ok')
-        .returns<{ location_id: string }[]>(),
-      supabase
-        .from('stocktake_media')
-        .select('location_id')
-        .eq('stocktake_id', id)
-        .returns<{ location_id: string }[]>(),
-      supabase
-        .from('sites')
-        .select('model_url')
-        .eq('name', st.branch ?? '')
-        .maybeSingle<{ model_url: string | null }>(),
-    ]);
+  const [{ data: entryRows }, { data: checkRows }, { data: mediaRows }] = await Promise.all([
+    supabase
+      .from('stocktake_entries')
+      .select('location_id')
+      .eq('stocktake_id', id)
+      .limit(20000)
+      .returns<{ location_id: string }[]>(),
+    supabase
+      .from('stocktake_checks')
+      .select('location_id')
+      .eq('stocktake_id', id)
+      .neq('status', 'ok')
+      .returns<{ location_id: string }[]>(),
+    supabase
+      .from('stocktake_media')
+      .select('location_id')
+      .eq('stocktake_id', id)
+      .returns<{ location_id: string }[]>(),
+  ]);
   const tally = (rows: { location_id: string }[] | null) => {
     const m = new Map<string, number>();
     for (const r of rows ?? []) m.set(r.location_id, (m.get(r.location_id) ?? 0) + 1);
@@ -100,7 +93,6 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
   const zLines = tally(entryRows);
   const zDiffs = tally(checkRows);
   const zShots = tally(mediaRows);
-  const model = site?.model_url ?? null;
 
   // Action buttons: solid green, clearly different from the info tiles.
   const btn =
@@ -222,11 +214,10 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
           <Link href={`/count/${id}/labels`} className={btn}>
             🏷 ეტიკეტები
           </Link>
-          {model && (
-            <a href={model} target="_blank" rel="noreferrer" className={btn}>
-              🏗 3D საწყობი
-            </a>
-          )}
+          {/* The app's own map: shelves, what is left to count, what to re-check. */}
+          <Link href={`/manage/${id}/map?view=3d`} className={btn}>
+            🏗 3D რუკა
+          </Link>
         </div>
       )}
 
@@ -240,16 +231,6 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
 
       {balance && (
         <section className="grid gap-2">
-          {!balance.final && balance.left.qty > 0 && (
-            <p className="rounded-control border border-[#a78bfa]/60 bg-[#f3efff] px-3 py-1.5 text-sm text-[#5b21b6]">
-              ⏳ <b>დარჩენილი</b> —{' '}
-              {balance.left.shelves > 0 && <>{balance.left.shelves} თარო ჯერ არ დახურულა · </>}
-              {balance.left.skus} SKU ·{' '}
-              {balance.left.qty.toLocaleString('ka-GE', { maximumFractionDigits: 2 })} ერთ. ·{' '}
-              {balance.left.sum.toLocaleString('ka-GE', { maximumFractionDigits: 0 })} ₾. ცხრილში
-              მხოლოდ დახურული თაროები და უკვე ნაპოვნი პროდუქციაა.
-            </p>
-          )}
           {balance.lines.length ? (
             <LinesGrid
               id={id}
@@ -272,6 +253,7 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
                 <tr>
                   <th className="px-2 py-1">თარო</th>
                   <th className="px-2 py-1">თანამშრომელი</th>
+                  <th className="px-2 py-1">ელფოსტა</th>
                   <th className="px-2 py-1">სტატუსი</th>
                   <th className="px-2 py-1 text-right">ჩანაწ.</th>
                   <th className="px-2 py-1 text-right">სხვაობა</th>
@@ -287,9 +269,8 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
                         {z.locations?.code}
                       </Link>
                     </td>
-                    <td className="px-2 py-1">
-                      {z.user_profiles?.full_name ?? z.user_profiles?.email}
-                    </td>
+                    <td className="px-2 py-1">{z.user_profiles?.full_name ?? '—'}</td>
+                    <td className="px-2 py-1 text-ink-soft">{z.user_profiles?.email}</td>
                     <td
                       className={`px-2 py-1 ${z.status === 'done' ? 'text-match' : 'text-review'}`}
                     >

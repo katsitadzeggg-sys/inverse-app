@@ -4,7 +4,7 @@ import LoginForm from './login-form';
 import { isSupabaseConfigured } from '@/lib/env';
 import { SITE_URL } from '@/lib/site-url';
 
-export const metadata = { title: 'Sign in' };
+export const metadata = { title: 'შესვლა' };
 
 /**
  * The bridge between the public site and the platform. It borrows the site's

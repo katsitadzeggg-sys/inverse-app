@@ -224,10 +224,10 @@ export default function BookImport({
   return (
     <div className="grid gap-4">
       <label className="grid cursor-pointer gap-2 rounded-control border-2 border-dashed border-rule-strong p-6 text-center">
-        <span className="text-base font-semibold">📄 აირჩიე Excel ან CSV ფაილი</span>
+        <span className="text-base font-semibold">⬆ 2. ფაილის ატვირთვა (Excel ან CSV)</span>
         <span className="text-sm text-ink-faint">
           საჭიროა: დასახელება, შტრიხკოდი, ჯგუფი, ნაშთი, თაროს ნომერი; სურვილისამებრ — მეორე
-          შტრიხკოდი, ფასი
+          შტრიხკოდი, ერთეულის ფასი (საჭიროა, რომ მეტობა/დანაკლისი ლარში დაითვალოს)
           {expiry ? ', ვარგისიანობის ვადა (ყოველ პარტიას თავისი ხაზი)' : ''}. ზომის ერთეული —
           სურვილისამებრ (თუ არ წერია, „ცალი“)
         </span>

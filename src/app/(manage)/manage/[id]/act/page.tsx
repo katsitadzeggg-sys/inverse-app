@@ -61,7 +61,7 @@ export default async function StockAct({ params, searchParams }: PageProps<'/man
           href={`/manage/${id}/act/xlsx${onlyDiff ? '?only=diff' : ''}`}
           className="rounded-control border border-rule-strong px-4 py-3 text-base font-medium"
         >
-          ⬇ Excel (ბალანსის ფორმით)
+          ⬇ Excel (სააღრიცხვო ფორმით)
         </a>
       </div>
 

@@ -14,8 +14,9 @@ const ROLE: Record<string, string> = { owner: 'მფლობელი', admin:
 
 /**
  * The manager module, in a classic admin layout: a sidebar with the menu on
- * top and administration at the bottom left; a top bar with search, the
+ * top and administration at the bottom left; a top bar with the
  * notifications bell and the profile menu (profile, light/dark, sign-out).
+ * The one search across the system lives on the dashboard, not here.
  * Owners and admins only.
  */
 export default async function ManageLayout({ children }: LayoutProps<'/'>) {
@@ -75,26 +76,6 @@ export default async function ManageLayout({ children }: LayoutProps<'/'>) {
 
         <div className="grid min-w-0 content-start gap-3 lg:gap-4">
           <header className="flex flex-wrap items-center gap-3 rounded-2xl bg-paper-sunk px-4 py-3">
-            <form action="/manage/stocktakes" className="relative min-w-0 flex-1 sm:max-w-sm">
-              <svg
-                viewBox="0 0 24 24"
-                width="18"
-                height="18"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-faint"
-                aria-hidden
-              >
-                <circle cx="11" cy="11" r="7" />
-                <path d="M20 20l-3.5-3.5" />
-              </svg>
-              <input
-                name="q"
-                placeholder="ძებნა: ნომერი, კლიენტი, ფილიალი"
-                className="w-full rounded-full border border-rule bg-paper py-2.5 pl-10 pr-4 text-sm text-ink placeholder:text-ink-faint focus:border-accent focus:outline-none"
-              />
-            </form>
             <div className="ml-auto flex items-center gap-2">
               <Bell notes={list} />
               <ProfileMenu

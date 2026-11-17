@@ -30,23 +30,6 @@ export async function addSite(_prev: FormState, formData: FormData): Promise<For
   return { notice: `✓ ${name} დაემატა` };
 }
 
-export async function importSites(rows: { name: string; address: string }[]): Promise<FormState> {
-  const { company, profile } = await requireSession();
-  if (profile.role !== 'owner' && profile.role !== 'admin')
-    return { error: 'მხოლოდ მენეჯერს შეუძლია.' };
-  const seen = new Set<string>();
-  const clean = rows
-    .map((r) => ({ name: r.name.trim(), address: r.address.trim() }))
-    .filter((r) => r.name && !seen.has(r.name) && seen.add(r.name))
-    .map((r) => ({ company_id: company.id, name: r.name, address: r.address || null }));
-  if (!clean.length) return { error: 'ფაილში სახელები ვერ ვიპოვე.' };
-  const supabase = await createClient();
-  const { error } = await supabase.from('sites').upsert(clean, { onConflict: 'company_id,name' });
-  if (error) return { error: error.message };
-  revalidatePath('/manage/sites');
-  return { notice: `ჩაიტვირთა ${clean.length} საწყობი / ობიექტი.` };
-}
-
 /**
  * A warehouse is deleted only when none of its stocktakes is left in the list
  * (archived ones do not count): otherwise its acts would lose their warehouse.
@@ -73,15 +56,49 @@ export async function deleteSite(id: string): Promise<FormState> {
   return { notice: '✓ წაიშალა' };
 }
 
-/** The warehouse's 3D model (an https link), or none. */
-export async function setSiteModel(id: string, formData: FormData): Promise<void> {
-  const { profile } = await requireSession();
-  if (profile.role !== 'owner' && profile.role !== 'admin') return;
-  const url = String(formData.get('model_url') ?? '').trim();
+/**
+ * Rename a warehouse / change its address. Its stocktakes name it by text
+ * (branch), so they are renamed with it, or the list and map would lose them.
+ */
+export async function editSite(id: string, formData: FormData): Promise<FormState> {
+  const { company, profile } = await requireSession();
+  if (profile.role !== 'owner' && profile.role !== 'admin')
+    return { error: 'მხოლოდ მენეჯერს შეუძლია.' };
+  const name = String(formData.get('name') ?? '').trim();
+  const address = String(formData.get('address') ?? '').trim() || null;
+  if (!name) return { error: 'სახელი ცარიელი ვერ იქნება.' };
   const supabase = await createClient();
-  await supabase
+  const { data: site } = await supabase
     .from('sites')
-    .update({ model_url: /^https:\/\//.test(url) ? url : null })
-    .eq('id', id);
+    .select('name')
+    .eq('id', id)
+    .eq('company_id', company.id)
+    .maybeSingle();
+  if (!site) return { error: 'ვერ მოიძებნა.' };
+  if (name !== site.name) {
+    const { count } = await supabase
+      .from('sites')
+      .select('id', { count: 'exact', head: true })
+      .eq('company_id', company.id)
+      .eq('name', name);
+    if (count) return { error: `„${name}“ უკვე არსებობს.` };
+  }
+  const { error } = await supabase
+    .from('sites')
+    .update({ name, address })
+    .eq('id', id)
+    .eq('company_id', company.id);
+  if (error) return { error: error.message };
+  if (name !== site.name) {
+    const { error: e2 } = await supabase
+      .from('stocktakes')
+      .update({ branch: name })
+      .eq('company_id', company.id)
+      .eq('branch', site.name);
+    if (e2)
+      return { error: `სახელი შეიცვალა, მაგრამ ინვენტარიზაციები ვერ განახლდა: ${e2.message}` };
+  }
   revalidatePath('/manage/sites');
+  revalidatePath('/manage/stocktakes');
+  return { notice: '✓ შეინახა' };
 }

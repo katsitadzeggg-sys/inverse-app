@@ -10,6 +10,7 @@ import {
   type GetRowIdParams,
   type RowClassParams,
 } from 'ag-grid-community';
+import ValuesFilter from './values-filter';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -80,8 +81,8 @@ const KA: Record<string, string> = {
 
 /**
  * One data table for the manager module (AG Grid Community, Material theme):
- * zebra rows, sort and a filter in every column header, a quick search over
- * all columns, CSV download and an optional totals row pinned at the bottom.
+ * zebra rows, sort and a filter in every column header (text columns list
+ * their values), a quick search over all columns, "clear all filters", CSV download and an optional totals row pinned at the bottom.
  */
 export default function DataGrid<T extends object>({
   rows,
@@ -127,20 +128,36 @@ export default function DataGrid<T extends object>({
   );
   // Long Georgian headers get cut: the full name shows on hover. Cells drawn
   // by a component are centred vertically like text cells.
+  // Text columns (no own filter, not numbers): a filter listing the values
+  // the column holds, and a long value shown whole on hover after a second.
   const cols = useMemo(
     () =>
-      columns.map((c) => ({
-        headerTooltip: c.headerName || undefined,
-        ...(c.cellRenderer && !c.cellStyle
-          ? { cellStyle: { display: 'flex', alignItems: 'center' } }
-          : {}),
-        ...c,
-      })),
+      columns.map((c) => {
+        const text = (c.filter === undefined || c.filter === true) && c.type !== 'numericColumn';
+        return {
+          headerTooltip: c.headerName || undefined,
+          ...(c.cellRenderer && !c.cellStyle
+            ? { cellStyle: { display: 'flex', alignItems: 'center' } }
+            : {}),
+          ...(text
+            ? {
+                filter: ValuesFilter,
+                tooltipValueGetter: (p: { valueFormatted?: string | null; value?: unknown }) => {
+                  const v = String(p.valueFormatted ?? p.value ?? '');
+                  return v.length > 18 ? v : undefined;
+                },
+              }
+            : {}),
+          ...c,
+          ...(text ? { filter: ValuesFilter } : {}),
+        } as ColDef<T>;
+      }),
     [columns],
   );
+  const [filtered, setFiltered] = useState(false);
   return (
     <div className="grid gap-2">
-      {(search || toolbar) && (
+      {(search || toolbar || filtered) && (
         <div className="flex flex-wrap items-center gap-2">
           {search && (
             <input
@@ -154,6 +171,18 @@ export default function DataGrid<T extends object>({
             {shown === rows.length ? `${rows.length} ჩანაწერი` : `${shown} / ${rows.length}`}
           </span>
           <div className="ml-auto flex flex-wrap items-center gap-2">
+            {(filtered || q) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setQ('');
+                  grid.current?.api.setFilterModel(null);
+                }}
+                className="rounded-full border border-[#d64545]/40 px-3 py-1.5 text-xs font-medium text-[#d64545] hover:bg-[#d64545]/5"
+              >
+                ✕ ფილტრების მოხსნა
+              </button>
+            )}
             {toolbar}
             <button
               type="button"
@@ -189,6 +218,8 @@ export default function DataGrid<T extends object>({
           ensureDomOrder
           context={context}
           onModelUpdated={(e) => setShown(e.api.getDisplayedRowCount())}
+          onFilterChanged={(e) => setFiltered(e.api.isAnyFilterPresent())}
+          tooltipShowDelay={1000}
         />
       </div>
     </div>

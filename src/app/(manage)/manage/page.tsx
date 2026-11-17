@@ -4,6 +4,7 @@ import { requireSession } from '@/lib/session';
 import { Card, Stat } from '@/components/ui';
 import type { Stocktake } from '@/types/database';
 import { stockActData } from '@/lib/stock-act';
+import GlobalSearch from './global-search';
 
 export const metadata = { title: 'მთავარი' };
 
@@ -225,6 +226,7 @@ export default async function ManageDashboard() {
             {company.name} · {open.length} მიმდინარე ინვენტარიზაცია · სულ {all.length}
           </p>
         </div>
+        <GlobalSearch />
         <div className="flex flex-wrap gap-2">
           <Link
             href="/manage/new"

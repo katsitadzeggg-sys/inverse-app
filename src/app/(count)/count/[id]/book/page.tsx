@@ -65,8 +65,16 @@ export default async function BookPage({ params }: PageProps<'/count/[id]/book'>
           გამოჩნდება; თუ არა — შედარება ანგარიშში, ბოლოს.
         </p>
       </div>
-      <a href="/templates/nashti-shabloni.xlsx" download className="w-fit text-sm underline">
-        ⬇ შაბლონი (Excel): დასახელება, შტრიხკოდი, ჯგუფი, რაოდენობა, თაროს ნომერი
+      {/* Two clear steps: get the template, then load the filled-in file below. */}
+      <a
+        href="/templates/nashti-shabloni.xlsx"
+        download
+        className="flex w-fit items-center gap-2 rounded-xl border border-[#155c39] bg-[#1f7a4d] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#155c39]"
+      >
+        ⬇ 1. შაბლონის ჩამოტვირთვა
+        <span className="font-normal opacity-80">
+          (დასახელება, შტრიხკოდი, ჯგუფი, რაოდენობა, თარო, ერთეულის ფასი)
+        </span>
       </a>
       {stocktake.status === 'open' ? (
         <BookImport stocktakeId={id} expiry={stocktake.kind === 'expiry'} />
@@ -78,10 +86,9 @@ export default async function BookPage({ params }: PageProps<'/count/[id]/book'>
       )}
       <p className="text-xs text-ink-faint">
         ღია ინვენტარიზაციაში ჩატვირთული ნაშთი ავტომატურად განახლდება ამავე საწყობის სხვა ღია
-        ინვენტარიზაციებშიც; დახურულები ხელუხლებელი რჩება. ნაშთი ერთი დილიდან მეორემდე თუ
-        შეიცვალა და პროდუქტი იმ დღეს დაითვალეს — „გადასამოწმებელში“ მოხვდება.
+        ინვენტარიზაციებშიც; დახურულები ხელუხლებელი რჩება. ნაშთი ერთი დილიდან მეორემდე თუ შეიცვალა და
+        პროდუქტი იმ დღეს დაითვალეს — „გადასამოწმებელში“ მოხვდება.
       </p>
-
 
       {count > 0 && (
         <details className="rounded-control border border-accent/50 bg-accent/5 p-4">

@@ -62,6 +62,11 @@ function FormButton({ ids, kind }: { ids: string[]; kind: 'missed' | 'review' })
 }
 
 const KIND: Record<string, string> = { stock: '📦', expiry: '⏳', assets: '🏷' };
+const KIND_NAME: Record<string, string> = {
+  stock: 'მარაგები',
+  expiry: 'ვადიანი პროდუქცია',
+  assets: 'ძირითადი საშუალებები',
+};
 const n = (v: number) => Number(v).toLocaleString('ka-GE', { maximumFractionDigits: 2 });
 const gel = (v: number) => `${Number(v).toLocaleString('ka-GE', { maximumFractionDigits: 0 })} ₾`;
 const fmt = (t: string, o: Intl.DateTimeFormatOptions) =>
@@ -119,6 +124,14 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
         pinned: 'left',
         valueFormatter: (p) =>
           p.data?.review ? '🔎' : p.data?.left ? '⏳' : (KIND[p.value] ?? ''),
+        // What the icon means, on hover.
+        tooltipValueGetter: (p) =>
+          p.data?.review
+            ? 'გადასამოწმებელი: დათვლილი, მაგრამ ჯამი ნაშთს არ ემთხვევა'
+            : p.data?.left
+              ? 'გამორჩენილი: ნაშთშია, მაგრამ არცერთ ინვენტარიზაციაში არ დაითვალა'
+              : KIND_NAME[p.value as string],
+        headerTooltip: '📦 მარაგები · ⏳ ვადიანი · 🏷 ძირ. საშუალებები',
         filter: false,
       },
       {
@@ -211,6 +224,8 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
         type: 'numericColumn',
         filter: 'agNumberColumnFilter',
         cellClass: 'text-[#2563eb]',
+        // By money, then quantity: products without a price add 0 ₾ but still count.
+        comparator: (a, b, x, y) => a - b || (x.data?.plusQty ?? 0) - (y.data?.plusQty ?? 0),
         valueFormatter: (p) =>
           p.data?.plusQty
             ? `+${n(p.data.plusQty)} / ${gel(p.value)}${p.data.plusNocost ? ' *' : ''}`
@@ -227,6 +242,7 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
         type: 'numericColumn',
         filter: 'agNumberColumnFilter',
         cellClass: 'text-[#d64545]',
+        comparator: (a, b, x, y) => a - b || (x.data?.minusQty ?? 0) - (y.data?.minusQty ?? 0),
         valueFormatter: (p) =>
           p.data?.minusQty ? `−${n(p.data.minusQty)} / ${gel(p.value)}` : '—',
       },
@@ -280,6 +296,13 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
   );
   return (
     <DataGrid
+      toolbar={
+        <span className="hidden text-xs text-ink-faint lg:inline">
+          📦 მარაგები · ⏳ ვადიანი · 🏷 ძირ. საშ. ·{' '}
+          <span className="text-[#5b21b6]">⏳ გამორჩენილი</span> ·{' '}
+          <span className="text-[#b45309]">🔎 გადასამოწმებელი</span>
+        </span>
+      }
       rows={rows}
       pinnedTop={left}
       columns={columns}
