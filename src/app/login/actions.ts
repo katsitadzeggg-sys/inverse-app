@@ -55,7 +55,6 @@ export async function signUp(_prev: AuthState, formData: FormData): Promise<Auth
 
   const { email, password } = readCredentials(formData);
   const fullName = String(formData.get('full_name') ?? '').trim();
-  const companyName = String(formData.get('company_name') ?? '').trim();
 
   if (!email || !password) return { error: 'ჩაწერე ელფოსტა და პაროლი.' };
   if (password.length < 8) return { error: 'პაროლი მინიმუმ 8 სიმბოლო უნდა იყოს.' };
@@ -68,7 +67,7 @@ export async function signUp(_prev: AuthState, formData: FormData): Promise<Auth
     email,
     password,
     options: {
-      data: { full_name: fullName, company_name: companyName },
+      data: { full_name: fullName },
       emailRedirectTo: `${origin}/auth/callback?next=/onboarding`,
     },
   });

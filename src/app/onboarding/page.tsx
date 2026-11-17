@@ -48,11 +48,6 @@ export default async function OnboardingPage() {
       <div className="w-full max-w-md text-center">
         <h1 className="text-2xl font-semibold tracking-tight">მოწვევა საჭიროა</h1>
         <p className="mt-2 text-sm text-ink-soft">
-          {user.user_metadata?.company_name && (
-            <>
-              კომპანია: <b>{String(user.user_metadata.company_name)}</b>.{' '}
-            </>
-          )}
           ამ მეილზე ({user.email}) მოწვევა არ მოიძებნა. სთხოვე მენეჯერს, ზუსტად ამ მეილზე მოგიწვიოს,
           და თავიდან შედი. ახალი კომპანიის გასახსნელად დაგვიკავშირდი: info@inverse.ge
         </p>

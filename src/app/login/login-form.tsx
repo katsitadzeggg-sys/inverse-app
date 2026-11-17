@@ -78,13 +78,6 @@ function Form({
             <span className="label">სახელი და გვარი</span>
             <input name="full_name" autoComplete="name" className={FIELD} />
           </label>
-          <label className="block">
-            <span className="label">კომპანია</span>
-            <input name="company_name" autoComplete="organization" className={FIELD} />
-            <span className="mt-2 block text-xs text-ink-faint">
-              თუ მოწვევით შემოდიხარ, შეგიძლია ცარიელი დატოვო.
-            </span>
-          </label>
         </>
       )}
 

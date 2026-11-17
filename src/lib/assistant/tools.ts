@@ -30,7 +30,7 @@ export const TOOLS: Anthropic.Tool[] = [
   {
     name: 'stocktake_differences',
     description:
-      'Per product of one stocktake: book (balance) quantity, counted quantity, difference and its value. ' +
+      'Per product of one stocktake: book quantity (სააღრიცხვო ნაშთი), counted quantity, difference and its value. ' +
       'Sorted by the size of the difference in money. For an open stocktake the numbers are not final.',
     input_schema: {
       type: 'object',

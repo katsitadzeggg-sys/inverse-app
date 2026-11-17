@@ -38,6 +38,8 @@ export async function askAssistant(
     'Use only what the tools return; if they do not have it, say so — never guess figures. ' +
     'You can only read data, not change it. Talk about this company only. ' +
     'Money is in GEL (₾). "ნაკლებობა" = shortage (counted < book), "ზედმეტობა" = surplus. ' +
+    'Call the book quantity "სააღრიცხვო ნაშთი" (or just "ნაშთი"); never use the word "ბალანსი" — ' +
+    'in Georgia that is the name of an accounting program. ' +
     'When listing several products, use a short list with name, book, counted, difference.';
 
   const messages: Anthropic.MessageParam[] = turns.map((t) => ({ role: t.role, content: t.text }));

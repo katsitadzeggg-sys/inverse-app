@@ -1,3 +1,4 @@
+import { allPoolLines } from '@/lib/pool-lines';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
@@ -96,8 +97,8 @@ export default async function StocktakeMap({
   // The warehouse's missed / to-re-check products and where they are.
   let focused: FoundProduct[] = [];
   if (focus) {
-    const { data: lines } = await supabase.rpc('pool_lines', { p_ids: pool.ids });
-    const pids = ((lines ?? []) as { product_id: string; status: string }[])
+    const lines = await allPoolLines(supabase, pool.ids);
+    const pids = lines
       .filter((l) => l.status === focus)
       .map((l) => l.product_id)
       .slice(0, 2000);

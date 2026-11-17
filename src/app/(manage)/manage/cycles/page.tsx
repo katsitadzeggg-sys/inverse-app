@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
 import { cycleLabel } from '@/lib/cycles';
+import { allPoolLines } from '@/lib/pool-lines';
 import type { CountCycle, CycleSummary } from '@/types/database';
 import CloseCycleButton from './close-button';
 import PeriodSelect from './period-select';
@@ -90,10 +91,11 @@ export default async function CyclesPage() {
       .neq('kind', 'assets')
       .limit(5000),
   ]);
-  const cycles = cyc ?? [];
   const byCycle = new Map<string, { id: string; status: string }[]>();
   for (const s of sts ?? [])
     byCycle.set(s.cycle_id as string, [...(byCycle.get(s.cycle_id as string) ?? []), s]);
+  // An open cycle with no live stocktake (all archived) is noise: not shown.
+  const cycles = (cyc ?? []).filter((c) => c.closed_at || byCycle.has(c.id));
 
   // Live figures of the open cycles.
   const live = new Map<string, CycleSummary>();
@@ -103,17 +105,7 @@ export default async function CyclesPage() {
       .map(async (c) => {
         const ids = (byCycle.get(c.id) ?? []).map((s) => s.id);
         if (!ids.length) return;
-        const { data } = await supabase.rpc('pool_lines', { p_ids: ids });
-        const lines = (
-          (data ?? []) as {
-            product_id: string;
-            cur_qty: number;
-            ref_qty: number | null;
-            counted_qty: number | null;
-            price: number;
-            status: string;
-          }[]
-        ).map((l) => ({
+        const lines = (await allPoolLines(supabase, ids)).map((l) => ({
           product_id: l.product_id,
           book: Number(l.ref_qty ?? l.cur_qty ?? 0),
           counted: l.counted_qty,

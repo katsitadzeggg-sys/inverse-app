@@ -108,6 +108,10 @@ export async function stockActData(supabase: SupabaseClient, id: string): Promis
       >(),
   ]);
   const shelfCode = new Map((zones ?? []).map((z) => [z.location_id, z.locations?.code ?? '']));
+  // A balance shelf never opened in the count (a provisional code from the
+  // file; the real shelves got QR codes on site) counts as no shelf: compared
+  // product by product over the whole warehouse (same rule as stocktake_stats4).
+  for (const b of book) if (b.location_id && !shelfCode.has(b.location_id)) b.location_id = null;
   const { data: stRow } = await supabase
     .from('stocktakes')
     .select('status')
