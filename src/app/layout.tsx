@@ -31,6 +31,18 @@ const display = localFont({
   adjustFontFallback: false,
 });
 
+/*
+  HUD face for the AI shelf frames: Orbitron (SIL OFL 1.1, see
+  fonts/orbitron-OFL.txt), cut to basic Latin. It has no Georgian, so it is
+  used only for codes, numbers and Latin labels; names stay in the body face.
+*/
+const hud = localFont({
+  src: './fonts/orbitron.woff2',
+  variable: '--font-hud',
+  display: 'swap',
+  weight: '400 900',
+});
+
 export const metadata: Metadata = {
   metadataBase: new URL(APP_URL),
   title: { default: 'Inverse', template: '%s · Inverse' },
@@ -42,7 +54,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<'/'>) {
   return (
-    <html lang="ka-GE" className={`${body.variable} ${display.variable} h-full`}>
+    <html lang="ka-GE" className={`${body.variable} ${display.variable} ${hud.variable} h-full`}>
       <body className="flex min-h-full flex-col">{children}</body>
     </html>
   );

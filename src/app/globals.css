@@ -68,6 +68,12 @@ body {
 }
 
 @layer components {
+  /* AI shelf frames: codes, numbers and Latin labels (Orbitron). */
+  .font-hud {
+    font-family: var(--font-hud), ui-monospace, monospace;
+    letter-spacing: 0.06em;
+  }
+
   /* Condensed caps face, for headings and small labels. */
   .font-display {
     font-family: var(--font-display);

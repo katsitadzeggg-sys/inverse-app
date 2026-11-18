@@ -10,6 +10,7 @@ function observation(overrides: Partial<ShelfObservation> = {}): ShelfObservatio
     confidence: 0.95,
     identifiable: true,
     notes: '',
+    boxes: [],
     ...overrides,
   };
 }

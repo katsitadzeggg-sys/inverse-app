@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { aiCheckShelf, type AiResult } from '../../../ai-actions';
+import ShelfHud from './shelf-hud';
 
 /** A few frames cut from a video in the browser (JPEG data URLs, long side ≤ 1024 px). */
 export async function videoFrames(url: string, count: number): Promise<string[]> {
@@ -55,12 +56,15 @@ export default function AiCheck({
   videos,
   photos,
   last: stored,
+  urls,
 }: {
   stocktakeId: string;
   locationId: string;
   videos: string[];
   photos: number;
   last: { result: AiResult; at: string; images: number } | null;
+  /** Signed URL per storage path, to draw the AI's frames on the photos. */
+  urls: Record<string, string>;
 }) {
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
@@ -122,6 +126,7 @@ export default function AiCheck({
             {last.result.quality === 'poor' && ' · ფოტოები ცუდი ხარისხისაა'}
           </p>
           <p className="text-sm">{last.result.summary}</p>
+          <ShelfHud result={last.result} urls={urls} />
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>

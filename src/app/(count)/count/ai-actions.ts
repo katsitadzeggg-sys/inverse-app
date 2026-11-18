@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
 import { analyzeShelfImages, type ShelfImage } from '@/lib/verification/analyze';
 import type { CatalogueEntry } from '@/lib/verification/prompt';
+import type { Box } from '@/lib/verification/schema';
 import { grade } from '@/lib/verification/grade';
 import { identifyProduct, type Candidate } from '@/lib/verification/identify';
 import { findProducts, type ProductHit } from './actions';
@@ -20,6 +21,8 @@ export type AiItem = {
   status: 'match' | 'partial' | 'mismatch' | 'unknown';
   needsBarcode: boolean;
   notes: string;
+  /** Where the photos show it; `image` indexes AiResult.paths (from 0). */
+  boxes?: Box[];
 };
 /** What a counter is told after the automatic check: recount these. */
 export type AiWarning = { name: string; counted: number; detected: number };
@@ -28,9 +31,24 @@ export type AiResult = {
   summary: string;
   quality: 'good' | 'fair' | 'poor';
   items: AiItem[];
+  /** Storage path of each image sent, in order; null for a video frame cut in the browser. */
+  paths?: (string | null)[];
 };
 
 const MAX_PHOTOS = 12;
+
+/** The model's boxes, kept to real images and sane rectangles; image index from 0. */
+function cleanBoxes(boxes: Box[] | undefined, images: number): Box[] {
+  const out: Box[] = [];
+  for (const b of boxes ?? []) {
+    const image = b.image - 1;
+    const [x0, x1] = [Math.min(b.x0, b.x1), Math.max(b.x0, b.x1)];
+    const [y0, y1] = [Math.min(b.y0, b.y1), Math.max(b.y0, b.y1)];
+    if (image < 0 || image >= images || x1 - x0 < 0.005 || y1 - y0 < 0.005) continue;
+    out.push({ image, x0, y0, x1, y1 });
+  }
+  return out.slice(0, 60);
+}
 
 /**
  * Checks a closed shelf by its photos and video frames: a vision model counts
@@ -114,6 +132,7 @@ export async function aiCheckShelf(
 
   // The shelf's own photos (not photos of single new products) + video frames.
   const images: ShelfImage[] = [];
+  const sentPaths: (string | null)[] = [];
   // A video's poster frame always goes in; more frames come from the browser
   // when it can decode the video.
   const paths = (media ?? [])
@@ -126,10 +145,14 @@ export async function aiCheckShelf(
     if (!data) continue;
     const type = data.type === 'image/png' || data.type === 'image/webp' ? data.type : 'image/jpeg';
     images.push({ data: Buffer.from(await data.arrayBuffer()), mediaType: type });
+    sentPaths.push(path);
   }
   for (const f of frames.slice(0, 16)) {
     const b64 = f.replace(/^data:image\/jpeg;base64,/, '');
-    if (b64.length > 20) images.push({ data: Buffer.from(b64, 'base64'), mediaType: 'image/jpeg' });
+    if (b64.length > 20) {
+      images.push({ data: Buffer.from(b64, 'base64'), mediaType: 'image/jpeg' });
+      sentPaths.push(null);
+    }
   }
   if (!images.length) return { error: 'ამ თაროს ფოტო ან ვიდეო არ აქვს.' };
   let warnings: AiWarning[] = [];
@@ -158,6 +181,7 @@ export async function aiCheckShelf(
         status: g.status,
         needsBarcode: g.needsBarcode,
         notes: o.notes,
+        boxes: cleanBoxes(o.boxes, images.length),
       });
     }
     for (const c of catalogue)
@@ -175,7 +199,12 @@ export async function aiCheckShelf(
         });
     const order = { mismatch: 0, unknown: 1, partial: 2, match: 3 };
     items.sort((a, b) => order[a.status] - order[b.status] || a.name.localeCompare(b.name, 'ka'));
-    result = { summary: analysis.summary, quality: analysis.image_quality, items };
+    result = {
+      summary: analysis.summary,
+      quality: analysis.image_quality,
+      items,
+      paths: sentPaths,
+    };
     const { error } = await supabase.from('shelf_ai_checks').insert({
       company_id: session.company.id,
       stocktake_id: stocktakeId,

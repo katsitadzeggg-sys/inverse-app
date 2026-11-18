@@ -121,14 +121,17 @@ export async function analyzeShelfImages({
       {
         role: 'user',
         content: [
-          ...images.map((im) => ({
-            type: 'image' as const,
-            source: {
-              type: 'base64' as const,
-              media_type: im.mediaType,
-              data: im.data.toString('base64'),
+          ...images.flatMap((im, i) => [
+            { type: 'text' as const, text: `Image ${i + 1}` },
+            {
+              type: 'image' as const,
+              source: {
+                type: 'base64' as const,
+                media_type: im.mediaType,
+                data: im.data.toString('base64'),
+              },
             },
-          })),
+          ]),
           {
             type: 'text',
             text:
@@ -138,6 +141,9 @@ export async function analyzeShelfImages({
 There are ${images.length} images of this same shelf (photos, and frames taken from videos).
 They overlap: give ONE total per product for the whole shelf, never adding up the same units seen in two images.
 "expected" above is what the counter entered for this shelf.
+For each product also give boxes: on every image where it is visible, one tight box around each
+group of its units (at most 6 boxes per product per image), as fractions of that image's width and
+height. Use the image number written before each image.
 Write notes and summary in Georgian, short and plain.`,
           },
         ],

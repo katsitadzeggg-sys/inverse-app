@@ -796,8 +796,7 @@ export default function CountPanel({
           // Counted on this shelf so far: products (SKU) and pieces.
           const vals = Object.values(counted).filter((q) => q > 0);
           const sku = vals.length + extraLines.length;
-          const pcs =
-            vals.reduce((a, q) => a + q, 0) + extraLines.reduce((a, x) => a + x.qty, 0);
+          const pcs = vals.reduce((a, q) => a + q, 0) + extraLines.reduce((a, x) => a + x.qty, 0);
           return sku > 0 ? (
             <p className="-mt-1 text-right text-sm font-semibold text-ink">
               ამ თაროზე დათვლილია: <span className="text-match">{sku} SKU</span> ·{' '}

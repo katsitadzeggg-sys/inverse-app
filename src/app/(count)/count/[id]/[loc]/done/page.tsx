@@ -129,6 +129,7 @@ export default async function ShelfDonePage({ params }: PageProps<'/count/[id]/[
         kind: m.kind,
         url: data?.signedUrl ?? '',
         poster,
+        posterPath: m.poster_path,
         caption: m.caption,
       };
     }),
@@ -293,6 +294,12 @@ export default async function ShelfDonePage({ params }: PageProps<'/count/[id]/[
           photos={shelfShots.filter((m) => m.kind === 'photo').length}
           videos={shelfShots.filter((m) => m.kind === 'video').map((m) => m.url)}
           last={lastAi}
+          urls={Object.fromEntries(
+            shelfShots.flatMap((m) => [
+              [m.path, m.url],
+              ...(m.posterPath && m.poster ? [[m.posterPath, m.poster]] : []),
+            ]),
+          )}
         />
       )}
 
