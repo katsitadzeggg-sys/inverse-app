@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
+import { redirect, RedirectType } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
 import { barcodeVariants, fixDashes, mkhedruli, upperLatin } from '@/lib/text';
@@ -254,7 +254,9 @@ export async function openZone(
       };
     }
     if (zone.status === 'done') {
-      if (!isManager(session.profile.role))
+      // The shelf's own counter may reopen it (a wrong count, a product left
+      // out); someone else's closed shelf only a manager reopens.
+      if (zone.counter_id !== session.userId && !isManager(session.profile.role))
         return {
           error: `${location.code} უკვე დახურულია. ხელახლა გახსნა მხოლოდ მენეჯერს შეუძლია.`,
         };
@@ -311,7 +313,7 @@ export async function finishZone(stocktakeId: string, locationId: string): Promi
   });
   if (error) throw new Error(error.message);
   revalidatePath(`/count/${stocktakeId}`);
-  redirect(`/count/${stocktakeId}/${locationId}/done`);
+  redirect(`/count/${stocktakeId}/${locationId}/done`, RedirectType.replace);
 }
 
 /** Fixed assets: close the room and stay on the stocktake page to open the next one. */
@@ -651,7 +653,7 @@ export async function closeZone(stocktakeId: string, locationId: string): Promis
   revalidatePath(`/count/${stocktakeId}`);
   revalidatePath(`/count/${stocktakeId}/${locationId}`);
   const recount = ((data ?? []) as RecheckItem[]).some((r) => r.status === 'recount');
-  if (!recount) redirect(`/count/${stocktakeId}/${locationId}/done`);
+  if (!recount) redirect(`/count/${stocktakeId}/${locationId}/done`, RedirectType.replace);
 }
 
 /**
@@ -1675,4 +1677,56 @@ export async function dropBookShelves(stocktakeId: string): Promise<FormState> {
   return {
     notice: `✓ ${all.length} ხაზს თარო მოეხსნა — ნაშთი ახლა პროდუქტებით, მთელ საწყობზე შედარდება.`,
   };
+}
+
+/**
+ * "Add / fix on this shelf": the closed shelf opens again for counting — for
+ * its own counter or a manager — so a product left out can be added.
+ */
+export async function reopenShelf(stocktakeId: string, locationId: string): Promise<FormState> {
+  const session = await requireSession();
+  const supabase = await createClient();
+  const { data: zone } = await supabase
+    .from('stocktake_zones')
+    .select('id, counter_id, status, locations (code)')
+    .eq('stocktake_id', stocktakeId)
+    .eq('location_id', locationId)
+    .maybeSingle<{
+      id: string;
+      counter_id: string | null;
+      status: string;
+      locations: { code: string } | null;
+    }>();
+  if (!zone) return { error: 'თარო ვერ მოიძებნა.' };
+  if (zone.counter_id !== session.userId && !isManager(session.profile.role))
+    return { error: 'ეს თარო სხვამ დათვალა — გახსნა მხოლოდ მენეჯერს შეუძლია.' };
+  const { data: st } = await supabase
+    .from('stocktakes')
+    .select('status')
+    .eq('id', stocktakeId)
+    .maybeSingle<{ status: string }>();
+  if (st?.status !== 'open') return { error: 'ინვენტარიზაცია დახურულია.' };
+  if (zone.status === 'done') {
+    const { error } = await supabase
+      .from('stocktake_zones')
+      .update({ status: 'counting', done_at: null })
+      .eq('id', zone.id);
+    if (error) {
+      const { data: mine } = await supabase
+        .from('stocktake_zones')
+        .select('locations (code)')
+        .eq('stocktake_id', stocktakeId)
+        .eq('counter_id', session.userId)
+        .eq('status', 'counting')
+        .maybeSingle<{ locations: { code: string } | null }>();
+      return {
+        error:
+          error.code === '23505'
+            ? `ჯერ დახურე ღია თარო${mine?.locations?.code ? ` ${mine.locations.code}` : ''} — ერთდროულად ერთი თარო.`
+            : error.message,
+      };
+    }
+  }
+  revalidatePath(`/count/${stocktakeId}`);
+  redirect(`/count/${stocktakeId}/${locationId}`, RedirectType.replace);
 }

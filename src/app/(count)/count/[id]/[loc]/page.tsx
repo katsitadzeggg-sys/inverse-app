@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import BackButton from './back-button';
-import { notFound, redirect } from 'next/navigation';
+import { notFound, redirect, RedirectType } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
 import type { Stocktake, StocktakeZone } from '@/types/database';
@@ -35,7 +35,10 @@ export default async function ZonePage({ params }: PageProps<'/count/[id]/[loc]'
       .maybeSingle<StocktakeZone>(),
   ]);
   if (!stocktake || !location || !zone) notFound();
-  if (zone.status === 'done') redirect(`/count/${id}/${loc}/done`);
+  // A closed shelf reached by the phone's Back (the counting page is still in
+  // history): go to the shelf list, not forward again to the closed page —
+  // that loop made Back seem dead. Links to a closed shelf go to /done directly.
+  if (zone.status === 'done') redirect(`/count/${id}`, RedirectType.replace);
 
   const manager = profile.role === 'owner' || profile.role === 'admin';
   const canCount = stocktake.status === 'open' && (zone.counter_id === userId || manager);

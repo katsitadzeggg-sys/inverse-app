@@ -7,6 +7,7 @@ import ShelfSummaryForm from './summary-form';
 import MediaUpload from './media-upload';
 import AiCheck from './ai-check';
 import AutoCheck from './auto-check';
+import ReopenButton from './reopen-button';
 import type { AiResult } from '../../../ai-actions';
 
 // The photo check waits for the vision model.
@@ -329,6 +330,8 @@ export default async function ShelfDonePage({ params }: PageProps<'/count/[id]/[
           </ul>
         </section>
       )}
+
+      {canEdit && st.status === 'open' && <ReopenButton stocktakeId={id} locationId={loc} />}
 
       {canEdit ? (
         <ShelfSummaryForm
