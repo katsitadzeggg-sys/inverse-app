@@ -100,3 +100,10 @@
 - **უზბეკეთის ბაზარი** — კვლევა: ინვენტარიზაციის მომსახურების მოთხოვნა, კონკურენტები (Loialte-ს ოფისი აქვს ტაშკენტში), ERP-ები (1C გავრცელებულია), კანონმდებლობა ინვენტარიზაციაზე, ენა (უზბეკური/რუსული), ფასები, შესვლის გზა (პარტნიორი / ფილიალი).
 - **სმარტ-სათვალეები** (Iristick.G3, RealWear Navigator 520 / Arc 3, Ray-Ban Meta) — შერჩევა და საწყობში გამოცდა; სრული დავალება პროექტის დოკში „Inverse — სმარტ-სათვალეები: შერჩევა და გამოცდა (დავალება)“. სამშაბათს გადავხედოთ — შესაძლოა ეწინააღმდეგებოდეს პრიორიტეტებს (ხარჯი vs გამოწერა/API).
 - **app.inverse.ge შენიშვნები ChatGPT-დან (13–15.11)** — ~50 პუნქტი გვერდების მიხედვით, სტატუსით და უკუშედეგებით: პროექტის დოკი „Inverse — app.inverse.ge შენიშვნები (ChatGPT 13–15.11) — გეგმა სამშაბათისთვის“. სამშაბათს პირველ რიგში ამას გადავხედოთ; კოდი ჯერ არ შეცვლილა.
+
+## 18.11 evening — AI frames on photos (39745f5, deployed)
+- The shelf check now asks the model for boxes per product per image (fractions); stored inside `shelf_ai_checks.result` (items[].boxes, result.paths) — no migration.
+- Done page: `ShelfHud` draws green/yellow/red frames with name, code, % over the shelf photos (video frames cut in the browser are not stored, so no frames on them).
+- HUD face: Orbitron (SIL OFL, src/app/fonts/orbitron-OFL.txt), Latin only; Georgian names stay in the body face.
+- Not yet tested live: needs one new check (old checks have no boxes).
+- Next: live frames on the camera (on-device shelf object detector, no product names), test on Giorgi's phone.
