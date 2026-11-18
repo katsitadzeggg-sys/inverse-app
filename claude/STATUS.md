@@ -107,3 +107,7 @@
 - HUD face: Orbitron (SIL OFL, src/app/fonts/orbitron-OFL.txt), Latin only; Georgian names stay in the body face.
 - Not yet tested live: needs one new check (old checks have no boxes).
 - Next: live frames on the camera (on-device shelf object detector, no product names), test on Giorgi's phone.
+
+## 19.11 — opening a stocktake (575950f)
+- Counter without `can_open`: faded, disabled "＋ ახალი ინვენტარიზაცია" with "manager can give the right". With the right: unchanged.
+- Team page rights labelled "➕ გახსნა" / "👁 ნაშთი" (were icons only). No migration: `can_open` and RLS 0031 already existed.
