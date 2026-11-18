@@ -74,6 +74,19 @@ export default async function CounterHome({ app }: { app: CounterApp }) {
         </details>
       )}
 
+      {/* Without the right, the button stays visible but faded: the counter
+          knows it exists and whom to ask. */}
+      {!profile.can_open && kinds.length > 0 && (
+        <div aria-disabled className="grid gap-1 opacity-50">
+          <span className="cursor-not-allowed select-none rounded-control bg-ink-faint px-4 py-5 text-center text-xl font-semibold text-white">
+            ＋ ახალი ინვენტარიზაცია
+          </span>
+          <span className="text-center text-xs text-ink-soft">
+            გახსნის უფლება არ გაქვს — მენეჯერს შეუძლია მოგცეს.
+          </span>
+        </div>
+      )}
+
       {open.length === 0 ? (
         <p className="old text-center text-sm text-ink-soft">
           ღია ინვენტარიზაცია არ არის.{profile.can_open ? '' : ' მიმართე მენეჯერს.'}

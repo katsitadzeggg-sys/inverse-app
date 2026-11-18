@@ -122,7 +122,7 @@ function RightsCell({ data }: ICellRendererParams<TeamRow>) {
             save(mods, e.target.checked, book);
           }}
         />
-        ➕
+        ➕ გახსნა
       </label>
       <label className={box} title="ნაშთის ხედვა — დათვლისას უჩანს, რამდენი უნდა იყოს">
         <input
@@ -134,7 +134,7 @@ function RightsCell({ data }: ICellRendererParams<TeamRow>) {
             save(mods, open, e.target.checked);
           }}
         />
-        👁
+        👁 ნაშთი
       </label>
     </span>
   );
@@ -207,7 +207,7 @@ export default function TeamGrid({ rows, owner }: { rows: TeamRow[]; owner: bool
       {
         headerName: 'მოდულები და უფლებები',
         colId: 'rights',
-        width: 300,
+        width: 380,
         sortable: false,
         filter: false,
         cellRenderer: RightsCell,
