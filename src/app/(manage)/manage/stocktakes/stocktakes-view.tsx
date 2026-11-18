@@ -101,6 +101,23 @@ export default async function StocktakesView({
       `${cycleName(c, company.cycle_period)} · ${cycleCode(c.code)}`,
     ]),
   );
+  // Photo check per stocktake: products checked, matched, mean probability.
+  const { data: aiSum } = list.length
+    ? await supabase.rpc('stocktake_ai_summary', { p_ids: list.map((s) => s.id) })
+    : { data: [] };
+  const aiOf = new Map(
+    (
+      (aiSum ?? []) as {
+        stocktake_id: string;
+        checked: number;
+        matched: number;
+        confidence: number;
+      }[]
+    ).map((a) => [
+      a.stocktake_id,
+      { checked: a.checked, matched: a.matched, pct: Math.round(Number(a.confidence) * 100) },
+    ]),
+  );
   const rows: StRow[] = list.map((s) => {
     const t = stats.get(s.id);
     const cy = s.cycle_id ? cycleOf.get(s.cycle_id) : undefined;
@@ -123,6 +140,7 @@ export default async function StocktakesView({
       diffSum: Number(t?.plus_sum ?? 0) - Number(t?.minus_sum ?? 0),
       status: s.status === 'open' ? 'open' : 'closed',
       formKind: s.form_kind,
+      ai: aiOf.get(s.id),
       cycle: cy ? cycleName(cy, company.cycle_period) : undefined,
       cycleCode: cy ? cycleCode(cy.code) : undefined,
     };

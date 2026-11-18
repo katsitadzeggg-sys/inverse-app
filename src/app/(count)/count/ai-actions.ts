@@ -10,6 +10,8 @@ import { identifyProduct, type Candidate } from '@/lib/verification/identify';
 import { findProducts, type ProductHit } from './actions';
 
 export type AiItem = {
+  /** The product, when the photos matched one of the shelf's (for the lists). */
+  product_id?: string;
   name: string;
   code: string;
   counted: number | null;
@@ -147,6 +149,7 @@ export async function aiCheckShelf(
       const exp = p ? (counted.get(p.id) ?? 0) : null;
       const g = grade(o, exp);
       items.push({
+        product_id: p?.id,
         name: p?.name ?? (o.notes.slice(0, 120) || 'უცნობი'),
         code: p ? o.sku : '',
         counted: exp,
@@ -160,6 +163,7 @@ export async function aiCheckShelf(
     for (const c of catalogue)
       if (!seen.has(c.sku))
         items.push({
+          product_id: byCode.get(c.sku)?.id,
           name: c.name,
           code: c.sku,
           counted: c.expected_quantity,

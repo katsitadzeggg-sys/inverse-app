@@ -6,7 +6,23 @@ import DataGrid from '@/components/data-grid';
 import type { ActLine } from '@/lib/stock-act';
 import { LinePhoto, ShelfMediaLinks } from './media-links';
 
-type Row = Omit<ActLine, 'shelves'> & { shelf: string; diffSum: number | null };
+type Row = Omit<ActLine, 'shelves'> & {
+  shelf: string;
+  diffSum: number | null;
+  /** Photo check: match probability (0–100) and verdict, when checked. */
+  ai: number | null;
+  aiStatus: string | null;
+  aiSeen: number | null;
+};
+
+/** The photo check per product (stocktake_ai_lines). */
+export type AiLine = { confidence: number; status: string; detected: number };
+const AI_MARK: Record<string, string> = { match: '✓', partial: '?', mismatch: '⚠' };
+const AI_TONE: Record<string, string> = {
+  match: 'text-match',
+  partial: 'text-review',
+  mismatch: 'text-mismatch',
+};
 
 const q = (v: number) =>
   Number(v).toLocaleString('en-US', { maximumFractionDigits: 3, useGrouping: false });
@@ -23,11 +39,13 @@ export default function LinesGrid({
   lines,
   hasCost,
   fileName,
+  ai = {},
 }: {
   id: string;
   lines: ActLine[];
   hasCost: boolean;
   fileName: string;
+  ai?: Record<string, AiLine>;
 }) {
   const [onlyDiff, setOnlyDiff] = useState(false);
   const all = useMemo<Row[]>(
@@ -36,8 +54,11 @@ export default function LinesGrid({
         ...l,
         shelf: shelves.map((s) => s.code).join(', '),
         diffSum: l.cost != null && l.diff ? l.diff * l.cost : null,
+        ai: l.productId && ai[l.productId] ? Math.round(ai[l.productId].confidence * 100) : null,
+        aiStatus: (l.productId && ai[l.productId]?.status) || null,
+        aiSeen: l.productId && ai[l.productId] ? ai[l.productId].detected : null,
       })),
-    [lines],
+    [lines, ai],
   );
   const rows = onlyDiff ? all.filter((r) => r.diff !== 0) : all;
   const totals = useMemo(() => {
@@ -124,6 +145,26 @@ export default function LinesGrid({
             },
           ]
         : []) as ColDef<Row>[]),
+      {
+        headerName: 'AI %',
+        field: 'ai',
+        headerTooltip: 'ფოტოებით შემოწმება: დამთხვევის ალბათობა (თაროს ბოლო შემოწმება)',
+        type: 'numericColumn',
+        filter: 'agNumberColumnFilter',
+        width: 110,
+        tooltipValueGetter: (p) =>
+          p.data?.ai != null
+            ? `ფოტოზე ჩანს ~${p.data.aiSeen} · ${p.data.aiStatus === 'match' ? 'ემთხვევა' : p.data.aiStatus === 'mismatch' ? 'სხვა რაოდენობა' : 'ზუსტად ვერ ჩანს'}`
+            : 'ფოტოებით არ შემოწმებულა',
+        cellRenderer: (p: ICellRendererParams<Row>) =>
+          p.data?.ai != null ? (
+            <span className={`font-semibold tabular-nums ${AI_TONE[p.data.aiStatus ?? ''] ?? ''}`}>
+              {AI_MARK[p.data.aiStatus ?? ''] ?? ''} {p.data.ai}%
+            </span>
+          ) : (
+            <span className="text-ink-faint">—</span>
+          ),
+      },
       {
         headerName: 'ფოტო',
         field: 'photo',

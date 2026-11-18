@@ -63,6 +63,21 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
   const done = list.filter((z) => z.status === 'done').length;
   // Stock: what was counted, in Balance's table layout (counted lines only;
   // the act page has every line of the book).
+  // The photo check's match probability per product (none until a shelf is checked).
+  const { data: aiRows } = await supabase.rpc('stocktake_ai_lines', { p_stocktake: id });
+  const aiLines = Object.fromEntries(
+    (
+      (aiRows ?? []) as {
+        product_id: string;
+        confidence: number;
+        status: string;
+        detected: number;
+      }[]
+    ).map((r) => [
+      r.product_id,
+      { confidence: Number(r.confidence), status: r.status, detected: Number(r.detected) },
+    ]),
+  );
   const balance =
     st.kind === 'assets'
       ? null
@@ -249,6 +264,7 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
           {balance.lines.length ? (
             <LinesGrid
               id={id}
+              ai={aiLines}
               lines={balance.lines}
               hasCost={balance.hasCost}
               fileName={st.number}

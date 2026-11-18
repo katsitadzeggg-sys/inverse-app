@@ -13,6 +13,8 @@ export type StRow = {
   /** The cycle's name and code ("C4", shown beside the number). */
   cycle?: string;
   cycleCode?: string;
+  /** Photo check: products checked, matched, mean match probability (%). */
+  ai?: { checked: number; matched: number; pct: number };
   opened: string;
   closed: string | null;
   warehouse: string;
@@ -260,6 +262,23 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
         comparator: (a, b, x, y) => a - b || (x.data?.minusQty ?? 0) - (y.data?.minusQty ?? 0),
         valueFormatter: (p) =>
           p.data?.minusQty ? `−${n(p.data.minusQty)} / ${gel(p.value)}` : '—',
+      },
+      {
+        headerName: 'AI %',
+        colId: 'ai',
+        headerTooltip: 'ფოტოებით შემოწმება: დამთხვევის საშუალო ალბათობა · ემთხვევა / შემოწმდა',
+        width: 120,
+        type: 'numericColumn',
+        filter: 'agNumberColumnFilter',
+        valueGetter: (p) => p.data?.ai?.pct ?? null,
+        valueFormatter: (p) =>
+          p.data?.ai ? `${p.data.ai.pct}% · ${p.data.ai.matched}/${p.data.ai.checked}` : '—',
+        cellClass: (p) =>
+          p.data?.ai
+            ? p.data.ai.matched === p.data.ai.checked
+              ? 'text-match font-semibold'
+              : 'text-review font-semibold'
+            : 'text-ink-faint',
       },
       {
         headerName: 'სხვაობა ₾',

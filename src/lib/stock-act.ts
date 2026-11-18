@@ -7,6 +7,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
  * Used by the act page and its Excel download.
  */
 export type ActLine = {
+  /** The product (none for an unknown label). */
+  productId?: string;
   n: number;
   sku: string;
   name: string;
@@ -264,6 +266,7 @@ export async function stockActData(supabase: SupabaseClient, id: string): Promis
     .map(([pid, r]) => {
       const p = info.get(pid);
       return {
+        productId: pid,
         n: 0,
         sku: p?.sku ?? '',
         name: p?.name ?? '',
