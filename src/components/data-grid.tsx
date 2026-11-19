@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { AgGridReact } from 'ag-grid-react';
 import {
   AllCommunityModule,
@@ -96,6 +97,7 @@ export default function DataGrid<T extends object>({
   search = true,
   toolbar,
   context,
+  rowHref,
 }: {
   rows: T[];
   columns: ColDef<T>[];
@@ -111,7 +113,10 @@ export default function DataGrid<T extends object>({
   toolbar?: React.ReactNode;
   /** Passed to cell components (e.g. what the viewer may change). */
   context?: unknown;
+  /** Where a click anywhere on a row leads (links and buttons in it keep their own). */
+  rowHref?: (row: T) => string | null;
 }) {
+  const router = useRouter();
   const grid = useRef<AgGridReact<T>>(null);
   const [q, setQ] = useState('');
   const [shown, setShown] = useState(rows.length);
@@ -212,7 +217,22 @@ export default function DataGrid<T extends object>({
           pinnedTopRowData={pinnedTop as T[] | undefined}
           domLayout={height === 'auto' ? 'autoHeight' : 'normal'}
           getRowId={rowId ? (p: GetRowIdParams<T>) => rowId(p.data) : undefined}
-          getRowClass={rowClass}
+          getRowClass={(p) =>
+            [rowClass?.(p), rowHref && p.data && rowHref(p.data) ? 'cursor-pointer' : undefined]
+              .filter(Boolean)
+              .join(' ') || undefined
+          }
+          onRowClicked={(e) => {
+            const to = rowHref && e.data ? rowHref(e.data) : null;
+            if (!to) return;
+            const t = e.event?.target as HTMLElement | null;
+            // A link, button or field in the row does its own thing; selected text is copied.
+            if (t?.closest('a, button, input, select, label')) return;
+            if (window.getSelection()?.toString()) return;
+            const ev = e.event as MouseEvent | null;
+            if (ev && (ev.metaKey || ev.ctrlKey)) window.open(to, '_blank');
+            else router.push(to);
+          }}
           animateRows={false}
           enableCellTextSelection
           ensureDomOrder

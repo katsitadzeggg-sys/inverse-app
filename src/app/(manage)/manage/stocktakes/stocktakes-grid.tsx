@@ -346,6 +346,7 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
       rowClass={(p) =>
         p.data?.left ? 'st-left-row' : p.data?.review ? 'st-review-row' : undefined
       }
+      rowHref={(r) => (r.left || r.review || !r.id ? null : `/manage/${r.id}`)}
     />
   );
 }
