@@ -7,3 +7,13 @@ This version has breaking changes — APIs, conventions, and file structure may 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
+
+## Inverse rules
+
+- **Tenants stay apart.** Every client is a separate company; its data must never reach another company. Check row-level security (`auth_company_id()`) on every table, function and query you add or change — a rule in a document is not isolation.
+- **Database migrations: prepare, don't apply.** Write the SQL in `supabase/migrations/`, explain what it changes, and apply it only after Giorgi says "კი" for that migration.
+- **Before pushing:** `npx tsc --noEmit`, `npx eslint`, `npm test`, prettier on the changed files.
+- **No secrets** (keys, passwords, tokens) in code, commits, messages or documents.
+- **Unknown prices, terms or legal details are marked to check**, never made up.
+- **Session start:** read `claude/STATUS.md`. **End of a long run:** update it and report under three headings — **Blocked on me** (what Giorgi must decide or approve), **Changed**, **Found**.
+- Talk to Giorgi in Georgian, short and plain; word "ბალანსი" is not used for the book quantity ("სააღრიცხვო ნაშთი" / "ნაშთი").
