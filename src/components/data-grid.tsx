@@ -98,6 +98,7 @@ export default function DataGrid<T extends object>({
   toolbar,
   context,
   rowHref,
+  fit = false,
 }: {
   rows: T[];
   columns: ColDef<T>[];
@@ -115,6 +116,8 @@ export default function DataGrid<T extends object>({
   context?: unknown;
   /** Where a click anywhere on a row leads (links and buttons in it keep their own). */
   rowHref?: (row: T) => string | null;
+  /** Columns shrink to the table's width (no sideways scroll); headers wrap. */
+  fit?: boolean;
 }) {
   const router = useRouter();
   const grid = useRef<AgGridReact<T>>(null);
@@ -125,11 +128,12 @@ export default function DataGrid<T extends object>({
       sortable: true,
       filter: true,
       resizable: true,
-      minWidth: 70,
+      minWidth: fit ? 56 : 70,
       floatingFilter: false,
       suppressHeaderMenuButton: false,
+      ...(fit ? { wrapHeaderText: true, autoHeaderHeight: true } : {}),
     }),
-    [],
+    [fit],
   );
   // Long Georgian headers get cut: the full name shows on hover. Cells drawn
   // by a component are centred vertically like text cells.
@@ -217,6 +221,8 @@ export default function DataGrid<T extends object>({
           pinnedTopRowData={pinnedTop as T[] | undefined}
           domLayout={height === 'auto' ? 'autoHeight' : 'normal'}
           getRowId={rowId ? (p: GetRowIdParams<T>) => rowId(p.data) : undefined}
+          autoSizeStrategy={fit ? { type: 'fitGridWidth' } : undefined}
+          onGridSizeChanged={fit ? (e) => e.api.sizeColumnsToFit() : undefined}
           getRowClass={(p) =>
             [rowClass?.(p), rowHref && p.data && rowHref(p.data) ? 'cursor-pointer' : undefined]
               .filter(Boolean)
