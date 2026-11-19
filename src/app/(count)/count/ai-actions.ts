@@ -7,7 +7,8 @@ import { analyzeShelfImages, type ShelfImage } from '@/lib/verification/analyze'
 import type { CatalogueEntry } from '@/lib/verification/prompt';
 import type { Box } from '@/lib/verification/schema';
 import { grade } from '@/lib/verification/grade';
-import { identifyProduct, type Candidate } from '@/lib/verification/identify';
+import { identifyProduct, IDENTIFY_MODEL, type Candidate } from '@/lib/verification/identify';
+import { logAiUsage } from '@/lib/ai-usage';
 import { findProducts, type ProductHit } from './actions';
 
 export type AiItem = {
@@ -304,6 +305,7 @@ export async function identifyByPhoto(
       mediaType: 'image/jpeg',
       candidates,
     });
+    await logAiUsage(supabase, 'identify', IDENTIFY_MODEL, r.usage);
     const hits: ProductHit[] = [];
     const add = (p: ProductHit | undefined) => {
       if (p && !hits.some((h) => h.id === p.id)) hits.push(p);

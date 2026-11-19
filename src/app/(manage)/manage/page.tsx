@@ -6,6 +6,8 @@ import type { Stocktake } from '@/types/database';
 import { stockActData } from '@/lib/stock-act';
 import GlobalSearch from './global-search';
 import { cycleName } from '@/lib/cycles';
+import { aiCost } from '@/lib/ai-usage';
+import { VISION_MODEL } from '@/lib/verification/analyze';
 
 export const metadata = { title: 'მთავარი' };
 
@@ -197,10 +199,19 @@ export default async function ManageDashboard() {
         result: { items?: { status: string }[] } | null;
       }[]
     >();
-  const aiMonth = { checks: 0, usd: 0, match: 0, unsure: 0, off: 0 };
+  const aiMonth = { checks: 0, usd: 0, other: 0, match: 0, unsure: 0, off: 0 };
+  // The assistant and photo identification (table from migration 0067; empty before it).
+  const { data: usageRows } = await supabase
+    .from('ai_usage')
+    .select('model, input_tokens, output_tokens')
+    .gte('created_at', monthStart.toISOString())
+    .limit(20000)
+    .returns<{ model: string; input_tokens: number; output_tokens: number }[]>();
+  for (const u of usageRows ?? [])
+    aiMonth.other += aiCost(u.model, u.input_tokens, u.output_tokens);
   for (const c of aiChecks ?? []) {
     aiMonth.checks += 1;
-    aiMonth.usd += ((c.input_tokens ?? 0) * 4 + (c.output_tokens ?? 0) * 20) / 1e6;
+    aiMonth.usd += aiCost(VISION_MODEL, c.input_tokens ?? 0, c.output_tokens ?? 0);
     for (const it of c.result?.items ?? []) {
       if (it.status === 'match') aiMonth.match += 1;
       else if (it.status === 'mismatch') aiMonth.off += 1;
@@ -455,11 +466,15 @@ export default async function ManageDashboard() {
                 <span className="text-review">? {aiMonth.unsure}</span> ·{' '}
                 <span className="text-mismatch">⚠ {aiMonth.off}</span> პოზიცია
               </p>
-              <p
-                className="text-xs text-ink-faint"
-                title="მხოლოდ თაროს ფოტო-შემოწმება; ასისტენტი და ფოტოთი ამოცნობა აქ არ ითვლება"
-              >
-                ხარჯი ≈ ${aiMonth.usd.toFixed(2)}
+              <p className="text-xs text-ink-faint" title="ფასები: სავარაუდო, ტოკენების მიხედვით">
+                ხარჯი ≈ ${(aiMonth.usd + aiMonth.other).toFixed(2)}
+                {aiMonth.other > 0 && (
+                  <span>
+                    {' '}
+                    (შემოწმება ${aiMonth.usd.toFixed(2)} · ასისტენტი და ამოცნობა $
+                    {aiMonth.other.toFixed(2)})
+                  </span>
+                )}
               </p>
             </div>
           )}

@@ -117,3 +117,9 @@
 - Stocktake page (stock): shelves first (who, when, positions, qty, differences, AI %, photos), each opens into its products; "📋 სრული სია" tab = the old full grid. Old shelves table kept only for fixed assets.
 - AI frames confirmed stored: Saburtalo checks after 39745f5 all have boxes (B--02, D--2, F-03).
 - Found: the model was told the counted quantity and often "confirmed" it while unsure (D--2: Tofita 24/24 at 30%). Shelf check is now a blind count (no expected quantities in the prompt). Older results stay as they were; re-run to compare.
+
+## 19.11 morning
+- Stocktakes list: two-line cells (fits ~1000 px), whole row opens; missed / re-check rows open a read-only list (/manage/stocktakes/pool), the form is made there with a confirm.
+- Dashboard: warehouses of the open cycle on the list's numbers (pool stats, whole balance), progress = balance products counted, money from the same pools, AI photo check this month (✓/?/⚠, cost).
+- AGENTS.md: Inverse rules for every agent.
+- **0067_ai_usage prepared, NOT applied** (needs Giorgi's "კი"): one row per assistant question / photo identification with tokens; code already writes to it and ignores errors until the table exists; dashboard adds it to the month's cost. Sonnet price in src/lib/ai-usage.ts is to verify.

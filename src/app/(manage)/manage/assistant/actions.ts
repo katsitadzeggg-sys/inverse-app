@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
 import { anthropicApiKey } from '@/lib/env';
 import { TOOLS, runTool } from '@/lib/assistant/tools';
+import { logAiUsage } from '@/lib/ai-usage';
 
 export type ChatTurn = { role: 'user' | 'assistant'; text: string };
 
@@ -43,6 +44,8 @@ export async function askAssistant(
     'When listing several products, use a short list with name, book, counted, difference.';
 
   const messages: Anthropic.MessageParam[] = turns.map((t) => ({ role: t.role, content: t.text }));
+  // Tokens of all rounds of this question, recorded once at the end.
+  const used = { input_tokens: 0, output_tokens: 0 };
   try {
     for (let round = 0; round < MAX_ROUNDS; round++) {
       const res = await client.messages.create({
@@ -52,7 +55,10 @@ export async function askAssistant(
         tools: TOOLS,
         messages,
       });
+      used.input_tokens += res.usage.input_tokens;
+      used.output_tokens += res.usage.output_tokens;
       if (res.stop_reason !== 'tool_use') {
+        await logAiUsage(db, 'assistant', MODEL, used);
         const text = res.content
           .filter((b): b is Anthropic.TextBlock => b.type === 'text')
           .map((b) => b.text)
@@ -78,6 +84,7 @@ export async function askAssistant(
         }
       messages.push({ role: 'user', content: results });
     }
+    await logAiUsage(db, 'assistant', MODEL, used);
     return { error: 'კითხვა ძალიან რთული აღმოჩნდა — სცადე უფრო კონკრეტულად.' };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

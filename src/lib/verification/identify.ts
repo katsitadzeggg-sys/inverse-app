@@ -56,7 +56,7 @@ export async function identifyProduct({
   image: Buffer;
   mediaType: SupportedImageType;
   candidates: Candidate[];
-}): Promise<Identify> {
+}): Promise<Identify & { usage: { input_tokens: number; output_tokens: number } }> {
   client ??= new Anthropic({ apiKey: anthropicApiKey() });
   const list = candidates
     .map(
@@ -93,5 +93,5 @@ export async function identifyProduct({
   });
   if (response.stop_reason === 'refusal') throw new Error('მოდელმა ფოტოზე უარი თქვა.');
   if (!response.parsed_output) throw new Error('მოდელის პასუხი ვერ წავიკითხე.');
-  return response.parsed_output;
+  return { ...response.parsed_output, usage: response.usage };
 }
