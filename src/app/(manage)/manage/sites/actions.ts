@@ -57,7 +57,7 @@ export async function deleteSite(id: string): Promise<FormState> {
 }
 
 /**
- * Change a warehouse's address, or its name while nothing refers to it yet.
+ * Change a warehouse's address and map point, or its name while nothing refers to it yet.
  * Stocktakes and count cycles name their warehouse by text, so a warehouse
  * already counted keeps its name (renaming it would split its count in two).
  */
@@ -96,9 +96,12 @@ export async function editSite(id: string, formData: FormData): Promise<FormStat
         error: `„${site.name}“-ზე უკვე ${used} ინვენტარიზაციაა — სახელის შეცვლა მათ დათვლას გაყოფს. მისამართი შეგიძლია შეცვალო.`,
       };
   }
+  // The map point, when the form sends one (empty = keep it as it is).
+  const lat = num(formData.get('lat'));
+  const lng = num(formData.get('lng'));
   const { error } = await supabase
     .from('sites')
-    .update({ name, address })
+    .update({ name, address, ...(lat != null && lng != null ? { lat, lng } : {}) })
     .eq('id', id)
     .eq('company_id', company.id);
   if (error) return { error: error.message };

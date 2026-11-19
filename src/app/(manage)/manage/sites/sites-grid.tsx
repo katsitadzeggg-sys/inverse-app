@@ -7,6 +7,8 @@ import DataGrid from '@/components/data-grid';
 import { mapsLink } from '@/lib/geo';
 import DeleteSite from './delete-site';
 import { editSite } from './actions';
+import MapPicker from '@/components/map-picker';
+import { Alert, Button, inputClass } from '@/components/ui';
 
 export type SiteRow = {
   id: string;
@@ -19,50 +21,83 @@ export type SiteRow = {
   map_id: string | null;
 };
 
-/** Change the name and address in place. */
+/** Edit in a window: name, address and the point on the map. */
 function EditSite({ data, onDone }: { data: SiteRow; onDone: () => void }) {
   const [err, setErr] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  const [address, setAddress] = useState(data.address ?? '');
+  const [point, setPoint] = useState<{ lat: number; lng: number } | null>(
+    data.lat != null && data.lng != null ? { lat: data.lat, lng: data.lng } : null,
+  );
+  const [mapOpen, setMapOpen] = useState(false);
   return (
-    <form
-      action={(fd) =>
-        start(async () => {
-          const r = await editSite(data.id, fd);
-          if (r.error) setErr(r.error);
-          else onDone();
-        })
-      }
-      className="flex h-full w-full items-center gap-1"
-    >
-      <input
-        name="name"
-        defaultValue={data.name}
-        autoFocus
-        required
-        className="min-w-0 flex-1 rounded-md border border-rule-strong bg-paper px-2 py-0.5 text-xs"
-      />
-      <input
-        name="address"
-        defaultValue={data.address ?? ''}
-        placeholder="მისამართი"
-        className="min-w-0 flex-[1.5] rounded-md border border-rule-strong bg-paper px-2 py-0.5 text-xs"
-      />
-      <button
-        type="submit"
-        disabled={pending}
-        className="rounded-md bg-[#1f7a4d] px-2 py-0.5 text-xs font-semibold text-white"
+    <div className="fixed inset-0 z-40 grid place-items-center bg-black/50 p-3" onClick={onDone}>
+      <form
+        onClick={(e) => e.stopPropagation()}
+        action={(fd) =>
+          start(async () => {
+            const r = await editSite(data.id, fd);
+            if (r.error) setErr(r.error);
+            else onDone();
+          })
+        }
+        className="grid w-full max-w-lg gap-3 rounded-2xl bg-paper p-5 shadow-xl"
       >
-        {pending ? '…' : 'შენახვა'}
-      </button>
-      <button type="button" onClick={onDone} className="px-1 text-xs underline">
-        გაუქმება
-      </button>
-      {err && (
-        <span className="truncate text-xs text-mismatch" title={err}>
-          {err}
-        </span>
-      )}
-    </form>
+        <p className="text-lg font-semibold">✎ საწყობის რედაქტირება</p>
+        <label className="grid gap-1 text-sm">
+          სახელი
+          <input name="name" defaultValue={data.name} required className={inputClass} />
+        </label>
+        <label className="grid gap-1 text-sm">
+          მისამართი
+          <input
+            name="address"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            placeholder="მისამართი"
+            className={inputClass}
+          />
+        </label>
+        <input type="hidden" name="lat" value={point?.lat ?? ''} />
+        <input type="hidden" name="lng" value={point?.lng ?? ''} />
+        <button
+          type="button"
+          onClick={() => setMapOpen(true)}
+          className="rounded-control border border-rule-strong px-3 py-2 text-sm"
+        >
+          📍 {point ? 'ლოკაციის შეცვლა რუკაზე' : 'ლოკაცია რუკაზე — მისამართი ავტომატურად'}
+        </button>
+        {point && (
+          <p className="text-xs text-match">
+            ✓ წერტილი: {point.lat.toFixed(5)}, {point.lng.toFixed(5)}
+          </p>
+        )}
+        {mapOpen && (
+          <MapPicker
+            start={point}
+            onClose={() => setMapOpen(false)}
+            onPick={(p, a) => {
+              setPoint(p);
+              if (a) setAddress(a);
+              setMapOpen(false);
+            }}
+          />
+        )}
+        {err && <Alert>{err}</Alert>}
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={onDone}
+            className="rounded-control border border-rule-strong py-2.5"
+          >
+            გაუქმება
+          </button>
+          <Button type="submit" disabled={pending}>
+            {pending ? '…' : 'შენახვა'}
+          </Button>
+        </div>
+      </form>
+    </div>
   );
 }
 
@@ -76,18 +111,14 @@ export default function SitesGrid({ rows }: { rows: SiteRow[] }) {
         field: 'name',
         flex: 1,
         minWidth: 200,
-        pinned: 'left',
-        cellRenderer: (p: ICellRendererParams<SiteRow>) =>
-          p.data && editing === p.data.id ? (
-            <EditSite data={p.data} onDone={() => setEditing(null)} />
-          ) : (
-            <Link
-              href={`/manage/stocktakes?kind=all&q=${encodeURIComponent(p.value)}`}
-              className="font-semibold text-[#155c39] hover:underline"
-            >
-              {p.value} →
-            </Link>
-          ),
+        cellRenderer: (p: ICellRendererParams<SiteRow>) => (
+          <Link
+            href={`/manage/stocktakes?kind=all&q=${encodeURIComponent(p.value)}`}
+            className="font-semibold text-[#155c39] hover:underline"
+          >
+            {p.value} →
+          </Link>
+        ),
       },
       { headerName: 'მისამართი', field: 'address', flex: 1.5, minWidth: 220 },
       {
@@ -138,7 +169,6 @@ export default function SitesGrid({ rows }: { rows: SiteRow[] }) {
         width: 240,
         sortable: false,
         filter: false,
-        pinned: 'right',
         cellRenderer: (p: ICellRendererParams<SiteRow>) =>
           p.data ? (
             <span className="flex h-full items-center gap-1">
@@ -154,15 +184,19 @@ export default function SitesGrid({ rows }: { rows: SiteRow[] }) {
           ) : null,
       },
     ],
-    [editing],
+    [],
   );
+  const edited = rows.find((r) => r.id === editing);
   return (
-    <DataGrid
-      rows={rows}
-      columns={columns}
-      rowId={(r) => r.id}
-      fileName="obieqtebi"
-      height={Math.min(640, 150 + rows.length * 40)}
-    />
+    <>
+      {edited && <EditSite data={edited} onDone={() => setEditing(null)} />}
+      <DataGrid
+        rows={rows}
+        columns={columns}
+        rowId={(r) => r.id}
+        fileName="obieqtebi"
+        height={Math.min(640, 150 + rows.length * 40)}
+      />
+    </>
   );
 }
