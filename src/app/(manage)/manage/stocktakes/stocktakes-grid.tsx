@@ -59,7 +59,7 @@ function FormButton({ ids, kind }: { ids: string[]; kind: 'missed' | 'review' })
         }
         className={`rounded-full px-2.5 py-1 text-xs font-semibold disabled:opacity-50 ${kind === 'missed' ? 'text-[#5b21b6] hover:bg-[#ece5ff]' : 'text-[#b45309] hover:bg-[#ffe8cc]'}`}
       >
-        {pending ? 'იხსნება…' : '📋 ფორმის გახსნა'}
+        {pending ? 'იხსნება…' : '📋 ფორმა'}
       </button>
       {err && <span className="text-xs text-[#d64545]">{err}</span>}
     </span>
@@ -93,7 +93,7 @@ function Actions({ data }: ICellRendererParams<StRow>) {
           href={`/manage/${data.ids[0]}/map?view=3d&focus=${data.left ? 'missed' : 'review'}`}
           className={`rounded-full px-2.5 py-1 text-xs font-semibold ${data.left ? 'text-[#5b21b6] hover:bg-[#ece5ff]' : 'text-[#b45309] hover:bg-[#ffe8cc]'}`}
         >
-          🗺 რუკაზე
+          🗺 რუკა
         </Link>
       </span>
     ) : null;
@@ -116,13 +116,15 @@ function Actions({ data }: ICellRendererParams<StRow>) {
 
 /** All stocktakes of the filter in one sortable, filterable table. */
 export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: StRow[] }) {
+  const [opening, setOpening] = useState(false);
+  const [openErr, setOpenErr] = useState<string | null>(null);
   const columns = useMemo<ColDef<StRow>[]>(
     () => [
       {
         headerName: '',
         field: 'kind',
-        width: 40,
-        minWidth: 40,
+        width: 36,
+        minWidth: 36,
         valueFormatter: (p) =>
           p.data?.review ? '🔎' : p.data?.left ? '⏳' : (KIND[p.value] ?? ''),
         // What the icon means, on hover.
@@ -136,9 +138,10 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
         filter: false,
       },
       {
-        headerName: 'ინვენტარიზაციის N',
+        headerName: 'ინვენტარიზაცია',
         field: 'number',
-        width: 150,
+        flex: 1.3,
+        minWidth: 120,
         cellRenderer: (p: ICellRendererParams<StRow>) =>
           p.data?.review ? (
             <b
@@ -176,7 +179,8 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
       {
         headerName: 'გაიხსნა → დაიხურა',
         field: 'opened',
-        width: 150,
+        flex: 1.3,
+        minWidth: 125,
         filter: 'agDateColumnFilter',
         valueFormatter: (p) =>
           p.data && !p.data.left && !p.data.review ? span(p.data.opened, p.data.closed) : '',
@@ -191,7 +195,7 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
       {
         headerName: 'საწყობი',
         field: 'warehouse',
-        flex: 1,
+        flex: 1.5,
         minWidth: 110,
         cellClass: 'font-semibold',
       },
@@ -200,12 +204,14 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
         colId: 'cycle',
         valueGetter: (p) =>
           p.data?.cycle ? `${p.data.cycle}${p.data.cycleCode ? ` · ${p.data.cycleCode}` : ''}` : '',
-        width: 115,
+        flex: 1,
+        minWidth: 95,
       },
       {
         headerName: 'თარო',
         field: 'shelves',
-        width: 65,
+        flex: 0.6,
+        minWidth: 58,
         type: 'numericColumn',
         filter: 'agNumberColumnFilter',
         valueFormatter: (p) => (p.data?.left || p.data?.review ? '—' : String(p.value)),
@@ -217,14 +223,16 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
       {
         headerName: 'SKU',
         field: 'skus',
-        width: 65,
+        flex: 0.6,
+        minWidth: 58,
         type: 'numericColumn',
         filter: 'agNumberColumnFilter',
       },
       {
-        headerName: 'პროდუქტი',
+        headerName: 'პროდ.',
         field: 'counted',
-        width: 85,
+        flex: 0.7,
+        minWidth: 64,
         type: 'numericColumn',
         filter: 'agNumberColumnFilter',
         valueFormatter: (p) => (p.data?.review ? '—' : n(p.value)),
@@ -232,7 +240,8 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
       {
         headerName: 'მეტობა ₾',
         field: 'plusSum',
-        width: 100,
+        flex: 1,
+        minWidth: 95,
         type: 'numericColumn',
         filter: 'agNumberColumnFilter',
         cellClass: 'text-[#2563eb]',
@@ -250,7 +259,8 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
       {
         headerName: 'დანაკლისი ₾',
         field: 'minusSum',
-        width: 105,
+        flex: 1,
+        minWidth: 95,
         type: 'numericColumn',
         filter: 'agNumberColumnFilter',
         cellClass: 'text-[#d64545]',
@@ -262,7 +272,8 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
         headerName: 'AI %',
         colId: 'ai',
         headerTooltip: 'ფოტოებით შემოწმება: დამთხვევის საშუალო ალბათობა · ემთხვევა / შემოწმდა',
-        width: 80,
+        flex: 0.9,
+        minWidth: 85,
         type: 'numericColumn',
         filter: 'agNumberColumnFilter',
         valueGetter: (p) => p.data?.ai?.pct ?? null,
@@ -278,7 +289,8 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
       {
         headerName: 'სხვაობა ₾',
         field: 'diffSum',
-        width: 100,
+        flex: 0.8,
+        minWidth: 80,
         type: 'numericColumn',
         filter: 'agNumberColumnFilter',
         cellClassRules: {
@@ -293,7 +305,8 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
       {
         headerName: 'სტატუსი',
         field: 'status',
-        width: 95,
+        flex: 0.9,
+        minWidth: 95,
         cellRenderer: (p: ICellRendererParams<StRow>) =>
           p.data?.left ? (
             <span className="text-xs text-[#5b21b6]">ფორმა დასათვლელად</span>
@@ -313,7 +326,8 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
       {
         headerName: 'მოქმედება',
         colId: 'actions',
-        width: 150,
+        flex: 1.2,
+        minWidth: 120,
         sortable: false,
         cellStyle: { display: 'flex', alignItems: 'center' },
         filter: false,
@@ -325,11 +339,15 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
   return (
     <DataGrid
       toolbar={
-        <span className="hidden text-xs text-ink-faint lg:inline">
-          📦 მარაგები · ⏳ ვადიანი · 🏷 ძირ. საშ. ·{' '}
-          <span className="text-[#5b21b6]">⏳ გამორჩენილი</span> ·{' '}
-          <span className="text-[#b45309]">🔎 გადასამოწმებელი</span>
-        </span>
+        <>
+          <span className="hidden text-xs text-ink-faint lg:inline">
+            📦 მარაგები · ⏳ ვადიანი · 🏷 ძირ. საშ. ·{' '}
+            <span className="text-[#5b21b6]">⏳ გამორჩენილი</span> ·{' '}
+            <span className="text-[#b45309]">🔎 გადასამოწმებელი</span>
+          </span>
+          {opening && <b className="text-xs text-[#5b21b6]">ფორმა იხსნება…</b>}
+          {openErr && <b className="text-xs text-[#d64545]">{openErr}</b>}
+        </>
       }
       rows={rows}
       pinnedTop={left}
@@ -340,8 +358,22 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
       rowClass={(p) =>
         p.data?.left ? 'st-left-row' : p.data?.review ? 'st-review-row' : undefined
       }
-      fit
-      rowHref={(r) => (r.left || r.review || !r.id ? null : `/manage/${r.id}`)}
+      rowHref={(r) =>
+        r.left || r.review
+          ? r.ids?.length
+            ? () => {
+                // The missed / re-check row opens its form (made once, then reopened).
+                setOpening(true);
+                setOpenErr(null);
+                openPoolForm(r.ids!, r.left ? 'missed' : 'review')
+                  .then((x) => x?.error && setOpenErr(x.error))
+                  .finally(() => setOpening(false));
+              }
+            : null
+          : r.id
+            ? `/manage/${r.id}`
+            : null
+      }
     />
   );
 }

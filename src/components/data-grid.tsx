@@ -98,7 +98,6 @@ export default function DataGrid<T extends object>({
   toolbar,
   context,
   rowHref,
-  fit = false,
 }: {
   rows: T[];
   columns: ColDef<T>[];
@@ -115,9 +114,7 @@ export default function DataGrid<T extends object>({
   /** Passed to cell components (e.g. what the viewer may change). */
   context?: unknown;
   /** Where a click anywhere on a row leads (links and buttons in it keep their own). */
-  rowHref?: (row: T) => string | null;
-  /** Columns shrink to the table's width (no sideways scroll); headers wrap. */
-  fit?: boolean;
+  rowHref?: (row: T) => string | (() => void) | null;
 }) {
   const router = useRouter();
   const grid = useRef<AgGridReact<T>>(null);
@@ -128,12 +125,11 @@ export default function DataGrid<T extends object>({
       sortable: true,
       filter: true,
       resizable: true,
-      minWidth: fit ? 56 : 70,
+      minWidth: 70,
       floatingFilter: false,
       suppressHeaderMenuButton: false,
-      ...(fit ? { wrapHeaderText: true, autoHeaderHeight: true } : {}),
     }),
-    [fit],
+    [],
   );
   // Long Georgian headers get cut: the full name shows on hover. Cells drawn
   // by a component are centred vertically like text cells.
@@ -221,8 +217,8 @@ export default function DataGrid<T extends object>({
           pinnedTopRowData={pinnedTop as T[] | undefined}
           domLayout={height === 'auto' ? 'autoHeight' : 'normal'}
           getRowId={rowId ? (p: GetRowIdParams<T>) => rowId(p.data) : undefined}
-          autoSizeStrategy={fit ? { type: 'fitGridWidth' } : undefined}
-          onGridSizeChanged={fit ? (e) => e.api.sizeColumnsToFit() : undefined}
+          // Rows that open on a click have no cell frame to show.
+          suppressCellFocus={!!rowHref}
           getRowClass={(p) =>
             [rowClass?.(p), rowHref && p.data && rowHref(p.data) ? 'cursor-pointer' : undefined]
               .filter(Boolean)
@@ -236,7 +232,8 @@ export default function DataGrid<T extends object>({
             if (t?.closest('a, button, input, select, label')) return;
             if (window.getSelection()?.toString()) return;
             const ev = e.event as MouseEvent | null;
-            if (ev && (ev.metaKey || ev.ctrlKey)) window.open(to, '_blank');
+            if (typeof to === 'function') to();
+            else if (ev && (ev.metaKey || ev.ctrlKey)) window.open(to, '_blank');
             else router.push(to);
           }}
           animateRows={false}
