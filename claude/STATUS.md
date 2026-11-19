@@ -122,4 +122,4 @@
 - Stocktakes list: two-line cells (fits ~1000 px), whole row opens; missed / re-check rows open a read-only list (/manage/stocktakes/pool), the form is made there with a confirm.
 - Dashboard: warehouses of the open cycle on the list's numbers (pool stats, whole balance), progress = balance products counted, money from the same pools, AI photo check this month (✓/?/⚠, cost).
 - AGENTS.md: Inverse rules for every agent.
-- **0067_ai_usage prepared, NOT applied** (needs Giorgi's "კი"): one row per assistant question / photo identification with tokens; code already writes to it and ignores errors until the table exists; dashboard adds it to the month's cost. Sonnet price in src/lib/ai-usage.ts is to verify.
+- **0067_ai_usage APPLIED 19.11 14:03 with Giorgi's "კი"** (RLS on, 2 policies, anon no access): one row per assistant question / photo identification with tokens; code already writes to it and ignores errors until the table exists; dashboard adds it to the month's cost. Sonnet price in src/lib/ai-usage.ts is to verify.
