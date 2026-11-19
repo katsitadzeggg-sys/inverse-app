@@ -5,6 +5,7 @@ import { Card, Stat } from '@/components/ui';
 import type { Stocktake } from '@/types/database';
 import { stockActData } from '@/lib/stock-act';
 import GlobalSearch from './global-search';
+import { cycleName } from '@/lib/cycles';
 
 export const metadata = { title: 'მთავარი' };
 
@@ -43,7 +44,7 @@ export default async function ManageDashboard() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const [{ data: zones }, { data: checks }, { data: team }] = await Promise.all([
+  const [{ data: zones }, { data: team }] = await Promise.all([
     openIds.length
       ? supabase
           .from('stocktake_zones')
@@ -64,14 +65,6 @@ export default async function ManageDashboard() {
             }[]
           >()
       : Promise.resolve({ data: [] }),
-    openIds.length
-      ? supabase
-          .from('stocktake_checks')
-          .select('stocktake_id')
-          .in('stocktake_id', openIds)
-          .neq('status', 'ok')
-          .returns<{ stocktake_id: string }[]>()
-      : Promise.resolve({ data: [] }),
     supabase
       .from('user_profiles')
       .select('id, role, disabled_at')
@@ -88,11 +81,8 @@ export default async function ManageDashboard() {
     else p.counting += 1;
     progress.set(row.stocktake_id, p);
   }
-  const diffBy = new Map<string, number>();
-  for (const c of checks ?? []) diffBy.set(c.stocktake_id, (diffBy.get(c.stocktake_id) ?? 0) + 1);
   const doneToday = z.filter((r) => r.done_at && new Date(r.done_at) >= today).length;
   const countingNow = z.filter((r) => r.status !== 'done').length;
-  const diffs = (checks ?? []).length;
   const counters = (team ?? []).filter((m) => m.role === 'member').length;
   const recent = z
     .filter((r) => r.status === 'done' && r.done_at)
@@ -101,27 +91,122 @@ export default async function ManageDashboard() {
   const name = new Map(all.map((s) => [s.id, s]));
 
   // ---- Analytics (stock) ----
-  // Money: surplus / shortage over the stock stocktakes in the list.
-  const stockIds = all.filter((s) => s.kind !== 'assets').map((s) => s.id);
-  const { data: statRows } = stockIds.length
-    ? await supabase.rpc('stocktake_stats4', { p_ids: stockIds })
-    : { data: [] };
-  type St = {
-    stocktake_id: string;
-    plus_sum: number;
-    minus_sum: number;
-    plus_qty: number;
-    minus_qty: number;
-  };
-  const money = { plus: 0, minus: 0 };
-  for (const r of (statRows ?? []) as St[]) {
-    money.plus += Number(r.plus_sum);
-    money.minus += Number(r.minus_sum);
+  // Warehouses: the open cycle's stocktakes of one warehouse are one count,
+  // compared with the whole balance — the same numbers as the pinned rows of
+  // the stocktakes list.
+  const stock = all.filter((s) => s.kind !== 'assets');
+  const cycleIds = [...new Set(stock.map((s) => s.cycle_id).filter((x): x is string => !!x))];
+  const { data: cycles } = cycleIds.length
+    ? await supabase
+        .from('count_cycles')
+        .select('id, started_at, closed_at, name, code')
+        .in('id', cycleIds)
+    : { data: [] as never[] };
+  const cycleOf = new Map((cycles ?? []).map((c) => [c.id as string, c]));
+  const groups = new Map<string, { name: string; cycle?: string; ids: string[]; real: string[] }>();
+  for (const s of stock) {
+    const c = s.cycle_id ? cycleOf.get(s.cycle_id) : undefined;
+    if (c?.closed_at) continue;
+    const key = s.cycle_id ?? s.branch ?? s.client_name ?? s.name;
+    const g = groups.get(key) ?? {
+      name: s.branch || s.client_name || s.name,
+      cycle: c ? cycleName(c, company.cycle_period) : undefined,
+      ids: [] as string[],
+      real: [] as string[],
+    };
+    g.ids.push(s.id);
+    if (!s.form_kind) g.real.push(s.id);
+    groups.set(key, g);
   }
-  const worst = ((statRows ?? []) as St[])
-    .filter((r) => Number(r.minus_sum) > 0)
-    .sort((a, b) => Number(b.minus_sum) - Number(a.minus_sum))
-    .slice(0, 5);
+  type Pool = {
+    missed_skus: number;
+    missed_sum: number;
+    review_skus: number;
+    plus_qty: number;
+    plus_sum: number;
+    minus_qty: number;
+    minus_sum: number;
+  };
+  const { data: aiSum } = stock.length
+    ? await supabase.rpc('stocktake_ai_summary', { p_ids: stock.map((s) => s.id) })
+    : { data: [] };
+  const aiBy = new Map(
+    (
+      (aiSum ?? []) as {
+        stocktake_id: string;
+        checked: number;
+        matched: number;
+        confidence: number;
+      }[]
+    ).map((a) => [a.stocktake_id, a]),
+  );
+  const pools = (
+    await Promise.all(
+      [...groups.values()].map(async (g) => {
+        const [{ data: r }, { count: bookSkus }] = await Promise.all([
+          supabase.rpc('stocktake_pool_stats', { p_ids: g.ids }),
+          // Products in the balance: the newest real stocktake of the warehouse.
+          supabase
+            .from('stocktake_book')
+            .select('product_id', { count: 'exact', head: true })
+            .eq('stocktake_id', g.real[0] ?? g.ids[0])
+            .gt('book_qty', 0),
+        ]);
+        const p = ((r ?? []) as Pool[])[0];
+        const ai = g.ids.map((id) => aiBy.get(id)).filter((a): a is NonNullable<typeof a> => !!a);
+        const checked = ai.reduce((n, a) => n + Number(a.checked), 0);
+        const matched = ai.reduce((n, a) => n + Number(a.matched), 0);
+        const conf = checked
+          ? ai.reduce((n, a) => n + Number(a.confidence) * Number(a.checked), 0) / checked
+          : 0;
+        const book = bookSkus ?? 0;
+        const missed = Number(p?.missed_skus ?? 0);
+        return {
+          ...g,
+          book,
+          missed,
+          missedSum: Number(p?.missed_sum ?? 0),
+          review: Number(p?.review_skus ?? 0),
+          plusQty: Number(p?.plus_qty ?? 0),
+          plusSum: Number(p?.plus_sum ?? 0),
+          minusQty: Number(p?.minus_qty ?? 0),
+          minusSum: Number(p?.minus_sum ?? 0),
+          pct: book ? Math.max(0, Math.round(((book - Math.min(missed, book)) / book) * 100)) : 0,
+          ai: checked ? { checked, matched, pct: Math.round(conf * 100) } : null,
+        };
+      }),
+    )
+  ).sort((a, b) => a.name.localeCompare(b.name, 'ka'));
+  const money = pools.reduce(
+    (m, p) => ({ plus: m.plus + p.plusSum, minus: m.minus + p.minusSum }),
+    { plus: 0, minus: 0 },
+  );
+  // Photo checks this month, and what they cost (vision model prices, USD per million tokens).
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+  const { data: aiChecks } = await supabase
+    .from('shelf_ai_checks')
+    .select('input_tokens, output_tokens, result')
+    .gte('created_at', monthStart.toISOString())
+    .limit(5000)
+    .returns<
+      {
+        input_tokens: number | null;
+        output_tokens: number | null;
+        result: { items?: { status: string }[] } | null;
+      }[]
+    >();
+  const aiMonth = { checks: 0, usd: 0, match: 0, unsure: 0, off: 0 };
+  for (const c of aiChecks ?? []) {
+    aiMonth.checks += 1;
+    aiMonth.usd += ((c.input_tokens ?? 0) * 4 + (c.output_tokens ?? 0) * 20) / 1e6;
+    for (const it of c.result?.items ?? []) {
+      if (it.status === 'match') aiMonth.match += 1;
+      else if (it.status === 'mismatch') aiMonth.off += 1;
+      else aiMonth.unsure += 1;
+    }
+  }
   // Biggest shortages (by money) in the latest stock stocktake.
   const latest = all.find((s) => s.kind !== 'assets');
   const top = latest
@@ -193,11 +278,10 @@ export default async function ManageDashboard() {
     if (d) d.n += 1;
   }
   const peak = Math.max(1, ...days.map((d) => d.n));
-  // Progress of the open stocktakes: closed shelves of all shelves started.
-  const shelvesAll = [...progress.values()].reduce((a, p) => a + p.all, 0);
-  const shelvesDone = [...progress.values()].reduce((a, p) => a + p.done, 0);
-  const pct = shelvesAll ? Math.round((shelvesDone / shelvesAll) * 100) : 0;
-  const last = recent[0];
+  // Progress: products of the balance already counted, over the open warehouses.
+  const bookAll = pools.reduce((a, p) => a + p.book, 0);
+  const countedAll = pools.reduce((a, p) => a + Math.max(0, p.book - p.missed), 0);
+  const pct = bookAll ? Math.round((countedAll / bookAll) * 100) : 0;
   const initials = (n: string) =>
     n
       .split(/[\s@.]+/)
@@ -257,10 +341,11 @@ export default async function ManageDashboard() {
           hint={`თარო · ახლა ითვლება: ${countingNow}`}
         />
         <Stat
-          label="ღია სხვაობა"
-          value={diffs}
-          tone={diffs ? 'mismatch' : 'default'}
-          hint="გადასათვლელი და გაყინული"
+          href="/manage/stocktakes?kind=stock"
+          label="სხვაობა თანხით"
+          value={gel(money.plus - money.minus)}
+          tone={money.plus - money.minus < 0 ? 'mismatch' : 'default'}
+          hint={`მეტობა ${gel(money.plus)} · დანაკლისი −${gel(money.minus)}`}
         />
         <Stat
           href="/manage/team"
@@ -310,37 +395,149 @@ export default async function ManageDashboard() {
           </div>
         </Card>
 
-        {/* Last closed shelf */}
-        <Card title="ბოლოს დაითვალა">
-          {last ? (
-            <div className="grid gap-3">
-              <p className="text-2xl font-semibold leading-tight text-[#155c39]">
-                თარო {last.locations?.code}
-              </p>
-              <p className="text-sm text-ink-soft">
-                {name.get(last.stocktake_id)?.number} ·{' '}
-                {name.get(last.stocktake_id)?.branch ?? name.get(last.stocktake_id)?.client_name}
-                <span className="block text-xs text-ink-faint">
-                  {last.user_profiles?.full_name ?? last.user_profiles?.email} ·{' '}
-                  {time(last.done_at!)}
-                </span>
-              </p>
-              <Link
-                href={`/manage/${last.stocktake_id}`}
-                className="rounded-full bg-[#155c39] px-4 py-2.5 text-center text-sm font-semibold text-white hover:bg-[#0f4a2d]"
-              >
-                ინვენტარიზაციის ნახვა
-              </Link>
-            </div>
-          ) : (
-            <p className="text-sm text-ink-faint">ჯერ არცერთი თარო.</p>
-          )}
+        {/* Progress gauge */}
+        <Card title="პროგრესი">
+          <div className="grid justify-items-center">
+            <svg viewBox="0 0 200 112" className="w-full max-w-60" aria-hidden>
+              <path
+                d={arc(0, 1)}
+                fill="none"
+                stroke="#e4e9e6"
+                strokeWidth="26"
+                strokeLinecap="round"
+              />
+              {pct > 0 && (
+                <path
+                  d={arc(0, Math.min(pct, 99.9) / 100)}
+                  fill="none"
+                  stroke="#1f7a4d"
+                  strokeWidth="26"
+                  strokeLinecap="round"
+                />
+              )}
+            </svg>
+            <p className="-mt-12 text-4xl font-semibold tabular-nums">{pct}%</p>
+            <p className="text-xs text-ink-faint">
+              {countedAll} / {bookAll} პროდუქტი დათვლილია
+            </p>
+          </div>
         </Card>
 
+        {/* Photo check this month */}
+        <Card title="AI ფოტო-შემოწმება · ეს თვე">
+          {aiMonth.checks === 0 ? (
+            <p className="text-sm text-ink-faint">ამ თვეში ფოტოებით შემოწმება არ ყოფილა.</p>
+          ) : (
+            <div className="grid gap-3">
+              <p className="text-3xl font-semibold tabular-nums">
+                {aiMonth.checks}
+                <span className="ml-1 text-sm font-normal text-ink-faint">თაროს შემოწმება</span>
+              </p>
+              <div className="flex h-2.5 overflow-hidden rounded-full bg-[#e4e9e6]">
+                {(
+                  [
+                    [aiMonth.match, 'bg-match'],
+                    [aiMonth.unsure, 'bg-review'],
+                    [aiMonth.off, 'bg-mismatch'],
+                  ] as const
+                ).map(([n, c]) => (
+                  <span
+                    key={c}
+                    className={c}
+                    style={{
+                      width: `${(n / Math.max(1, aiMonth.match + aiMonth.unsure + aiMonth.off)) * 100}%`,
+                    }}
+                  />
+                ))}
+              </div>
+              <p className="text-xs text-ink-soft">
+                <span className="text-match">✓ {aiMonth.match}</span> ·{' '}
+                <span className="text-review">? {aiMonth.unsure}</span> ·{' '}
+                <span className="text-mismatch">⚠ {aiMonth.off}</span> პოზიცია
+              </p>
+              <p
+                className="text-xs text-ink-faint"
+                title="მხოლოდ თაროს ფოტო-შემოწმება; ასისტენტი და ფოტოთი ამოცნობა აქ არ ითვლება"
+              >
+                ხარჯი ≈ ${aiMonth.usd.toFixed(2)}
+              </p>
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* Warehouses of the open cycle */}
+      {pools.length > 0 && (
+        <Card title="საწყობები · მიმდინარე ციკლი">
+          <div className="grid gap-1 overflow-x-auto text-sm">
+            <div className="grid min-w-[44rem] grid-cols-[1.6fr_1.4fr_1fr_1fr_1fr_0.7fr] gap-3 px-2 pb-1 text-xs text-ink-faint">
+              <span>საწყობი</span>
+              <span>დათვლილი (ნაშთის პროდუქტებიდან)</span>
+              <span className="text-right">გამორჩენილი</span>
+              <span className="text-right">მეტობა</span>
+              <span className="text-right">დანაკლისი</span>
+              <span className="text-right">AI %</span>
+            </div>
+            {pools.map((p) => (
+              <Link
+                key={p.ids.join()}
+                href={`/manage/stocktakes/pool?kind=missed&ids=${p.ids.join(',')}`}
+                className="grid min-w-[44rem] grid-cols-[1.6fr_1.4fr_1fr_1fr_1fr_0.7fr] items-center gap-3 rounded-xl px-2 py-2 hover:bg-paper"
+              >
+                <span className="min-w-0">
+                  <b className="block truncate">{p.name}</b>
+                  <span className="block truncate text-xs text-ink-faint">
+                    {p.cycle ?? ''} · {p.ids.length} ინვ.
+                  </span>
+                </span>
+                <span className="grid gap-1">
+                  <span className="h-2 overflow-hidden rounded-full bg-[#e4e9e6]">
+                    <span className="block h-full bg-[#1f7a4d]" style={{ width: `${p.pct}%` }} />
+                  </span>
+                  <span className="text-xs tabular-nums text-ink-soft">
+                    {p.pct}% · {p.book - Math.min(p.missed, p.book)} / {p.book}
+                  </span>
+                </span>
+                <span className="text-right tabular-nums text-[#5b21b6]">
+                  {p.missed} SKU
+                  <span className="block text-xs">{gel(p.missedSum)}</span>
+                </span>
+                <span className="text-right tabular-nums text-[#2563eb]">
+                  +{p.plusQty}
+                  <span className="block text-xs">{gel(p.plusSum)}</span>
+                </span>
+                <span className="text-right tabular-nums text-mismatch">
+                  −{p.minusQty}
+                  <span className="block text-xs">−{gel(p.minusSum)}</span>
+                </span>
+                <span className="text-right tabular-nums">
+                  {p.ai ? (
+                    <span className={p.ai.matched === p.ai.checked ? 'text-match' : 'text-review'}>
+                      {p.ai.pct}%
+                      <span className="block text-xs text-ink-faint">
+                        {p.ai.matched}/{p.ai.checked}
+                      </span>
+                    </span>
+                  ) : (
+                    <span className="text-ink-faint">—</span>
+                  )}
+                </span>
+              </Link>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-ink-faint">
+            ერთი საწყობის ციკლის ყველა ინვენტარიზაცია ერთ დათვლად ითვლება და მთელ ნაშთს ედარება —
+            იგივე ციფრები, რაც ინვენტარიზაციების სიაში. ზოლზე დაჭერით გამორჩენილი პროდუქტების სია
+            იხსნება.
+          </p>
+        </Card>
+      )}
+
+      <div className="grid gap-4 xl:grid-cols-3">
         {/* Current stocktakes */}
         <Card
           title="მიმდინარე"
-          className="xl:row-span-2"
+
           action={
             <Link
               href="/manage/new"
@@ -356,7 +553,6 @@ export default async function ManageDashboard() {
             <ul className="grid gap-3">
               {open.slice(0, 8).map((st, i) => {
                 const p = progress.get(st.id) ?? { all: 0, done: 0, counting: 0 };
-                const d = diffBy.get(st.id) ?? 0;
                 return (
                   <li key={st.id}>
                     <Link
@@ -375,7 +571,6 @@ export default async function ManageDashboard() {
                         </span>
                         <span className="block text-xs text-ink-faint">
                           {st.number} · {p.done}/{p.all} თარო
-                          {d > 0 && <span className="text-mismatch"> · ⚠ {d}</span>}
                         </span>
                       </span>
                     </Link>
@@ -412,68 +607,6 @@ export default async function ManageDashboard() {
             </ul>
           )}
         </Card>
-
-        {/* Progress gauge */}
-        <Card title="პროგრესი">
-          <div className="grid justify-items-center">
-            <svg viewBox="0 0 200 112" className="w-full max-w-60" aria-hidden>
-              <path
-                d={arc(0, 1)}
-                fill="none"
-                stroke="#e4e9e6"
-                strokeWidth="26"
-                strokeLinecap="round"
-              />
-              {pct > 0 && (
-                <path
-                  d={arc(0, Math.min(pct, 99.9) / 100)}
-                  fill="none"
-                  stroke="#1f7a4d"
-                  strokeWidth="26"
-                  strokeLinecap="round"
-                />
-              )}
-            </svg>
-            <p className="-mt-12 text-4xl font-semibold tabular-nums">{pct}%</p>
-            <p className="text-xs text-ink-faint">
-              {shelvesDone} / {shelvesAll} თარო დახურულია
-            </p>
-          </div>
-        </Card>
-
-        {/* Money */}
-        <section className="rounded-2xl bg-gradient-to-br from-[#0f3d26] via-[#155c39] to-[#0b2e1d] p-5 text-white">
-          <p className="text-base font-semibold">სხვაობა თანხით</p>
-          <p className="mt-3 text-4xl font-semibold tabular-nums">
-            {gel(money.plus - money.minus)}
-          </p>
-          <dl className="mt-3 grid grid-cols-[1fr_auto] gap-y-1 text-sm text-white/85">
-            <dt>მეტობა</dt>
-            <dd className="text-right tabular-nums">{gel(money.plus)}</dd>
-            <dt>დანაკლისი</dt>
-            <dd className="text-right tabular-nums">−{gel(money.minus)}</dd>
-          </dl>
-          {worst.length > 0 && (
-            <ul className="mt-3 grid gap-1 border-t border-white/15 pt-2 text-xs">
-              {worst.slice(0, 3).map((r) => {
-                const st = name.get(r.stocktake_id);
-                return (
-                  <li key={r.stocktake_id}>
-                    <Link
-                      href={`/manage/${r.stocktake_id}`}
-                      className="flex justify-between gap-2 hover:underline"
-                    >
-                      <span className="truncate">
-                        {st?.number} · {st?.branch ?? st?.client_name}
-                      </span>
-                      <span className="tabular-nums">−{gel(Number(r.minus_sum))}</span>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
