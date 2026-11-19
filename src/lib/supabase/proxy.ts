@@ -40,10 +40,10 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  // getUser() revalidates the token with Supabase; getSession() would trust the cookie.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getClaims() refreshes an expired token and verifies its signature (with
+  // Supabase's public keys, or by asking Supabase); the cookie alone is not trusted.
+  const { data: claims } = await supabase.auth.getClaims();
+  const user = claims?.claims?.sub ? { id: claims.claims.sub } : null;
 
   const { pathname } = request.nextUrl;
 

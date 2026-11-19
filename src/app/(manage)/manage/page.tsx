@@ -45,6 +45,71 @@ export default async function ManageDashboard() {
   const openIds = open.map((s) => s.id);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+  const stockIds = all.filter((s) => s.kind !== 'assets').map((s) => s.id);
+  const cycleIdList = [
+    ...new Set(
+      all
+        .filter((s) => s.kind !== 'assets')
+        .map((s) => s.cycle_id)
+        .filter((x): x is string => !!x),
+    ),
+  ];
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+  const weekAgo = new Date();
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  const latest = all.find((s) => s.kind !== 'assets');
+  // Everything below depends only on the list above: start it all at once
+  // (one wait instead of a chain of round trips to the database).
+  const cyclesP = Promise.resolve(
+    cycleIdList.length
+      ? supabase
+          .from('count_cycles')
+          .select('id, started_at, closed_at, name, code')
+          .in('id', cycleIdList)
+      : { data: [] as never[] },
+  );
+  const aiSumP = Promise.resolve(
+    stockIds.length ? supabase.rpc('stocktake_ai_summary', { p_ids: stockIds }) : { data: [] },
+  );
+  const aiChecksP = Promise.resolve(
+    supabase
+      .from('shelf_ai_checks')
+      .select('input_tokens, output_tokens, result')
+      .gte('created_at', monthStart.toISOString())
+      .limit(5000)
+      .returns<
+        {
+          input_tokens: number | null;
+          output_tokens: number | null;
+          result: { items?: { status: string }[] } | null;
+        }[]
+      >(),
+  );
+  const usageP = Promise.resolve(
+    supabase
+      .from('ai_usage')
+      .select('model, input_tokens, output_tokens')
+      .gte('created_at', monthStart.toISOString())
+      .limit(20000)
+      .returns<{ model: string; input_tokens: number; output_tokens: number }[]>(),
+  );
+  const actP = latest ? stockActData(supabase, latest.id).catch(() => null) : Promise.resolve(null);
+  const entriesP = Promise.resolve(
+    supabase
+      .from('stocktake_entries')
+      .select('counter_id, created_at')
+      .gte('created_at', weekAgo.toISOString())
+      .limit(20000)
+      .returns<{ counter_id: string | null; created_at: string }[]>(),
+  );
+  const profsP = Promise.resolve(
+    supabase
+      .from('user_profiles')
+      .select('id, full_name, email')
+      .returns<{ id: string; full_name: string | null; email: string }[]>(),
+  );
 
   const [{ data: zones }, { data: team }] = await Promise.all([
     openIds.length
@@ -97,13 +162,7 @@ export default async function ManageDashboard() {
   // compared with the whole balance — the same numbers as the pinned rows of
   // the stocktakes list.
   const stock = all.filter((s) => s.kind !== 'assets');
-  const cycleIds = [...new Set(stock.map((s) => s.cycle_id).filter((x): x is string => !!x))];
-  const { data: cycles } = cycleIds.length
-    ? await supabase
-        .from('count_cycles')
-        .select('id, started_at, closed_at, name, code')
-        .in('id', cycleIds)
-    : { data: [] as never[] };
+  const { data: cycles } = await cyclesP;
   const cycleOf = new Map((cycles ?? []).map((c) => [c.id as string, c]));
   const groups = new Map<string, { name: string; cycle?: string; ids: string[]; real: string[] }>();
   for (const s of stock) {
@@ -129,9 +188,7 @@ export default async function ManageDashboard() {
     minus_qty: number;
     minus_sum: number;
   };
-  const { data: aiSum } = stock.length
-    ? await supabase.rpc('stocktake_ai_summary', { p_ids: stock.map((s) => s.id) })
-    : { data: [] };
+  const { data: aiSum } = await aiSumP;
   const aiBy = new Map(
     (
       (aiSum ?? []) as {
@@ -183,30 +240,11 @@ export default async function ManageDashboard() {
     (m, p) => ({ plus: m.plus + p.plusSum, minus: m.minus + p.minusSum }),
     { plus: 0, minus: 0 },
   );
-  // Photo checks this month, and what they cost (vision model prices, USD per million tokens).
-  const monthStart = new Date();
-  monthStart.setDate(1);
-  monthStart.setHours(0, 0, 0, 0);
-  const { data: aiChecks } = await supabase
-    .from('shelf_ai_checks')
-    .select('input_tokens, output_tokens, result')
-    .gte('created_at', monthStart.toISOString())
-    .limit(5000)
-    .returns<
-      {
-        input_tokens: number | null;
-        output_tokens: number | null;
-        result: { items?: { status: string }[] } | null;
-      }[]
-    >();
+  // Photo checks this month, and what they cost.
+  const { data: aiChecks } = await aiChecksP;
   const aiMonth = { checks: 0, usd: 0, other: 0, match: 0, unsure: 0, off: 0 };
   // The assistant and photo identification (table from migration 0067; empty before it).
-  const { data: usageRows } = await supabase
-    .from('ai_usage')
-    .select('model, input_tokens, output_tokens')
-    .gte('created_at', monthStart.toISOString())
-    .limit(20000)
-    .returns<{ model: string; input_tokens: number; output_tokens: number }[]>();
+  const { data: usageRows } = await usageP;
   for (const u of usageRows ?? [])
     aiMonth.other += aiCost(u.model, u.input_tokens, u.output_tokens);
   for (const c of aiChecks ?? []) {
@@ -219,9 +257,9 @@ export default async function ManageDashboard() {
     }
   }
   // Biggest shortages (by money) in the latest stock stocktake.
-  const latest = all.find((s) => s.kind !== 'assets');
-  const top = latest
-    ? (await stockActData(supabase, latest.id)).lines
+  const act = await actP;
+  const top = act
+    ? act.lines
         .filter((l) => l.diff < 0)
         .map((l) => ({ ...l, loss: -l.diff * (l.cost ?? 0) }))
         .sort((a, b) => b.loss - a.loss || a.diff - b.diff)
@@ -229,24 +267,7 @@ export default async function ManageDashboard() {
     : [];
   // Speed: lines per hour per counting employee over the last 7 days
   // (time between the first and last line of each day).
-  const weekAgo = new Date();
-  weekAgo.setDate(weekAgo.getDate() - 7);
-  const since = weekAgo.toISOString();
-  const { data: recentEntries } = await supabase
-    .from('stocktake_entries')
-    .select('counter_id, created_at')
-    .gte('created_at', since)
-    .limit(20000)
-    .returns<
-      {
-        counter_id: string | null;
-        created_at: string;
-      }[]
-    >();
-  const { data: profs } = await supabase
-    .from('user_profiles')
-    .select('id, full_name, email')
-    .returns<{ id: string; full_name: string | null; email: string }[]>();
+  const [{ data: recentEntries }, { data: profs }] = await Promise.all([entriesP, profsP]);
   const people = new Map((profs ?? []).map((p) => [p.id, p.full_name ?? p.email]));
   const speedMap = new Map<
     string,
