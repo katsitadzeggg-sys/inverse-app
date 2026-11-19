@@ -131,16 +131,23 @@ export default async function StocktakePage({ params }: PageProps<'/count/[id]'>
 
   return (
     <div className="grid gap-5">
-      <div>
+      {/* Back, and beside it what this is: client · warehouse · number. */}
+      <div className="flex items-center gap-3">
         <Link
           href={stocktake.kind === 'assets' ? '/count' : '/stock'}
-          className="inline-flex w-fit items-center gap-2 rounded-control border border-rule-strong px-4 py-2 text-base font-medium text-ink"
+          className="inline-flex shrink-0 items-center rounded-control border border-rule-strong px-3 py-2 text-base font-medium text-ink"
         >
           ← დაბრუნება
         </Link>
-        <h1 className="mt-1 text-xl font-semibold">{stocktake.client_name ?? stocktake.name}</h1>
-        {stocktake.branch && <p className="text-ink-soft">{stocktake.branch}</p>}
-        <p className="text-sm text-ink-faint">{stocktake.number}</p>
+        <div className="min-w-0 leading-tight">
+          <p className="truncate font-semibold">
+            {stocktake.client_name ?? stocktake.name}
+            {stocktake.branch && (
+              <span className="font-normal text-ink-soft"> · {stocktake.branch}</span>
+            )}
+          </p>
+          <p className="text-xs text-ink-faint">{stocktake.number}</p>
+        </div>
       </div>
 
       {stocktake.status !== 'open' ? (
@@ -265,9 +272,6 @@ export default async function StocktakePage({ params }: PageProps<'/count/[id]'>
               </button>
             </form>
           )}
-          <p className="text-center text-xs text-ink-faint">
-            დააჭირე, როცა შენი ნაწილი სრულად დათვლილია — მენეჯერს ეცნობება.
-          </p>
         </section>
       )}
     </div>
