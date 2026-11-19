@@ -116,9 +116,10 @@ export default function ZebraPanel({
 
   /**
    * Prints through the browser: one label per page at the label's size (the
-   * Zebra Print service on Android sends it to the printer), or a sheet of A4.
+   * Zebra Print service on Android sends it to the printer), or a sheet of A4 / A3
+   * (sticker sheets; "Save as PDF" in the print dialog keeps it as a file).
    */
-  function printPages(a4: boolean) {
+  function printPages(sheet: 'A4' | 'A3' | null) {
     if (!jobs.length || !okSize) return;
     if (jobs.length > MAX_PRINT) {
       setMsg(`ერთ ჯერზე მაქსიმუმ ${MAX_PRINT} — შეავიწროვე ძებნით (მაგ. A-01 – A-50).`);
@@ -141,9 +142,9 @@ export default function ZebraPanel({
     }
     const style = document.createElement('style');
     style.id = 'print-labels-style';
-    style.textContent = a4
+    style.textContent = sheet
       ? `#print-labels { display: none; }
-         @media print { @page { size: A4; margin: 8mm; } body > *:not(#print-labels) { display: none !important; }
+         @media print { @page { size: ${sheet}; margin: 8mm; } body > *:not(#print-labels) { display: none !important; }
            #print-labels { display: flex !important; flex-wrap: wrap; gap: 2mm; }
            #print-labels img { width: ${size.w}mm; height: ${size.h}mm; outline: 0.2mm dashed #999; break-inside: avoid; } }`
       : `#print-labels { display: none; }
@@ -268,7 +269,7 @@ export default function ZebraPanel({
       <div className="grid gap-2 sm:grid-cols-2">
         <button
           type="button"
-          onClick={() => printPages(false)}
+          onClick={() => printPages(null)}
           disabled={!jobs.length || !okSize}
           className="rounded-control bg-ink px-4 py-3 text-base font-semibold text-paper disabled:opacity-50"
         >
@@ -276,11 +277,19 @@ export default function ZebraPanel({
         </button>
         <button
           type="button"
-          onClick={() => printPages(true)}
+          onClick={() => printPages('A4')}
           disabled={!jobs.length || !okSize}
           className="rounded-control border border-rule-strong px-4 py-3 text-base font-medium disabled:opacity-50"
         >
           📄 A4 ფურცელზე
+        </button>
+        <button
+          type="button"
+          onClick={() => printPages('A3')}
+          disabled={!jobs.length || !okSize}
+          className="rounded-control border border-rule-strong px-4 py-3 text-base font-medium disabled:opacity-50"
+        >
+          📄 A3 ფურცელზე
         </button>
         {canBt && (
           <button
