@@ -11,7 +11,7 @@ export type CatalogueEntry = {
 
 export const SYSTEM_PROMPT = `You verify warehouse shelf photos against an inventory record.
 
-You are given one still photo of a single shelf or location and the catalogue of products the record says should be there, including the expected quantity of each.
+You are given one still photo of a single shelf or location and the catalogue of products the record says should be there, with the expected quantity of each when it is given (a blind count gives none).
 
 Your job is to report what is actually visible:
 
@@ -28,13 +28,16 @@ Do not decide whether the count is acceptable — report what you see and let th
 export function buildUserPrompt(
   location: { code: string; name: string },
   catalogue: CatalogueEntry[],
+  /** Blind count: the model is not told the expected quantities. */
+  blind = false,
 ): string {
   const rows = catalogue
     .map((entry) => {
       const parts = [
         `- SKU ${entry.sku}: ${[entry.brand, entry.name, entry.variant].filter(Boolean).join(' ')}`,
-        `  expected: ${entry.expected_quantity} ${entry.unit}`,
       ];
+      if (!blind) parts.push(`  expected: ${entry.expected_quantity} ${entry.unit}`);
+      else parts.push(`  unit: ${entry.unit}`);
       if (entry.visual_notes) parts.push(`  looks like: ${entry.visual_notes}`);
       if (entry.barcode) parts.push(`  barcode: ${entry.barcode}`);
       return parts.join('\n');

@@ -97,7 +97,9 @@ export async function analyzeShelfPhoto({
 export type ShelfImage = { data: Buffer; mediaType: SupportedImageType };
 
 /**
- * Several photos (and frames cut from videos) of one shelf at once: the model
+ * Several photos (and frames cut from videos) of one shelf at once — a blind
+ * count: the model is not told what was counted, so a match is an independent
+ * confirmation and not the model repeating the number it was given. The model
  * reports one total per product across all of them, without counting a unit
  * twice when photos overlap. Notes and summary come back in Georgian.
  */
@@ -135,12 +137,12 @@ export async function analyzeShelfImages({
           {
             type: 'text',
             text:
-              buildUserPrompt(location, catalogue) +
+              buildUserPrompt(location, catalogue, true) +
               `
 
 There are ${images.length} images of this same shelf (photos, and frames taken from videos).
 They overlap: give ONE total per product for the whole shelf, never adding up the same units seen in two images.
-"expected" above is what the counter entered for this shelf.
+You are not told how many were counted: count independently, from the images only.
 For each product also give boxes: on every image where it is visible, one tight box around each
 group of its units (at most 6 boxes per product per image), as fractions of that image's width and
 height. Use the image number written before each image.

@@ -111,3 +111,9 @@
 ## 19.11 — opening a stocktake (575950f)
 - Counter without `can_open`: faded, disabled "＋ ახალი ინვენტარიზაცია" with "manager can give the right". With the right: unchanged.
 - Team page rights labelled "➕ გახსნა" / "👁 ნაშთი" (were icons only). No migration: `can_open` and RLS 0031 already existed.
+
+## 19.11 night (3772ead + blind count)
+- Stocktakes list: "გადასამოწმებელი" row shows only when the warehouse has nothing "გამორჩენილი" left.
+- Stocktake page (stock): shelves first (who, when, positions, qty, differences, AI %, photos), each opens into its products; "📋 სრული სია" tab = the old full grid. Old shelves table kept only for fixed assets.
+- AI frames confirmed stored: Saburtalo checks after 39745f5 all have boxes (B--02, D--2, F-03).
+- Found: the model was told the counted quantity and often "confirmed" it while unsure (D--2: Tofita 24/24 at 30%). Shelf check is now a blind count (no expected quantities in the prompt). Older results stay as they were; re-run to compare.
