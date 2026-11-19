@@ -1,10 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState, useTransition } from 'react';
+import { useMemo } from 'react';
 import type { ColDef, ICellRendererParams } from 'ag-grid-community';
 import DataGrid from '@/components/data-grid';
-import { openPoolForm } from './actions';
 
 export type StRow = {
   id: string;
@@ -42,30 +41,6 @@ export type StRow = {
   moved?: number;
 };
 
-/** "Open the form" on a pinned row: made once, then the same one opens. */
-function FormButton({ ids, kind }: { ids: string[]; kind: 'missed' | 'review' }) {
-  const [pending, start] = useTransition();
-  const [err, setErr] = useState<string | null>(null);
-  return (
-    <span className="flex h-full items-center gap-1">
-      <button
-        type="button"
-        disabled={pending}
-        onClick={() =>
-          start(async () => {
-            const r = await openPoolForm(ids, kind);
-            if (r?.error) setErr(r.error);
-          })
-        }
-        className={`rounded-full px-2.5 py-1 text-xs font-semibold disabled:opacity-50 ${kind === 'missed' ? 'text-[#5b21b6] hover:bg-[#ece5ff]' : 'text-[#b45309] hover:bg-[#ffe8cc]'}`}
-      >
-        {pending ? 'იხსნება…' : '📋 ფორმა'}
-      </button>
-      {err && <span className="text-xs text-[#d64545]">{err}</span>}
-    </span>
-  );
-}
-
 const KIND: Record<string, string> = { stock: '📦', expiry: '⏳', assets: '🏷' };
 const KIND_NAME: Record<string, string> = {
   stock: 'მარაგები',
@@ -78,46 +53,51 @@ const fmt = (t: string, o: Intl.DateTimeFormatOptions) =>
   new Date(t).toLocaleString('ka-GE', { ...o, timeZone: 'Asia/Tbilisi' });
 const dayOf = (t: string) => fmt(t, { day: '2-digit', month: '2-digit', year: '2-digit' });
 const hm = (t: string) => fmt(t, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
-/** "11.11.26 10:05 → 14:20" (closing day too when it is another day). */
-const span = (a: string, b: string | null) =>
-  `${dayOf(a)} ${hm(a)}${b ? ` → ${dayOf(b) === dayOf(a) ? hm(b) : `${dayOf(b)} ${hm(b)}`}` : ''}`;
-
 function Actions({ data }: ICellRendererParams<StRow>) {
   if (!data) return null;
   if (data.left || data.review)
     return data.ids?.length ? (
-      <span className="flex h-full items-center gap-1">
-        <FormButton ids={data.ids} kind={data.left ? 'missed' : 'review'} />
-        {/* Where these products are: their shelves lit on the warehouse map. */}
-        <Link
-          href={`/manage/${data.ids[0]}/map?view=3d&focus=${data.left ? 'missed' : 'review'}`}
-          className={`rounded-full px-2.5 py-1 text-xs font-semibold ${data.left ? 'text-[#5b21b6] hover:bg-[#ece5ff]' : 'text-[#b45309] hover:bg-[#ffe8cc]'}`}
-        >
-          🗺 რუკა
-        </Link>
-      </span>
+      <Link
+        href={`/manage/${data.ids[0]}/map?view=3d&focus=${data.left ? 'missed' : 'review'}`}
+        className={`rounded-full px-2.5 py-1 text-xs font-semibold ${data.left ? 'text-[#5b21b6] hover:bg-[#ece5ff]' : 'text-[#b45309] hover:bg-[#ffe8cc]'}`}
+      >
+        🗺 რუკაზე
+      </Link>
     ) : null;
-  const a = 'rounded-full px-2.5 py-1 text-xs font-medium hover:bg-[#e8f3ed]';
+  if (data.kind === 'assets') return null;
+  const a = 'rounded-full px-2.5 py-1 text-xs font-medium text-[#155c39] hover:bg-[#e8f3ed]';
   return (
-    <span className="flex h-full items-center gap-1">
-      {data.kind !== 'assets' && (
-        <Link href={`/manage/${data.id}/act`} className={`${a} text-[#155c39]`}>
-          აქტი
-        </Link>
-      )}
-      {data.kind !== 'assets' && (
-        <a href={`/manage/${data.id}/act/xlsx`} className={`${a} text-[#155c39]`}>
-          Excel
-        </a>
-      )}
+    <span className="flex items-center gap-0.5 whitespace-nowrap">
+      <Link href={`/manage/${data.id}/act`} className={a}>
+        აქტი
+      </Link>
+      <a href={`/manage/${data.id}/act/xlsx`} className={a}>
+        Excel
+      </a>
+    </span>
+  );
+}
+
+/** Two lines in one cell: the main value, and a smaller one under it. */
+function Two({
+  top,
+  sub,
+  className = '',
+}: {
+  top: React.ReactNode;
+  sub?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <span className={`flex min-w-0 flex-col justify-center leading-tight ${className}`}>
+      <span className="truncate">{top}</span>
+      {sub != null && sub !== '' && <span className="truncate text-xs text-ink-faint">{sub}</span>}
     </span>
   );
 }
 
 /** All stocktakes of the filter in one sortable, filterable table. */
 export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: StRow[] }) {
-  const [opening, setOpening] = useState(false);
-  const [openErr, setOpenErr] = useState<string | null>(null);
   const columns = useMemo<ColDef<StRow>[]>(
     () => [
       {
@@ -127,7 +107,6 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
         minWidth: 36,
         valueFormatter: (p) =>
           p.data?.review ? '🔎' : p.data?.left ? '⏳' : (KIND[p.value] ?? ''),
-        // What the icon means, on hover.
         tooltipValueGetter: (p) =>
           p.data?.review
             ? 'გადასამოწმებელი: დათვლილი, მაგრამ ჯამი ნაშთს არ ემთხვევა'
@@ -138,52 +117,61 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
         filter: false,
       },
       {
-        headerName: 'ინვენტარიზაცია',
+        // Number (and cycle code) over the warehouse and cycle.
+        headerName: 'ინვენტარიზაცია / საწყობი',
         field: 'number',
-        flex: 1.3,
-        minWidth: 120,
-        cellRenderer: (p: ICellRendererParams<StRow>) =>
-          p.data?.review ? (
-            <b
-              className="text-[#b45309]"
-              title={`ნაშთიდან გაქრა დაუთვლელი: ${p.data.zeroed ?? 0} · დათვლის დღეს ნაშთი შეეცვალა: ${p.data.moved ?? 0}`}
-            >
-              გადასამოწმებელი
-            </b>
-          ) : p.data?.left ? (
-            <b className="text-[#5b21b6]">გამორჩენილი</b>
-          ) : (
-            <Link
-              href={`/manage/${p.data?.id}`}
-              className="font-medium text-[#155c39] hover:underline"
-            >
-              {p.value}
-              {p.data?.cycleCode && (
-                <span className="ml-1 text-xs font-normal text-ink-faint" title={p.data.cycle}>
-                  · {p.data.cycleCode}
+        flex: 1.8,
+        minWidth: 170,
+        filterValueGetter: (p) => `${p.data?.number ?? ''} ${p.data?.warehouse ?? ''}`,
+        getQuickFilterText: (p) =>
+          `${p.data?.number ?? ''} ${p.data?.warehouse ?? ''} ${p.data?.cycle ?? ''}`,
+        cellRenderer: (p: ICellRendererParams<StRow>) => {
+          const d = p.data;
+          if (!d) return null;
+          if (d.left || d.review)
+            return (
+              <Two
+                className={d.left ? 'text-[#5b21b6]' : 'text-[#b45309]'}
+                top={<b>{d.left ? 'გამორჩენილი' : 'გადასამოწმებელი'}</b>}
+                sub={d.warehouse}
+              />
+            );
+          return (
+            <Two
+              top={
+                <span className="font-medium text-[#155c39]">
+                  {d.number}
+                  {d.cycleCode && (
+                    <span className="ml-1 text-xs font-normal text-ink-faint">· {d.cycleCode}</span>
+                  )}
+                  {d.formKind === 'missed' && (
+                    <span className="ml-1 rounded-full bg-[#ece5ff] px-1.5 text-[10px] text-[#5b21b6]">
+                      გამორჩენილი
+                    </span>
+                  )}
+                  {d.formKind === 'review' && (
+                    <span className="ml-1 rounded-full bg-[#ffe8cc] px-1.5 text-[10px] text-[#b45309]">
+                      გადამოწმება
+                    </span>
+                  )}
                 </span>
-              )}
-              {p.data?.formKind === 'missed' && (
-                <span className="ml-1 rounded-full bg-[#ece5ff] px-1.5 text-[10px] text-[#5b21b6]">
-                  გამორჩენილი
-                </span>
-              )}
-              {p.data?.formKind === 'review' && (
-                <span className="ml-1 rounded-full bg-[#ffe8cc] px-1.5 text-[10px] text-[#b45309]">
-                  გადამოწმება
-                </span>
-              )}
-            </Link>
-          ),
+              }
+              sub={
+                <>
+                  <b className="text-ink">{d.warehouse}</b>
+                  {d.cycle && <span> · {d.cycle}</span>}
+                </>
+              }
+            />
+          );
+        },
       },
       {
-        headerName: 'გაიხსნა → დაიხურა',
+        headerName: 'გაიხსნა / დაიხურა',
         field: 'opened',
-        flex: 1.3,
-        minWidth: 125,
+        flex: 1,
+        minWidth: 110,
         filter: 'agDateColumnFilter',
-        valueFormatter: (p) =>
-          p.data && !p.data.left && !p.data.review ? span(p.data.opened, p.data.closed) : '',
         filterParams: {
           comparator: (d: Date, v: string) => {
             const t = new Date(v);
@@ -191,145 +179,140 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
             return a < d.getTime() ? -1 : a > d.getTime() ? 1 : 0;
           },
         },
+        cellRenderer: (p: ICellRendererParams<StRow>) => {
+          const d = p.data;
+          if (!d || d.left || d.review) return null;
+          return (
+            <Two
+              className="tabular-nums"
+              top={`${dayOf(d.opened)} ${hm(d.opened)}`}
+              sub={
+                d.closed
+                  ? `→ ${dayOf(d.closed) === dayOf(d.opened) ? hm(d.closed) : `${dayOf(d.closed)} ${hm(d.closed)}`}`
+                  : 'მიმდინარე'
+              }
+            />
+          );
+        },
       },
       {
-        headerName: 'საწყობი',
-        field: 'warehouse',
-        flex: 1.5,
-        minWidth: 110,
-        cellClass: 'font-semibold',
-      },
-      {
-        headerName: 'ციკლი',
-        colId: 'cycle',
-        valueGetter: (p) =>
-          p.data?.cycle ? `${p.data.cycle}${p.data.cycleCode ? ` · ${p.data.cycleCode}` : ''}` : '',
-        flex: 1,
-        minWidth: 95,
-      },
-      {
-        headerName: 'თარო',
-        field: 'shelves',
-        flex: 0.6,
-        minWidth: 58,
+        // Shelves · SKU over units counted.
+        headerName: 'თარო · SKU / ერთ.',
+        field: 'skus',
+        flex: 0.9,
+        minWidth: 105,
         type: 'numericColumn',
         filter: 'agNumberColumnFilter',
-        valueFormatter: (p) => (p.data?.left || p.data?.review ? '—' : String(p.value)),
+        cellRenderer: (p: ICellRendererParams<StRow>) => {
+          const d = p.data;
+          if (!d) return null;
+          return (
+            <Two
+              className="items-end tabular-nums"
+              top={d.left || d.review ? `${n(d.skus)} SKU` : `${d.shelves} თარო · ${d.skus} SKU`}
+              sub={d.review ? '' : `${n(d.counted)} ერთ.`}
+            />
+          );
+        },
         tooltipValueGetter: (p) =>
           p.data?.left || p.data?.review
             ? undefined
-            : `დასრულებული ${p.data?.shelvesDone ?? 0} / ${p.value}`,
+            : `დასრულებული თარო ${p.data?.shelvesDone ?? 0} / ${p.data?.shelves ?? 0}`,
       },
       {
-        headerName: 'SKU',
-        field: 'skus',
-        flex: 0.6,
-        minWidth: 58,
-        type: 'numericColumn',
-        filter: 'agNumberColumnFilter',
-      },
-      {
-        headerName: 'პროდ.',
-        field: 'counted',
-        flex: 0.7,
-        minWidth: 64,
-        type: 'numericColumn',
-        filter: 'agNumberColumnFilter',
-        valueFormatter: (p) => (p.data?.review ? '—' : n(p.value)),
-      },
-      {
-        headerName: 'მეტობა ₾',
+        // Surplus over shortage, quantity / money.
+        headerName: 'მეტობა / დანაკლისი',
         field: 'plusSum',
-        flex: 1,
-        minWidth: 95,
+        flex: 1.1,
+        minWidth: 120,
         type: 'numericColumn',
         filter: 'agNumberColumnFilter',
-        cellClass: 'text-[#2563eb]',
-        // By money, then quantity: products without a price add 0 ₾ but still count.
         comparator: (a, b, x, y) => a - b || (x.data?.plusQty ?? 0) - (y.data?.plusQty ?? 0),
-        valueFormatter: (p) =>
-          p.data?.plusQty
-            ? `+${n(p.data.plusQty)} / ${gel(p.value)}${p.data.plusNocost ? ' *' : ''}`
-            : '—',
-        tooltipValueGetter: (p) =>
-          p.data?.plusNocost
-            ? `${p.data.plusNocost} პროდუქტს ფასი არ აქვს — თანხაში არ ითვლება`
-            : undefined,
-      },
-      {
-        headerName: 'დანაკლისი ₾',
-        field: 'minusSum',
-        flex: 1,
-        minWidth: 95,
-        type: 'numericColumn',
-        filter: 'agNumberColumnFilter',
-        cellClass: 'text-[#d64545]',
-        comparator: (a, b, x, y) => a - b || (x.data?.minusQty ?? 0) - (y.data?.minusQty ?? 0),
-        valueFormatter: (p) =>
-          p.data?.minusQty ? `−${n(p.data.minusQty)} / ${gel(p.value)}` : '—',
-      },
-      {
-        headerName: 'AI %',
-        colId: 'ai',
-        headerTooltip: 'ფოტოებით შემოწმება: დამთხვევის საშუალო ალბათობა · ემთხვევა / შემოწმდა',
-        flex: 0.9,
-        minWidth: 85,
-        type: 'numericColumn',
-        filter: 'agNumberColumnFilter',
-        valueGetter: (p) => p.data?.ai?.pct ?? null,
-        valueFormatter: (p) =>
-          p.data?.ai ? `${p.data.ai.pct}% · ${p.data.ai.matched}/${p.data.ai.checked}` : '—',
-        cellClass: (p) =>
-          p.data?.ai
-            ? p.data.ai.matched === p.data.ai.checked
-              ? 'text-match font-semibold'
-              : 'text-review font-semibold'
-            : 'text-ink-faint',
+        cellRenderer: (p: ICellRendererParams<StRow>) => {
+          const d = p.data;
+          if (!d || d.left) return <span className="text-ink-faint">—</span>;
+          return (
+            <span className="flex flex-col items-end justify-center leading-tight tabular-nums">
+              <span
+                className="text-[#2563eb]"
+                title={
+                  d.plusNocost
+                    ? `${d.plusNocost} პროდუქტს ფასი არ აქვს — თანხაში არ ითვლება`
+                    : undefined
+                }
+              >
+                {d.plusQty
+                  ? `+${n(d.plusQty)} / ${gel(d.plusSum)}${d.plusNocost ? ' *' : ''}`
+                  : '+0'}
+              </span>
+              <span className="text-[#d64545]">
+                {d.minusQty ? `−${n(d.minusQty)} / ${gel(d.minusSum)}` : '−0'}
+              </span>
+            </span>
+          );
+        },
       },
       {
         headerName: 'სხვაობა ₾',
         field: 'diffSum',
         flex: 0.8,
-        minWidth: 80,
+        minWidth: 95,
         type: 'numericColumn',
         filter: 'agNumberColumnFilter',
-        cellClassRules: {
-          'text-[#d64545] font-semibold': (p) => !p.data?.left && !p.data?.review && p.value < 0,
-          'text-[#2563eb] font-semibold': (p) => !p.data?.left && !p.data?.review && p.value > 0,
-          'text-[#5b21b6] font-semibold': (p) => !!p.data?.left,
-          'text-[#b45309] font-semibold': (p) => !!p.data?.review,
+        cellRenderer: (p: ICellRendererParams<StRow>) => {
+          const d = p.data;
+          if (!d) return null;
+          const tone = d.left
+            ? 'text-[#5b21b6]'
+            : d.review
+              ? 'text-[#b45309]'
+              : d.diffSum < 0
+                ? 'text-[#d64545]'
+                : d.diffSum > 0
+                  ? 'text-[#2563eb]'
+                  : 'text-ink-faint';
+          const v = d.left || d.plusQty || d.minusQty ? gel(d.diffSum) : '—';
+          return (
+            <span className="flex flex-col items-end justify-center leading-tight">
+              <b className={`tabular-nums ${tone}`}>{v}</b>
+              {!d.left && !d.review && (
+                <span
+                  className={`text-[11px] ${d.status === 'open' ? 'text-[#8a5a00]' : 'text-[#155c39]'}`}
+                >
+                  {d.status === 'open' ? 'მიმდინარე' : 'დახურული'}
+                </span>
+              )}
+            </span>
+          );
         },
-        valueFormatter: (p) =>
-          p.data?.left ? gel(p.value) : p.data?.plusQty || p.data?.minusQty ? gel(p.value) : '—',
       },
       {
-        headerName: 'სტატუსი',
-        field: 'status',
-        flex: 0.9,
-        minWidth: 95,
-        cellRenderer: (p: ICellRendererParams<StRow>) =>
-          p.data?.left ? (
-            <span className="text-xs text-[#5b21b6]">ფორმა დასათვლელად</span>
-          ) : p.data?.review ? (
-            <span className="text-xs text-[#b45309]">შესამოწმებელი</span>
-          ) : p.value === 'open' ? (
-            <span className="rounded-full bg-[#fdf3dc] px-2 py-0.5 text-xs font-medium text-[#8a5a00]">
-              მიმდინარე
-            </span>
-          ) : (
-            <span className="rounded-full bg-[#e3f4ea] px-2 py-0.5 text-xs font-medium text-[#155c39]">
-              დახურული
-            </span>
-          ),
-        filterValueGetter: (p) => (p.data?.status === 'open' ? 'მიმდინარე' : 'დახურული'),
+        headerName: 'AI %',
+        colId: 'ai',
+        headerTooltip: 'ფოტოებით შემოწმება: დამთხვევის საშუალო ალბათობა · ემთხვევა / შემოწმდა',
+        flex: 0.6,
+        minWidth: 75,
+        type: 'numericColumn',
+        filter: 'agNumberColumnFilter',
+        valueGetter: (p) => p.data?.ai?.pct ?? null,
+        cellRenderer: (p: ICellRendererParams<StRow>) => {
+          const a = p.data?.ai;
+          if (!a) return <span className="text-ink-faint">—</span>;
+          return (
+            <Two
+              className={`items-end font-semibold ${a.matched === a.checked ? 'text-match' : 'text-review'}`}
+              top={`${a.pct}%`}
+              sub={`${a.matched}/${a.checked}`}
+            />
+          );
+        },
       },
       {
-        headerName: 'მოქმედება',
+        headerName: '',
         colId: 'actions',
-        flex: 1.2,
-        minWidth: 120,
+        flex: 0.8,
+        minWidth: 115,
         sortable: false,
-        cellStyle: { display: 'flex', alignItems: 'center' },
         filter: false,
         cellRenderer: Actions,
       },
@@ -345,8 +328,6 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
             <span className="text-[#5b21b6]">⏳ გამორჩენილი</span> ·{' '}
             <span className="text-[#b45309]">🔎 გადასამოწმებელი</span>
           </span>
-          {opening && <b className="text-xs text-[#5b21b6]">ფორმა იხსნება…</b>}
-          {openErr && <b className="text-xs text-[#d64545]">{openErr}</b>}
         </>
       }
       rows={rows}
@@ -358,17 +339,11 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
       rowClass={(p) =>
         p.data?.left ? 'st-left-row' : p.data?.review ? 'st-review-row' : undefined
       }
+      rowHeight={52}
       rowHref={(r) =>
         r.left || r.review
           ? r.ids?.length
-            ? () => {
-                // The missed / re-check row opens its form (made once, then reopened).
-                setOpening(true);
-                setOpenErr(null);
-                openPoolForm(r.ids!, r.left ? 'missed' : 'review')
-                  .then((x) => x?.error && setOpenErr(x.error))
-                  .finally(() => setOpening(false));
-              }
+            ? `/manage/stocktakes/pool?kind=${r.left ? 'missed' : 'review'}&ids=${r.ids.join(',')}`
             : null
           : r.id
             ? `/manage/${r.id}`

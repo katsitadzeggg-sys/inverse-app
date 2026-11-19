@@ -98,6 +98,7 @@ export default function DataGrid<T extends object>({
   toolbar,
   context,
   rowHref,
+  rowHeight,
 }: {
   rows: T[];
   columns: ColDef<T>[];
@@ -115,6 +116,8 @@ export default function DataGrid<T extends object>({
   context?: unknown;
   /** Where a click anywhere on a row leads (links and buttons in it keep their own). */
   rowHref?: (row: T) => string | (() => void) | null;
+  /** Taller rows for cells written on two lines; headers wrap onto two lines. */
+  rowHeight?: number;
 }) {
   const router = useRouter();
   const grid = useRef<AgGridReact<T>>(null);
@@ -128,8 +131,9 @@ export default function DataGrid<T extends object>({
       minWidth: 70,
       floatingFilter: false,
       suppressHeaderMenuButton: false,
+      ...(rowHeight ? { wrapHeaderText: true, autoHeaderHeight: true } : {}),
     }),
-    [],
+    [rowHeight],
   );
   // Long Georgian headers get cut: the full name shows on hover. Cells drawn
   // by a component are centred vertically like text cells.
@@ -208,6 +212,7 @@ export default function DataGrid<T extends object>({
         <AgGridReact<T>
           ref={grid}
           theme={theme}
+          rowHeight={rowHeight}
           rowData={rows}
           columnDefs={cols}
           defaultColDef={defaultColDef}
