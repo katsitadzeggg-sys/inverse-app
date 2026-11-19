@@ -220,7 +220,9 @@ export default async function StocktakesView({
         counted: Number(p.missed_qty),
         diffSum: Number(p.missed_sum),
       });
-    if (Number(p.review_skus) > 0)
+    // The re-check row waits until nothing is missed any more: while products
+    // are still uncounted, its differences are not final.
+    if (Number(p.review_skus) > 0 && Number(p.missed_skus) === 0)
       pinned.push({
         ...blank,
         id: `review-${name}`,

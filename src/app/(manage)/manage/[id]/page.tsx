@@ -7,8 +7,8 @@ import type { Stocktake, StocktakeZone } from '@/types/database';
 import { mapsLink } from '@/lib/geo';
 import { setShowBook, setStocktakeArchived, setStocktakeStatus } from '@/app/(count)/count/actions';
 import ExportBox from './export-box';
-import LinesGrid from './lines-grid';
 import { stockActData } from '@/lib/stock-act';
+import ShelvesView, { type ShelfRow } from './shelves-view';
 
 type ZoneRow = StocktakeZone & {
   locations: { code: string } | null;
@@ -93,10 +93,10 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
   const [{ data: entryRows }, { data: checkRows }, { data: mediaRows }] = await Promise.all([
     supabase
       .from('stocktake_entries')
-      .select('location_id')
+      .select('location_id, quantity')
       .eq('stocktake_id', id)
       .limit(20000)
-      .returns<{ location_id: string }[]>(),
+      .returns<{ location_id: string; quantity: number }[]>(),
     supabase
       .from('stocktake_checks')
       .select('location_id')
@@ -117,6 +117,30 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
   const zLines = tally(entryRows);
   const zDiffs = tally(checkRows);
   const zShots = tally(mediaRows);
+  const zQty = new Map<string, number>();
+  for (const e of entryRows ?? [])
+    zQty.set(e.location_id, (zQty.get(e.location_id) ?? 0) + Number(e.quantity));
+  const shelfRows: ShelfRow[] = list
+    .map((z) => ({
+      locationId: z.location_id,
+      code: z.locations?.code ?? '',
+      counter: z.user_profiles?.full_name ?? '',
+      email: z.user_profiles?.email ?? '',
+      done: z.status === 'done',
+      at: new Date(z.done_at ?? z.started_at).toLocaleString('ka-GE', {
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Asia/Tbilisi',
+      }),
+      entries: zLines.get(z.location_id) ?? 0,
+      qty: zQty.get(z.location_id) ?? 0,
+      diffs: zDiffs.get(z.location_id) ?? 0,
+      shots: zShots.get(z.location_id) ?? 0,
+      note: z.note,
+    }))
+    .sort((a, b) => a.code.localeCompare(b.code, 'ka', { numeric: true }));
 
   // Action buttons: solid green, clearly different from the info tiles.
   const btn =
@@ -260,22 +284,17 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
       )}
 
       {balance && (
-        <section className="grid gap-2">
-          {balance.lines.length ? (
-            <LinesGrid
-              id={id}
-              ai={aiLines}
-              lines={balance.lines}
-              hasCost={balance.hasCost}
-              fileName={st.number}
-            />
-          ) : (
-            <p className="text-sm text-ink-soft">ჯერ არაფერი დათვლილა.</p>
-          )}
-        </section>
+        <ShelvesView
+          id={id}
+          shelves={shelfRows}
+          lines={balance.lines}
+          hasCost={balance.hasCost}
+          fileName={st.number}
+          ai={aiLines}
+        />
       )}
 
-      {list.length > 0 && (
+      {!balance && list.length > 0 && (
         <details className="rounded-control border border-rule/70">
           <summary className="px-3 py-2 text-sm font-semibold">🗂 თაროები ({list.length})</summary>
           <div className="max-h-[45vh] overflow-auto border-t border-rule/60">
