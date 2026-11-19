@@ -123,3 +123,11 @@
 - Dashboard: warehouses of the open cycle on the list's numbers (pool stats, whole balance), progress = balance products counted, money from the same pools, AI photo check this month (✓/?/⚠, cost).
 - AGENTS.md: Inverse rules for every agent.
 - **0067_ai_usage APPLIED 19.11 14:03 with Giorgi's "კი"** (RLS on, 2 policies, anon no access): one row per assistant question / photo identification with tokens; code already writes to it and ignores errors until the table exists; dashboard adds it to the month's cost. Sonnet price in src/lib/ai-usage.ts is to verify.
+
+## 19.11 — speed (cae68ae) and known trade-offs to improve later
+Done: session read once per request (React cache, getClaims, profile+company in one query); proxy on getClaims; `staleTimes.dynamic = 30` (visited pages reopen from the browser cache); dashboard queries started together.
+Trade-offs (Giorgi: keep for information, improve when possible):
+- **30 s browser cache:** someone else's fresh change (another counter's count) can show up to 30 s late; own changes show at once; F5 refreshes. Improve: refresh only the pages that need live data (e.g. router.refresh on focus / realtime on the stocktake page), or lower to 10–15 s if it bothers.
+- **getClaims:** a user signed out or disabled can keep access until the token expires (≤ 1 h). Improve: on disabling a member, also revoke the session server-side (admin signOut), or check `disabled_at` in requireSession (it reads the profile anyway — cheap).
+- **Dashboard "top shortages"** reads the whole act of the latest stocktake (1პ: 8000+ book lines) — the heaviest part. Improve: stream it separately (Suspense) or compute in SQL.
+- Speed not measured live (no login for Claude); waiting for Giorgi's feedback on where it is still slow.
