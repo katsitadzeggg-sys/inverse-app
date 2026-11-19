@@ -69,7 +69,7 @@ export default async function ShelfDonePage({ params }: PageProps<'/count/[id]/[
         .returns<{ status: string }[]>(),
       supabase
         .from('stocktake_media')
-        .select('id, path, kind, poster_path, caption')
+        .select('id, path, kind, poster_path, caption, created_at')
         .eq('stocktake_id', id)
         .eq('location_id', loc)
         .order('created_at')
@@ -80,6 +80,7 @@ export default async function ShelfDonePage({ params }: PageProps<'/count/[id]/[
             kind: 'photo' | 'video';
             poster_path: string | null;
             caption: string | null;
+            created_at: string;
           }[]
         >(),
     ]);
@@ -131,6 +132,7 @@ export default async function ShelfDonePage({ params }: PageProps<'/count/[id]/[
         poster,
         posterPath: m.poster_path,
         caption: m.caption,
+        at: m.created_at,
       };
     }),
   );
@@ -284,6 +286,7 @@ export default async function ShelfDonePage({ params }: PageProps<'/count/[id]/[
           locationId={loc}
           photos={shelfShots.filter((m) => m.kind === 'photo').length}
           videos={shelfShots.filter((m) => m.kind === 'video').map((m) => m.url)}
+          lastShotAt={shelfShots.reduce((a, m) => (m.at > a ? m.at : a), '')}
         />
       )}
 

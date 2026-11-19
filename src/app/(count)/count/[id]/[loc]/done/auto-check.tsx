@@ -7,7 +7,9 @@ import { videoFrames } from './ai-check';
 /**
  * The counter's automatic photo check (company switch on): a few seconds
  * after the last photo / video of the closed shelf, the photos are checked in
- * the background. The counter hears only about counted products the photos
+ * the background — only right after shooting (the newest shot under 10
+ * minutes old). Opening an old shelf again does not run (and pay for) it
+ * again; "შეამოწმე" does that by hand. The counter hears only about counted products the photos
  * show in another quantity — never the balance.
  */
 export default function AutoCheck({
@@ -15,11 +17,14 @@ export default function AutoCheck({
   locationId,
   photos,
   videos,
+  lastShotAt,
 }: {
   stocktakeId: string;
   locationId: string;
   photos: number;
   videos: string[];
+  /** When the newest photo / video of the shelf was saved. */
+  lastShotAt: string;
 }) {
   const [state, setState] = useState<
     | { s: 'idle' }
@@ -31,7 +36,8 @@ export default function AutoCheck({
   const ran = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!media) return;
+    if (!media || !lastShotAt) return;
+    if (Date.now() - new Date(lastShotAt).getTime() > 10 * 60 * 1000) return;
     const key = `ai-auto:${stocktakeId}:${locationId}:${media}`;
     // Once per set of shots (a new photo starts a new check).
     try {
@@ -56,7 +62,7 @@ export default function AutoCheck({
       setState(r.error ? { s: 'error', msg: r.error } : { s: 'done', warnings: r.warnings ?? [] });
     }, 6000);
     return () => clearTimeout(t);
-  }, [media, stocktakeId, locationId, videos]);
+  }, [media, stocktakeId, locationId, videos, lastShotAt]);
 
   if (!media || state.s === 'idle') return null;
   if (state.s === 'busy')
@@ -66,7 +72,11 @@ export default function AutoCheck({
       </p>
     );
   if (state.s === 'error')
-    return <p className="text-center text-xs text-ink-faint">🤖 შემოწმება ვერ მოხერხდა.</p>;
+    return (
+      <p className="text-center text-xs text-ink-faint">
+        🤖 შემოწმება ვერ მოხერხდა{state.msg ? `: ${state.msg}` : '.'} სცადე „შეამოწმე“.
+      </p>
+    );
   if (!state.warnings.length)
     return (
       <p className="rounded-control border border-match/50 p-3 text-center text-sm text-match">
