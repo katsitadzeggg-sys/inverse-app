@@ -148,6 +148,19 @@ export default async function ShelfDonePage({ params }: PageProps<'/count/[id]/[
         .maybeSingle<{ result: AiResult; created_at: string; photos: number }>()
     : { data: null };
   const lastAi = ai ? { result: ai.result, at: ai.created_at, images: ai.photos } : null;
+  // Video frames the last check stored: signed here so its boxes are drawn again.
+  const mediaPaths = new Set((media ?? []).flatMap((m) => [m.path, m.poster_path]));
+  const framePaths = (lastAi?.result.paths ?? []).filter(
+    (p): p is string => !!p && !mediaPaths.has(p),
+  );
+  const frameUrls: Record<string, string> = framePaths.length
+    ? Object.fromEntries(
+        (
+          (await supabase.storage.from('stocktake-media').createSignedUrls(framePaths, 60 * 30))
+            .data ?? []
+        ).flatMap((x) => (x.path && x.signedUrl ? [[x.path, x.signedUrl] as const] : [])),
+      )
+    : {};
   // The shelf's own photos (taken at the end) apart from photos of single lines.
   const isLineShot = (m: { path: string }) => /\/product-[^/]+$/.test(m.path);
   const shelfShots = signed.filter((m) => !isLineShot(m));
@@ -297,12 +310,15 @@ export default async function ShelfDonePage({ params }: PageProps<'/count/[id]/[
           photos={shelfShots.filter((m) => m.kind === 'photo').length}
           videos={shelfShots.filter((m) => m.kind === 'video').map((m) => m.url)}
           last={lastAi}
-          urls={Object.fromEntries(
-            shelfShots.flatMap((m) => [
-              [m.path, m.url],
-              ...(m.posterPath && m.poster ? [[m.posterPath, m.poster]] : []),
-            ]),
-          )}
+          urls={{
+            ...frameUrls,
+            ...Object.fromEntries(
+              shelfShots.flatMap((m) => [
+                [m.path, m.url],
+                ...(m.posterPath && m.poster ? [[m.posterPath, m.poster]] : []),
+              ]),
+            ),
+          }}
         />
       )}
 

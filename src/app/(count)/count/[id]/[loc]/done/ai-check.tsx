@@ -71,6 +71,8 @@ export default function AiCheck({
   const router = useRouter();
   // A counter cannot read stored checks: their own run is shown from its answer.
   const [fresh, setFresh] = useState<{ result: AiResult; at: string; images: number } | null>(null);
+  // Signed URLs of the video frames this run stored (the page signs them on reload).
+  const [frameUrls, setFrameUrls] = useState<Record<string, string>>({});
   const last = fresh ?? stored;
 
   function run() {
@@ -92,6 +94,7 @@ export default function AiCheck({
         result: undefined,
       }));
       if (r.error) return setMsg(r.error);
+      if ('frameUrls' in r && r.frameUrls) setFrameUrls(r.frameUrls);
       if (r.result)
         setFresh({
           result: r.result,
@@ -126,7 +129,7 @@ export default function AiCheck({
             {last.result.quality === 'poor' && ' · ფოტოები ცუდი ხარისხისაა'}
           </p>
           <p className="text-sm">{last.result.summary}</p>
-          <ShelfHud result={last.result} urls={urls} />
+          <ShelfHud result={last.result} urls={{ ...urls, ...frameUrls }} />
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>

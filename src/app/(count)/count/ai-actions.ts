@@ -61,7 +61,13 @@ export async function aiCheckShelf(
   locationId: string,
   frames: string[],
   auto = false,
-): Promise<{ error?: string; warnings?: AiWarning[]; result?: AiResult }> {
+): Promise<{
+  error?: string;
+  warnings?: AiWarning[];
+  result?: AiResult;
+  /** Signed URLs of the stored video frames, to draw the boxes right away. */
+  frameUrls?: Record<string, string>;
+}> {
   const session = await requireSession();
   const manager = session.profile.role === 'owner' || session.profile.role === 'admin';
   if (!process.env.ANTHROPIC_API_KEY)
@@ -148,12 +154,32 @@ export async function aiCheckShelf(
     images.push({ data: Buffer.from(await data.arrayBuffer()), mediaType: type });
     sentPaths.push(path);
   }
-  for (const f of frames.slice(0, 16)) {
-    const b64 = f.replace(/^data:image\/jpeg;base64,/, '');
-    if (b64.length > 20) {
-      images.push({ data: Buffer.from(b64, 'base64'), mediaType: 'image/jpeg' });
-      sentPaths.push(null);
-    }
+  // Video frames are kept in storage next to the shelf's media, so the AI's
+  // frames can be drawn on them again later (not only right after the check).
+  // A frame that cannot be stored is still checked, just not redrawn later.
+  const frameUrls: Record<string, string> = {};
+  const run = crypto.randomUUID();
+  const kept = await Promise.all(
+    frames.slice(0, 16).map(async (f, n) => {
+      const b64 = f.replace(/^data:image\/jpeg;base64,/, '');
+      if (b64.length <= 20) return null;
+      const data = Buffer.from(b64, 'base64');
+      const path = `${session.company.id}/${stocktakeId}/${locationId}/ai-${run}-${n}.jpg`;
+      const { error: up } = await supabase.storage
+        .from('stocktake-media')
+        .upload(path, data, { contentType: 'image/jpeg' });
+      if (up) return { data, path: null };
+      const { data: s } = await supabase.storage
+        .from('stocktake-media')
+        .createSignedUrl(path, 60 * 30);
+      if (s?.signedUrl) frameUrls[path] = s.signedUrl;
+      return { data, path };
+    }),
+  );
+  for (const k of kept) {
+    if (!k) continue;
+    images.push({ data: k.data, mediaType: 'image/jpeg' });
+    sentPaths.push(k.path);
   }
   if (!images.length) return { error: 'ამ თაროს ფოტო ან ვიდეო არ აქვს.' };
   let warnings: AiWarning[] = [];
@@ -228,7 +254,7 @@ export async function aiCheckShelf(
     return { error: `შემოწმება ვერ შესრულდა: ${msg.slice(0, 200)}` };
   }
   revalidatePath(`/count/${stocktakeId}/${locationId}/done`);
-  return { warnings, result };
+  return { warnings, result, frameUrls };
 }
 
 const MAX_CANDIDATES = 250;
