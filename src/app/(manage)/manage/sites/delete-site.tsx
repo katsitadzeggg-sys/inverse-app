@@ -14,16 +14,20 @@ export default function DeleteSite({ id, name }: { id: string; name: string }) {
   if (msg?.error)
     return (
       <span className="flex h-full items-center gap-2 text-xs text-mismatch" title={msg.error}>
-        <span className="truncate">{msg.error}</span>
-        <button type="button" onClick={() => setMsg(null)} className="text-ink-faint underline">
+        <span className="min-w-0 truncate">{msg.error}</span>
+        <button
+          type="button"
+          onClick={() => setMsg(null)}
+          className="shrink-0 text-ink-faint underline"
+        >
           OK
         </button>
       </span>
     );
   if (ask)
     return (
-      <span className="flex h-full items-center gap-2 text-xs">
-        <span className="truncate">წავშალო „{name}“?</span>
+      <span className="flex h-full items-center gap-2 text-xs" title={`წავშალო „${name}“?`}>
+        <span className="shrink-0 font-semibold">წავშალო?</span>
         <button
           type="button"
           disabled={pending}
@@ -33,11 +37,11 @@ export default function DeleteSite({ id, name }: { id: string; name: string }) {
               setAsk(false);
             })
           }
-          className="rounded-full bg-[#d64545] px-2.5 py-1 font-semibold text-white"
+          className="shrink-0 rounded-full bg-[#d64545] px-3 py-1 font-semibold text-white"
         >
           {pending ? '…' : 'კი'}
         </button>
-        <button type="button" onClick={() => setAsk(false)} className="underline">
+        <button type="button" onClick={() => setAsk(false)} className="shrink-0 underline">
           არა
         </button>
       </span>
