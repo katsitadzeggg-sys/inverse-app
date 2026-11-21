@@ -131,3 +131,8 @@ Trade-offs (Giorgi: keep for information, improve when possible):
 - **getClaims:** a user signed out or disabled can keep access until the token expires (≤ 1 h). Improve: on disabling a member, also revoke the session server-side (admin signOut), or check `disabled_at` in requireSession (it reads the profile anyway — cheap).
 - **Dashboard "top shortages"** reads the whole act of the latest stocktake (1პ: 8000+ book lines) — the heaviest part. Improve: stream it separately (Suspense) or compute in SQL.
 - Speed not measured live (no login for Claude); waiting for Giorgi's feedback on where it is still slow.
+
+## 21.11.2026 — გასუფთავება და ციკლები
+- გიორგის თანხმობით წაიშალა: 6 საწყობი (საბურთალო ძველი, ფილიალი — ყაზბეგი, ქავთარაძე, ყაზბეგი მოიტანე, ცენტრალური — ავჭალა, დათო) მათი ყველა ინვენტარიზაციით; მთელი არქივი (62); 23 ცარიელი ციკლი. დარჩა: საწყობები 1პ, აუთლეტი, მოიტანე ვერა, მოიტანე საბურთალო; 9 ინვენტარიზაცია; ციკლები C9, C25, C26, C27. საცავში (stocktake-media) ფაილები დარჩა — გასაწმენდია პანელიდან.
+- ციკლების ფუნქცია ჯერ რჩება. გიორგის აზრით შეიძლება აღარ დაგვჭირდეს: გახსნილი ინვენტარიზაცია (pool) უკვე აკეთებს იმას, რისთვისაც ციკლი მოვიფიქრეთ. მოსახსნელად: დეშბორდი (ღია ციკლის pools), ახალი ინვენტარიზაციის ფორმა, სიის „ციკლი“ სვეტი; ბაზიდან წაშლა — მიგრაცია თანხმობით.
+- საწყობის წაშლის დადასტურება ვიწრო სვეტში აღარ იჭრება (53b0c12). AI-შემოწმების ვიდეოკადრები ინახება storage-ში, ჩარჩოები გადატვირთვის მერეც ჩანს.
