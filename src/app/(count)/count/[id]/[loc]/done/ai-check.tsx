@@ -2,10 +2,29 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { aiCheckShelf, type AiResult } from '../../../ai-actions';
+import type { aiCheckShelf, AiResult } from '../../../ai-actions';
 import ShelfHud from './shelf-hud';
 
 /** A few frames cut from a video in the browser (JPEG data URLs, long side ≤ 1024 px). */
+/**
+ * Runs the shelf check through /api/ai-check, not as a server action, so the
+ * page's other buttons (closing the shelf) do not wait for it.
+ */
+export async function requestAiCheck(
+  stocktakeId: string,
+  locationId: string,
+  frames: string[],
+  auto = false,
+): ReturnType<typeof aiCheckShelf> {
+  const res = await fetch('/api/ai-check', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ stocktakeId, locationId, frames, auto }),
+  });
+  if (!res.ok) return { error: `შემოწმება ვერ მოხერხდა (${res.status})` };
+  return res.json();
+}
+
 export async function videoFrames(url: string, count: number): Promise<string[]> {
   const v = document.createElement('video');
   v.crossOrigin = 'anonymous';
@@ -89,7 +108,7 @@ export default function AiCheck({
         }
       }
       setMsg('ფოტოებს ვამოწმებ… (წუთამდე)');
-      const r = await aiCheckShelf(stocktakeId, locationId, frames.slice(0, 16)).catch((e) => ({
+      const r = await requestAiCheck(stocktakeId, locationId, frames.slice(0, 16)).catch((e) => ({
         error: String(e).slice(0, 200),
         result: undefined,
       }));

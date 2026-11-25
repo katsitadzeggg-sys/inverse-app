@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { aiCheckShelf, type AiWarning } from '../../../ai-actions';
-import { videoFrames } from './ai-check';
+import type { AiWarning } from '../../../ai-actions';
+import { requestAiCheck, videoFrames } from './ai-check';
 
 /**
  * The counter's automatic photo check (company switch on): a few seconds
@@ -56,7 +56,7 @@ export default function AutoCheck({
           frames.push(...(await videoFrames(url, 4)));
         } catch {}
       }
-      const r = await aiCheckShelf(stocktakeId, locationId, frames.slice(0, 8), true).catch(
+      const r = await requestAiCheck(stocktakeId, locationId, frames.slice(0, 8), true).catch(
         (e) => ({ error: String(e).slice(0, 150), warnings: undefined }),
       );
       setState(r.error ? { s: 'error', msg: r.error } : { s: 'done', warnings: r.warnings ?? [] });
