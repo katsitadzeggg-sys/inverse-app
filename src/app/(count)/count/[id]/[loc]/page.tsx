@@ -8,6 +8,8 @@ import CountPanel from './count-panel';
 import AssetPanel from './asset-panel';
 import RecountList from './recount-list';
 import { closeZone, finishZone } from '../../actions';
+import type { AiResult } from '../../ai-actions';
+import ShelfHud from './done/shelf-hud';
 
 /**
  * One shelf. Counting: scan, quantity, Next — then “check the shelf”, which
@@ -86,6 +88,45 @@ export default async function ZonePage({ params }: PageProps<'/count/[id]/[loc]'
     );
   }
 
+  // The last AI check of this shelf with its frames, for a manager who opens
+  // the shelf again (25.11: the framed photos were gone, so the check was
+  // paid for again). Counters cannot read AI checks.
+  const { data: ai } = manager
+    ? await supabase
+        .from('shelf_ai_checks')
+        .select('result, created_at')
+        .eq('stocktake_id', id)
+        .eq('location_id', loc)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle<{ result: AiResult; created_at: string }>()
+    : { data: null };
+  const aiPaths = (ai?.result.paths ?? []).filter((p): p is string => !!p);
+  const aiUrls: Record<string, string> = aiPaths.length
+    ? Object.fromEntries(
+        (
+          (await supabase.storage.from('stocktake-media').createSignedUrls(aiPaths, 60 * 30))
+            .data ?? []
+        ).flatMap((x) => (x.path && x.signedUrl ? [[x.path, x.signedUrl] as const] : [])),
+      )
+    : {};
+  const lastAi = ai ? (
+    <details className="rounded-control border border-rule/70 p-3">
+      <summary className="cursor-pointer font-semibold">
+        🤖 ბოლო AI შემოწმება ·{' '}
+        {new Date(ai.created_at).toLocaleTimeString('ka-GE', {
+          hour: '2-digit',
+          minute: '2-digit',
+          timeZone: 'Asia/Tbilisi',
+        })}
+      </summary>
+      <p className="mt-2 text-sm">{ai.result.summary}</p>
+      <div className="mt-2">
+        <ShelfHud result={ai.result} urls={aiUrls} />
+      </div>
+    </details>
+  ) : null;
+
   const { data: checks } = await supabase
     .from('stocktake_checks')
     .select('product_id, status, products (name, sku, barcode)')
@@ -142,6 +183,7 @@ export default async function ZonePage({ params }: PageProps<'/count/[id]/[loc]'
         <p className="text-ink-soft">ამ თაროზე ჩაწერა შენთვის დახურულია.</p>
       ) : recount.length > 0 ? (
         <>
+          {lastAi}
           <RecountList
             stocktakeId={id}
             locationId={loc}
@@ -170,6 +212,7 @@ export default async function ZonePage({ params }: PageProps<'/count/[id]/[loc]'
         </>
       ) : (
         <>
+          {lastAi}
           <CountPanel
             stocktakeId={id}
             locationId={loc}
