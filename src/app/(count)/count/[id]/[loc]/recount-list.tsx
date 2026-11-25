@@ -3,6 +3,7 @@
 import { useActionState, useState } from 'react';
 import { inputClass } from '@/components/ui';
 import { recountAll, recountItem, type FormState } from '../../actions';
+import RecountPhotoView from './recount-photo';
 
 type Item = { product_id: string; name: string; code: string; qty?: number };
 
@@ -37,6 +38,11 @@ function Row({
           {shelf} · {item.code}
         </p>
       </div>
+      <RecountPhotoView
+        stocktakeId={stocktakeId}
+        locationId={locationId}
+        productId={item.product_id}
+      />
       {expiry ? (
         <form action={action} className="grid gap-2">
           <input
@@ -159,6 +165,11 @@ export default function RecountList({
             <p className="text-base font-medium leading-tight">
               {i.name} <span className="text-xs text-ink-faint">{i.code}</span>
             </p>
+            <RecountPhotoView
+              stocktakeId={stocktakeId}
+              locationId={locationId}
+              productId={i.product_id}
+            />
             <input
               name={`qty:${i.product_id}`}
               defaultValue={String(i.qty ?? 0)}

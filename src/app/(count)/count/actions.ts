@@ -1730,3 +1730,78 @@ export async function reopenShelf(stocktakeId: string, locationId: string): Prom
   revalidatePath(`/count/${stocktakeId}`);
   redirect(`/count/${stocktakeId}/${locationId}`, RedirectType.replace);
 }
+
+/** A photo for a recount row: where to look, and the product's place on it. */
+export type RecountPhoto = {
+  url: string;
+  /** The product's frame on the photo, as fractions (0–1); none when unmarked. */
+  box: { x0: number; y0: number; x1: number; y1: number } | null;
+  source: 'shelf' | 'product';
+};
+
+/**
+ * The picture shown beside a product to recount (Giorgi, 25.11): the last AI
+ * check's photo of THIS shelf with the product framed where it was seen; if
+ * the shelf has no such photo, the product's own picture. Read through the
+ * user's own session, so row-level security keeps every company to its own.
+ */
+export async function recountPhoto(
+  stocktakeId: string,
+  locationId: string,
+  productId: string,
+): Promise<RecountPhoto | null> {
+  await requireSession();
+  const supabase = await createClient();
+  const { data: ai } = await supabase
+    .from('shelf_ai_checks')
+    .select('result')
+    .eq('stocktake_id', stocktakeId)
+    .eq('location_id', locationId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle<{
+      result: {
+        paths?: (string | null)[];
+        items?: {
+          product_id?: string;
+          boxes?: { image: number; x0: number; y0: number; x1: number; y1: number }[];
+        }[];
+      };
+    }>();
+  const paths = ai?.result?.paths ?? [];
+  if (paths.length) {
+    const item = (ai?.result?.items ?? []).find((i) => i.product_id === productId);
+    // The largest frame of the product is the clearest view of it.
+    const box = [...(item?.boxes ?? [])]
+      .filter((b) => paths[b.image])
+      .sort((a, b) => (b.x1 - b.x0) * (b.y1 - b.y0) - (a.x1 - a.x0) * (a.y1 - a.y0))[0];
+    const path = box ? paths[box.image] : paths.find((p) => p && !p.endsWith('.poster.jpg'));
+    if (path) {
+      const { data } = await supabase.storage
+        .from('stocktake-media')
+        .createSignedUrl(path, 60 * 30);
+      if (data?.signedUrl)
+        return {
+          url: data.signedUrl,
+          box: box ? { x0: box.x0, y0: box.y0, x1: box.x1, y1: box.y1 } : null,
+          source: 'shelf',
+        };
+    }
+  }
+  const own = await productPhoto(productId).catch(() => null);
+  if (own) return { url: own, box: null, source: 'product' };
+  // A counter may not read the AI checks (managers only): the shelf's own
+  // latest photo still shows where to look.
+  const { data: media } = await supabase
+    .from('stocktake_media')
+    .select('path, poster_path, kind')
+    .eq('stocktake_id', stocktakeId)
+    .eq('location_id', locationId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle<{ path: string; poster_path: string | null; kind: string }>();
+  const still = media ? (media.kind === 'photo' ? media.path : media.poster_path) : null;
+  if (!still) return null;
+  const { data } = await supabase.storage.from('stocktake-media').createSignedUrl(still, 60 * 30);
+  return data?.signedUrl ? { url: data.signedUrl, box: null, source: 'shelf' } : null;
+}
