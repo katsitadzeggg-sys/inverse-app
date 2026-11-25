@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import type { aiCheckShelf, AiResult } from '../../../ai-actions';
 import ShelfHud from './shelf-hud';
 
-/** A few frames cut from a video in the browser (JPEG data URLs, long side ≤ 1024 px). */
 /**
  * Runs the shelf check through /api/ai-check, not as a server action, so the
  * page's other buttons (closing the shelf) do not wait for it.
@@ -25,6 +24,14 @@ export async function requestAiCheck(
   return res.json();
 }
 
+/**
+ * A few frames cut from a video in the browser (JPEG data URLs, long side ≤
+ * 1024 px). iPhone Safari draws a black frame from a video it has not
+ * started decoding, or right after a seek before the frame is painted: the
+ * video is played and paused once first, each seek waits for the painted
+ * frame, and a frame that is still black is tried again a little later or
+ * left out (25.11: "images 6–9 are black").
+ */
 export async function videoFrames(url: string, count: number): Promise<string[]> {
   const v = document.createElement('video');
   v.crossOrigin = 'anonymous';
@@ -33,27 +40,64 @@ export async function videoFrames(url: string, count: number): Promise<string[]>
   v.preload = 'auto';
   v.src = url;
   await new Promise<void>((ok, fail) => {
-    v.onloadedmetadata = () => ok();
+    v.onloadeddata = () => ok();
     v.onerror = () => fail(new Error('video'));
     setTimeout(() => fail(new Error('timeout')), 20000);
   });
+  try {
+    await v.play();
+    v.pause();
+  } catch {
+    // Autoplay refused: seeking still works on most browsers.
+  }
   const d = Number.isFinite(v.duration) && v.duration > 0 ? v.duration : 1;
   const k = Math.min(1, 1024 / Math.max(v.videoWidth || 1024, v.videoHeight || 1024));
   const c = document.createElement('canvas');
   c.width = Math.round((v.videoWidth || 1024) * k);
   c.height = Math.round((v.videoHeight || 768) * k);
-  const ctx = c.getContext('2d')!;
+  const ctx = c.getContext('2d', { willReadFrequently: true })!;
+  const painted = () =>
+    new Promise<void>((ok) => {
+      const rvfc = (
+        v as HTMLVideoElement & {
+          requestVideoFrameCallback?: (cb: () => void) => number;
+        }
+      ).requestVideoFrameCallback;
+      if (rvfc) rvfc.call(v, () => ok());
+      setTimeout(ok, 250);
+    });
+  const seek = (t: number) =>
+    new Promise<void>((ok) => {
+      v.onseeked = () => ok();
+      v.currentTime = Math.min(Math.max(0, t), Math.max(0, d - 0.05));
+      setTimeout(ok, 4000);
+    });
+  // Mean brightness of a frame, from a 16 × 16 sample.
+  const dark = () => {
+    const s = document.createElement('canvas');
+    s.width = s.height = 16;
+    const sc = s.getContext('2d', { willReadFrequently: true })!;
+    sc.drawImage(c, 0, 0, 16, 16);
+    const px = sc.getImageData(0, 0, 16, 16).data;
+    let sum = 0;
+    for (let i = 0; i < px.length; i += 4) sum += px[i] + px[i + 1] + px[i + 2];
+    return sum / (px.length / 4) / 3 < 10;
+  };
   const out: string[] = [];
   for (let i = 0; i < count; i++) {
     const t = (d * (i + 0.5)) / count;
-    await new Promise<void>((ok) => {
-      v.onseeked = () => ok();
-      v.currentTime = t;
-      setTimeout(ok, 4000);
-    });
-    ctx.drawImage(v, 0, 0, c.width, c.height);
-    out.push(c.toDataURL('image/jpeg', 0.7));
+    for (const offset of [0, 0.35, -0.35]) {
+      await seek(t + offset);
+      await painted();
+      ctx.drawImage(v, 0, 0, c.width, c.height);
+      if (!dark()) {
+        out.push(c.toDataURL('image/jpeg', 0.7));
+        break;
+      }
+    }
   }
+  v.removeAttribute('src');
+  v.load();
   return out;
 }
 

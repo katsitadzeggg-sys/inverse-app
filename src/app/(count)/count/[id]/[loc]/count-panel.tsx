@@ -24,6 +24,7 @@ import { isOffline, keepCatalog, pendingEntries, queueEntry, storedCatalog } fro
 import ComboInput from '@/components/combo-input';
 import SerialField from './serial-field';
 import ExistingPicker from './existing-picker';
+import NotePresets, { NEW_PRODUCT_NOTES } from './note-presets';
 import { scanFeedback } from '@/lib/haptic';
 import { createClient } from '@/lib/supabase/client';
 
@@ -108,6 +109,7 @@ export default function CountPanel({
   const [newVariant, setNewVariant] = useState('');
   const [newUnit, setNewUnit] = useState('ცალი');
   const [newSerial, setNewSerial] = useState('');
+  const [serialOpen, setSerialOpen] = useState(false);
   const [newGroup, setNewGroup] = useState('');
   const [newNote, setNewNote] = useState('');
   // New product's photo (required): taken with the camera, uploaded on Next.
@@ -437,6 +439,7 @@ export default function CountPanel({
     setNewName(looksLikeCode ? '' : text);
     setNewVariant('');
     setNewSerial('');
+    setSerialOpen(false);
     setNewNote('');
     setNewPhotos([]);
     setNewUnit('ცალი');
@@ -635,7 +638,11 @@ export default function CountPanel({
         newName: product ? null : newName,
         newUnit: product ? null : newOpen ? newUnit : null,
         newVariant: product ? null : newOpen ? newVariant : null,
-        newSerial: product ? null : newOpen ? newSerial : null,
+        newSerial: product
+          ? null
+          : newOpen && newSerial.trim() && newSerial.trim() !== newCode.trim()
+            ? newSerial
+            : null,
         newGroup: product ? null : newOpen ? newGroup : null,
         newNote: product ? null : newOpen ? newNote : null,
         quantity: total,
@@ -1014,6 +1021,7 @@ export default function CountPanel({
                 <ExistingPicker
                   key={newCode}
                   stocktakeId={stocktakeId}
+                  locationId={locationId}
                   code={newCode}
                   onPick={(p) => {
                     const code = newCode.trim();
@@ -1127,10 +1135,27 @@ export default function CountPanel({
                     className={`${inputClass} py-4 text-lg`}
                   />
                 </label>
-                <div className="grid gap-1 text-sm text-ink-soft">
-                  სერიული ნომერი
-                  <SerialField value={newSerial} onChange={setNewSerial} ocr={false} />
-                </div>
+                {/* A serial number is rare in stock: kept behind a button, so a
+                    scan meant for the barcode does not land in it (25.11). */}
+                {serialOpen || newSerial ? (
+                  <div className="grid gap-1 text-sm text-ink-soft">
+                    სერიული ნომერი
+                    <SerialField value={newSerial} onChange={setNewSerial} ocr={false} />
+                    {newSerial.trim() && newSerial.trim() === newCode.trim() && (
+                      <p className="text-xs text-mismatch">
+                        სერიული ნომერი შტრიხკოდს ემთხვევა — ეს ალბათ შეცდომაა.
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setSerialOpen(true)}
+                    className="w-fit text-sm text-ink-soft underline"
+                  >
+                    + სერიული ნომერი
+                  </button>
+                )}
                 <div className="grid gap-1 text-sm text-ink-soft">
                   ჯგუფი
                   <ComboInput
@@ -1143,6 +1168,7 @@ export default function CountPanel({
                 </div>
                 <label className="grid gap-1 text-sm text-ink-soft">
                   კომენტარი
+                  <NotePresets options={NEW_PRODUCT_NOTES} value={newNote} onChange={setNewNote} />
                   <textarea
                     value={newNote}
                     onChange={(e) => setNewNote(e.target.value)}

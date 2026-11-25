@@ -4,9 +4,14 @@ import { useEffect, useRef, useState } from 'react';
 import type { AiWarning } from '../../../ai-actions';
 import { requestAiCheck, videoFrames } from './ai-check';
 
+/** Seconds with no new photo or video before the automatic check runs. */
+const QUIET_MS = 30000;
+/** Automatic checks per shelf at most; "შეამოწმე" can always run another. */
+const MAX_RUNS = 2;
+
 /**
- * The counter's automatic photo check (company switch on): a few seconds
- * after the last photo / video of the closed shelf, the photos are checked in
+ * The counter's automatic photo check (company switch on): 30 seconds
+ * after the last photo / video (a new shot restarts the wait) of the closed shelf, the photos are checked in
  * the background — only right after shooting (the newest shot under 10
  * minutes old). Opening an old shelf again does not run (and pay for) it
  * again; "შეამოწმე" does that by hand. The counter hears only about counted products the photos
@@ -39,15 +44,19 @@ export default function AutoCheck({
     if (!media || !lastShotAt) return;
     if (Date.now() - new Date(lastShotAt).getTime() > 10 * 60 * 1000) return;
     const key = `ai-auto:${stocktakeId}:${locationId}:${media}`;
-    // Once per set of shots (a new photo starts a new check).
+    const runsKey = `ai-auto-runs:${stocktakeId}:${locationId}`;
+    // Once per set of shots, and at most twice per shelf: a check paid for
+    // after every single photo cost 16 runs on 4 shelves (25.11).
     try {
       if (sessionStorage.getItem(key)) return;
+      if (Number(sessionStorage.getItem(runsKey) ?? 0) >= MAX_RUNS) return;
     } catch {}
     const t = setTimeout(async () => {
       if (ran.current === key) return;
       ran.current = key;
       try {
         sessionStorage.setItem(key, '1');
+        sessionStorage.setItem(runsKey, String(Number(sessionStorage.getItem(runsKey) ?? 0) + 1));
       } catch {}
       setState({ s: 'busy' });
       const frames: string[] = [];
@@ -60,7 +69,7 @@ export default function AutoCheck({
         (e) => ({ error: String(e).slice(0, 150), warnings: undefined }),
       );
       setState(r.error ? { s: 'error', msg: r.error } : { s: 'done', warnings: r.warnings ?? [] });
-    }, 6000);
+    }, QUIET_MS);
     return () => clearTimeout(t);
   }, [media, stocktakeId, locationId, videos, lastShotAt]);
 

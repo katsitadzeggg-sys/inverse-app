@@ -6,8 +6,10 @@ import {
   findProducts,
   linkBarcode,
   sameMakerProducts,
+  shelfCandidates,
   type ProductHit,
   type SameMaker,
+  type ShelfCandidate,
 } from '../../actions';
 
 const num = (v: number) => v.toLocaleString('ka-GE', { maximumFractionDigits: 3 });
@@ -20,14 +22,17 @@ const num = (v: number) => v.toLocaleString('ka-GE', { maximumFractionDigits: 3 
  */
 export default function ExistingPicker({
   stocktakeId,
+  locationId,
   code,
   onPick,
 }: {
   stocktakeId: string;
+  locationId: string;
   code: string;
   onPick: (p: ProductHit) => void;
 }) {
   const [maker, setMaker] = useState<SameMaker[]>([]);
+  const [shelf, setShelf] = useState<ShelfCandidate[]>([]);
   const [q, setQ] = useState('');
   const [hits, setHits] = useState<ProductHit[]>([]);
   const [err, setErr] = useState<string | null>(null);
@@ -38,10 +43,13 @@ export default function ExistingPicker({
     sameMakerProducts(stocktakeId, code)
       .then((r) => live && setMaker(r))
       .catch(() => {});
+    shelfCandidates(stocktakeId, locationId)
+      .then((r) => live && setShelf(r))
+      .catch(() => {});
     return () => {
       live = false;
     };
-  }, [stocktakeId, code]);
+  }, [stocktakeId, locationId, code]);
 
   function search(text: string) {
     setQ(text);
@@ -77,8 +85,11 @@ export default function ExistingPicker({
   );
 
   return (
-    <details className="rounded-control border border-rule-strong/70 p-2" open={maker.length > 0}>
-      <summary className="cursor-pointer text-sm font-semibold text-ink">
+    <details
+      className={`rounded-control p-2 ${maker.length + shelf.length ? 'border-2 border-review' : 'border border-rule-strong/70'}`}
+      open={maker.length + shelf.length > 0}
+    >
+      <summary className="cursor-pointer text-base font-semibold text-ink">
         🔗 ეს სიაში არსებული პროდუქტია? (სხვა ბარკოდით)
       </summary>
       <div className="mt-2 grid gap-2">
@@ -94,6 +105,16 @@ export default function ExistingPicker({
                 </>,
               ),
             )}
+          </>
+        )}
+        {shelf.length > 0 && (
+          <>
+            <p className="text-xs text-ink-soft">ამ თაროზე უნდა იყოს, ჯერ არ დათვლილა:</p>
+            {shelf
+              .filter((p) => !maker.some((m) => m.id === p.id))
+              .map((p) =>
+                row(p, <>{p.why === 'book' ? ' · ამ თაროს ნაშთშია' : ' · წინა აღწერაში აქ იყო'}</>),
+              )}
           </>
         )}
         <input

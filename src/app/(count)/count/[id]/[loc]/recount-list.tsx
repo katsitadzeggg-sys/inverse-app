@@ -170,6 +170,10 @@ export default function RecountList({
               locationId={locationId}
               productId={i.product_id}
             />
+            {/* The field starts from what was entered before: say so (25.11). */}
+            <p className="text-sm text-ink-soft">
+              ადრე ჩაწერე: <b className="text-ink">{i.qty ?? 0}</b> — თუ სხვაა, შეცვალე
+            </p>
             <input
               name={`qty:${i.product_id}`}
               defaultValue={String(i.qty ?? 0)}

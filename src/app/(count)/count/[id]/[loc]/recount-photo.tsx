@@ -100,9 +100,7 @@ export default function RecountPhotoView({
       <figcaption className="text-xs text-ink-faint">
         {photo.source === 'product'
           ? 'პროდუქტის ფოტო'
-          : box
-            ? 'აქ ნახა AI-მ — თაროს ფოტო (შეეხე სრულად სანახავად)'
-            : 'თაროს ფოტო — AI-მ ეს პროდუქტი ვერ იპოვა'}
+          : 'აქ ნახა AI-მ — თაროს ფოტო (შეეხე სრულად სანახავად)'}
       </figcaption>
     </figure>
   );

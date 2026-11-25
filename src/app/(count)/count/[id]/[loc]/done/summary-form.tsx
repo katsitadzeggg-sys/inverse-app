@@ -1,8 +1,9 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import { inputClass } from '@/components/ui';
 import { saveZoneNote, type FormState } from '../../../actions';
+import NotePresets, { SHELF_NOTES } from '../note-presets';
 
 const EMPTY: FormState = {};
 
@@ -22,11 +23,14 @@ export default function ShelfSummaryForm({
     saveZoneNote.bind(null, stocktakeId, locationId),
     EMPTY,
   );
+  const [text, setText] = useState(note);
   return (
     <form action={action} className="grid gap-3">
+      <NotePresets options={SHELF_NOTES} value={text} onChange={setText} />
       <textarea
         name="note"
-        defaultValue={note}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
         rows={4}
         placeholder="კომენტარი"
         className={`${inputClass} text-base`}

@@ -1775,7 +1775,9 @@ export async function recountPhoto(
     const box = [...(item?.boxes ?? [])]
       .filter((b) => paths[b.image])
       .sort((a, b) => (b.x1 - b.x0) * (b.y1 - b.y0) - (a.x1 - a.x0) * (a.y1 - a.y0))[0];
-    const path = box ? paths[box.image] : paths.find((p) => p && !p.endsWith('.poster.jpg'));
+    // Only a photo where the AI framed THIS product: a general shelf photo
+    // showed another product and misled (25.11).
+    const path = box ? paths[box.image] : null;
     if (path) {
       const { data } = await supabase.storage
         .from('stocktake-media')
@@ -1789,19 +1791,110 @@ export async function recountPhoto(
     }
   }
   const own = await productPhoto(productId).catch(() => null);
-  if (own) return { url: own, box: null, source: 'product' };
-  // A counter may not read the AI checks (managers only): the shelf's own
-  // latest photo still shows where to look.
-  const { data: media } = await supabase
-    .from('stocktake_media')
-    .select('path, poster_path, kind')
+  return own ? { url: own, box: null, source: 'product' } : null;
+}
+
+export type ShelfCandidate = ProductHit & { why: 'book' | 'before' };
+
+/**
+ * An unknown code on a shelf: products that should be on THIS shelf and are
+ * not counted here yet (Giorgi, 25.11 — "use the previous count's order").
+ * First the ones this shelf's book holds; then the ones counted on a shelf
+ * with the same code at this branch in earlier counts, in that count's order
+ * starting after the product saved here last, since shelves are counted in
+ * much the same order every time. Read through the user's session (RLS).
+ */
+export async function shelfCandidates(
+  stocktakeId: string,
+  locationId: string,
+): Promise<ShelfCandidate[]> {
+  const session = await requireSession();
+  const supabase = await createClient();
+  const cols = 'id, sku, barcode, name, variant, unit';
+  const [{ data: here }, { data: st }, { data: loc }] = await Promise.all([
+    supabase
+      .from('stocktake_entries')
+      .select('product_id, created_at')
+      .eq('stocktake_id', stocktakeId)
+      .eq('location_id', locationId)
+      .order('created_at'),
+    supabase
+      .from('stocktakes')
+      .select('branch')
+      .eq('id', stocktakeId)
+      .maybeSingle<{ branch: string | null }>(),
+    supabase.from('locations').select('code').eq('id', locationId).maybeSingle<{ code: string }>(),
+  ]);
+  const counted = new Set((here ?? []).map((e) => e.product_id as string).filter(Boolean));
+  const last = (here ?? []).at(-1)?.product_id as string | undefined;
+  const order: { id: string; why: 'book' | 'before' }[] = [];
+  const seen = new Set<string>();
+  const add = (id: string, why: 'book' | 'before') => {
+    if (!id || counted.has(id) || seen.has(id)) return;
+    seen.add(id);
+    order.push({ id, why });
+  };
+
+  // 1. This shelf's book, not counted here yet.
+  const { data: book } = await supabase
+    .from('stocktake_book')
+    .select('product_id')
     .eq('stocktake_id', stocktakeId)
     .eq('location_id', locationId)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle<{ path: string; poster_path: string | null; kind: string }>();
-  const still = media ? (media.kind === 'photo' ? media.path : media.poster_path) : null;
-  if (!still) return null;
-  const { data } = await supabase.storage.from('stocktake-media').createSignedUrl(still, 60 * 30);
-  return data?.signedUrl ? { url: data.signedUrl, box: null, source: 'shelf' } : null;
+    .limit(200);
+  for (const b of book ?? []) add(b.product_id as string, 'book');
+
+  // 2. Earlier counts at this branch, on a shelf with the same code.
+  if (loc?.code && st?.branch) {
+    const [{ data: prev }, { data: locs }] = await Promise.all([
+      supabase
+        .from('stocktakes')
+        .select('id')
+        .eq('company_id', session.company.id)
+        .eq('branch', st.branch)
+        .neq('id', stocktakeId)
+        .order('created_at', { ascending: false })
+        .limit(3),
+      supabase
+        .from('locations')
+        .select('id')
+        .eq('company_id', session.company.id)
+        .eq('code', loc.code),
+    ]);
+    const prevIds = (prev ?? []).map((p) => p.id as string);
+    const locIds = (locs ?? []).map((l) => l.id as string);
+    if (prevIds.length && locIds.length) {
+      const { data: earlier } = await supabase
+        .from('stocktake_entries')
+        .select('product_id, stocktake_id, created_at')
+        .in('stocktake_id', prevIds)
+        .in('location_id', locIds)
+        .not('product_id', 'is', null)
+        .order('created_at')
+        .limit(400);
+      // The latest earlier count of this shelf, in the order it was counted.
+      const latest = prevIds.find((id) => (earlier ?? []).some((e) => e.stocktake_id === id));
+      const seq = (earlier ?? [])
+        .filter((e) => e.stocktake_id === latest)
+        .map((e) => e.product_id as string);
+      const at = last ? seq.indexOf(last) : -1;
+      const rotated = at >= 0 ? [...seq.slice(at + 1), ...seq.slice(0, at + 1)] : seq;
+      for (const id of rotated) add(id, 'before');
+    }
+  }
+  const pick = order.slice(0, 8);
+  if (!pick.length) return [];
+  const { data: prods } = await supabase
+    .from('products')
+    .select(cols)
+    .in(
+      'id',
+      pick.map((p) => p.id),
+    )
+    .eq('active', true);
+  const byId = new Map(((prods ?? []) as ProductHit[]).map((p) => [p.id, p]));
+  return pick.flatMap((p) => {
+    const prod = byId.get(p.id);
+    return prod ? [{ ...prod, why: p.why }] : [];
+  });
 }
