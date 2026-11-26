@@ -32,6 +32,11 @@ const MOD: [string, string][] = [
   ['expiry', '⏳ ვადიანი'],
   ['assets', '🏷 ძირ. საშ.'],
 ];
+const MOD_TEXT: Record<string, string> = {
+  stock: 'მარაგები',
+  expiry: 'ვადიანი',
+  assets: 'ძირითადი საშუალებები',
+};
 const STATE: Record<TeamRow['state'], [string, string]> = {
   member: ['აქტიური', 'bg-[#e3f4ea] text-[#155c39]'],
   invite: ['მოლოდინში', 'bg-[#fdf3dc] text-[#8a5a00]'],
@@ -202,12 +207,25 @@ export default function TeamGrid({ rows, owner }: { rows: TeamRow[]; owner: bool
         field: 'role',
         width: 200,
         cellRenderer: RoleCell,
+        valueFormatter: (p) => ROLE[p.value as string] ?? (p.value as string),
         filterValueGetter: (p) => ROLE[p.data?.role ?? ''] ?? '',
       },
       {
         headerName: 'მოდულები და უფლებები',
         colId: 'rights',
         width: 380,
+        // For the CSV file: the ticked rights in words.
+        valueGetter: (p) => {
+          const d = p.data;
+          if (!d || d.state !== 'member' || d.role !== 'member') return '';
+          return [
+            ...MOD.filter(([k]) => d.modules.includes(k)).map(([k]) => MOD_TEXT[k]),
+            d.canOpen ? 'გახსნა' : '',
+            d.canSeeBook ? 'ნაშთის ხედვა' : '',
+          ]
+            .filter(Boolean)
+            .join(', ');
+        },
         sortable: false,
         filter: false,
         cellRenderer: RightsCell,
@@ -216,6 +234,7 @@ export default function TeamGrid({ rows, owner }: { rows: TeamRow[]; owner: bool
         headerName: 'სტატუსი',
         field: 'state',
         width: 170,
+        valueFormatter: (p) => STATE[(p.value as TeamRow['state']) ?? 'member'][0],
         filterValueGetter: (p) => STATE[p.data?.state ?? 'member'][0],
         cellRenderer: (p: ICellRendererParams<TeamRow>) => {
           const [t, c] = STATE[(p.value as TeamRow['state']) ?? 'member'];
