@@ -584,7 +584,11 @@ export async function addEntry(
   });
   if (error)
     return {
-      error: error.message.includes('closed') ? 'ინვენტარიზაცია დახურულია.' : error.message,
+      error: error.message.includes('closed')
+        ? 'ინვენტარიზაცია დახურულია.'
+        : error.message.includes('frozen')
+          ? 'ეს პროდუქტი ამ თაროზე გაყინულია — გადათვლის შემდეგაც არ დაემთხვა. შეცვლა მენეჯერს შეუძლია.'
+          : error.message,
     };
   revalidatePath(`/count/${stocktakeId}/${locationId}`);
   return { notice: 'ჩაიწერა' };
