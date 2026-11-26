@@ -76,7 +76,7 @@ export default async function ManageLayout({ children }: LayoutProps<'/'>) {
 
         <div className="grid min-w-0 content-start gap-3 lg:gap-4">
           <header className="flex flex-wrap items-center gap-3 rounded-2xl bg-paper-sunk px-4 py-3">
-            <div id="topbar-slot" className="flex min-w-0 flex-1 flex-wrap items-center gap-2" />
+            <div id="topbar-slot" className="flex min-w-0 flex-1 flex-wrap items-center gap-3" />
             <div className="ml-auto flex items-center gap-2">
               <Bell notes={list} />
               <ProfileMenu

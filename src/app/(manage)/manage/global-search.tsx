@@ -60,7 +60,7 @@ export default function GlobalSearch() {
         onFocus={() => setOpen(true)}
         onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}
         placeholder="ძებნა: ინვენტარიზაცია, საწყობი, თანამშრომელი"
-        className="w-full rounded-full border border-rule bg-paper py-2.5 pl-10 pr-10 text-sm text-ink placeholder:text-ink-faint focus:border-accent focus:outline-none"
+        className="h-12 w-full rounded-full border border-rule bg-paper pl-10 pr-10 text-[15px] text-ink placeholder:text-ink-faint focus:border-accent focus:outline-none"
       />
       {busy && !short && (
         <span className="absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin rounded-full border-2 border-rule border-t-accent" />

@@ -532,12 +532,6 @@ export default async function ManageDashboard({ searchParams }: PageProps<'/mana
             }))}
           />
         )}
-        <Link
-          href="/manage/new"
-          className="whitespace-nowrap rounded-full bg-[#1f7a4d] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#155c39]"
-        >
-          + ახალი ინვენტარიზაცია
-        </Link>
       </TopbarSlot>
       <div className="rounded-2xl bg-paper-sunk px-5 py-4">
         <h1 className="text-3xl font-semibold tracking-tight">დეშბორდი</h1>

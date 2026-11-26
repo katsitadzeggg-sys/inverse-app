@@ -15,7 +15,7 @@ export default function StocktakePicker({
     <select
       defaultValue={current}
       onChange={(e) => router.push(`/manage?st=${e.target.value}`)}
-      className="rounded-full border border-rule bg-paper px-3 py-2 text-sm"
+      className="h-12 min-w-[14rem] flex-1 rounded-full border border-rule bg-paper px-4 text-[15px] sm:max-w-md"
       aria-label="რომელი ინვენტარიზაცია ჩანს დეშბორდზე"
       title="რომელი ინვენტარიზაცია ჩანს დეშბორდზე"
     >
