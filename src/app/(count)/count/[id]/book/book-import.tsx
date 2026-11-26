@@ -86,10 +86,18 @@ export default function BookImport({
     group: -1,
   });
   const [msg, setMsg] = useState<{ tone: 'error' | 'info'; text: string } | null>(null);
+  const [done, setDone] = useState<{
+    lines: number;
+    created: number;
+    shelves: number;
+    notice?: string;
+    warn?: string;
+  } | null>(null);
   const [pending, start] = useTransition();
 
   async function load(file: File) {
     setMsg(null);
+    setDone(null);
     let rows: string[][];
     try {
       if (/\.(xlsx|xlsm)$/i.test(file.name)) {
@@ -237,13 +245,11 @@ export default function BookImport({
 
   return (
     <div className="grid gap-4">
-      <label className="grid cursor-pointer gap-2 rounded-control border-2 border-dashed border-rule-strong p-6 text-center">
-        <span className="text-base font-semibold">⬆ 2. ფაილის ატვირთვა (Excel ან CSV)</span>
-        <span className="text-sm text-ink-faint">
-          საჭიროა: დასახელება, შტრიხკოდი, ჯგუფი, ნაშთი, თაროს ნომერი; სურვილისამებრ — მეორე
-          შტრიხკოდი, ერთეულის ფასი (საჭიროა, რომ მეტობა/დანაკლისი ლარში დაითვალოს)
-          {expiry ? ', ვარგისიანობის ვადა (ყოველ პარტიას თავისი ხაზი)' : ''}. ზომის ერთეული —
-          სურვილისამებრ (თუ არ წერია, „ცალი“)
+      <label className="grid cursor-pointer justify-items-center gap-1.5 rounded-xl border-2 border-dashed border-rule-strong px-6 py-8 text-center hover:border-[#2fbf71] hover:bg-[#2fbf71]/5">
+        <span className="text-3xl">📂</span>
+        <span className="text-base font-semibold">აირჩიე Excel ან CSV</span>
+        <span className="text-xs text-ink-faint">
+          დასახელება · შტრიხკოდი · ნაშთი · თარო · ფასი{expiry ? ' · ვადა' : ''}
         </span>
         <input
           type="file"
@@ -374,10 +380,8 @@ export default function BookImport({
                 }
                 // The same balance to the other open stocktakes of the warehouse.
                 const spread = await spreadBook(stocktakeId);
-                setMsg({
-                  tone: spread.warn ? 'error' : 'info',
-                  text: `ჩაიტვირთა ${lines} ხაზი. ახალი პროდუქტი: ${created}, ახალი თარო: ${shelves}.${spread.notice ? `\n${spread.notice}` : ''}${spread.warn ? `\n${spread.warn}` : ''}`,
-                });
+                setMsg(null);
+                setDone({ lines, created, shelves, ...spread });
               })
             }
             className="rounded-control bg-ink px-4 py-4 text-base font-semibold text-paper disabled:opacity-50"
@@ -387,6 +391,27 @@ export default function BookImport({
         </>
       )}
 
+      {done && (
+        <div className="grid gap-3 rounded-xl border border-[#2fbf71]/40 bg-[#2fbf71]/10 p-4">
+          <p className="text-base font-semibold text-[#2fbf71]">✓ ნაშთი ჩაიტვირთა</p>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            {(
+              [
+                ['პოზიცია', done.lines],
+                ['ახალი პროდუქტი', done.created],
+                ['ახალი თარო', done.shelves],
+              ] as [string, number][]
+            ).map(([k, v]) => (
+              <div key={k} className="rounded-lg bg-paper px-2 py-2">
+                <p className="text-lg font-semibold tabular-nums">{v.toLocaleString('ka-GE')}</p>
+                <p className="text-xs text-ink-faint">{k}</p>
+              </div>
+            ))}
+          </div>
+          {done.notice && <p className="text-sm text-ink-soft">{done.notice}</p>}
+          {done.warn && <p className="text-sm text-review">ℹ {done.warn}</p>}
+        </div>
+      )}
       {msg && (
         <Alert tone={msg.tone}>
           <span className="whitespace-pre-line">{msg.text}</span>

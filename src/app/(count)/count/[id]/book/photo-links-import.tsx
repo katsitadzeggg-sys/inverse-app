@@ -17,7 +17,7 @@ const cell = (c: unknown) => (c == null ? '' : String(c).trim().replace(/\.0+$/,
  */
 export default function PhotoLinksImport() {
   const [busy, setBusy] = useState<string | null>(null);
-  const [done, setDone] = useState<string | null>(null);
+  const [done, setDone] = useState<{ file: number; added: number; had: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function run(file: File) {
@@ -50,10 +50,7 @@ export default function PhotoLinksImport() {
         matched += r.matched ?? 0;
         updated += r.updated ?? 0;
       }
-      setDone(
-        `ფაილში ${rows.length} ფოტო. დაემთხვა ${matched} პროდუქტს, ფოტო დაემატა ${updated}-ს` +
-          (matched > updated ? ` (${matched - updated}-ს უკვე ჰქონდა).` : '.'),
-      );
+      setDone({ file: rows.length, added: updated, had: matched - updated });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'ვერ ჩაიტვირთა.');
     }
@@ -61,10 +58,9 @@ export default function PhotoLinksImport() {
   }
 
   return (
-    <div className="grid gap-2 rounded-control border border-rule/70 p-3 text-sm">
-      <p className="font-semibold">🖼 პროდუქტის ფოტოები ბმულებით</p>
-      <label className="w-fit cursor-pointer rounded-control border border-rule-strong px-4 py-2">
-        Excel-ის არჩევა
+    <div className="grid gap-2 text-sm">
+      <label className="w-fit cursor-pointer rounded-full border border-rule-strong px-4 py-2 font-medium hover:border-[#2fbf71]">
+        📂 ფაილი ფოტოს ბმულებით (Excel)
         <input
           type="file"
           accept=".xlsx"
@@ -78,7 +74,25 @@ export default function PhotoLinksImport() {
         />
       </label>
       {busy && <p className="text-ink-soft">{busy}</p>}
-      {done && <p className="text-match">{done}</p>}
+      {done && (
+        <div className="grid gap-2 rounded-xl border border-[#2fbf71]/40 bg-[#2fbf71]/10 p-4">
+          <p className="text-base font-semibold text-[#2fbf71]">✓ ფოტოები ჩაიტვირთა</p>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            {(
+              [
+                ['დაემატა', done.added],
+                ['უკვე ჰქონდა', done.had],
+                ['ფაილში', done.file],
+              ] as [string, number][]
+            ).map(([k, v]) => (
+              <div key={k} className="rounded-lg bg-paper px-2 py-2">
+                <p className="text-lg font-semibold tabular-nums">{v.toLocaleString('ka-GE')}</p>
+                <p className="text-xs text-ink-faint">{k}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       {error && <Alert>{error}</Alert>}
     </div>
   );

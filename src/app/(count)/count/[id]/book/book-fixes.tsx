@@ -24,17 +24,12 @@ export default function BookFixes({
   const [msg, setMsg] = useState<{ error?: string; notice?: string } | null>(null);
   const [pending, start] = useTransition();
   if (!hasBook && !badUnits && !msg) return null;
+  const problem = !!shelfMismatch || badUnits > 0;
   return (
-    <div className="grid gap-2 rounded-control border border-[#d64545]/30 bg-[#d64545]/5 p-4 text-sm">
-      <p className="font-semibold">🔧 არასწორი ფაილი ჩაიტვირთა?</p>
+    <div
+      className={`grid gap-2 text-sm ${problem ? 'rounded-xl border border-[#d64545]/30 bg-[#d64545]/5 p-4' : ''}`}
+    >
       {shelfMismatch && <p className="font-semibold text-mismatch">⚠ {shelfMismatch}</p>}
-      <ul className="grid list-disc gap-1 pl-5 text-ink-soft">
-        <li>
-          უბრალოდ ატვირთე სწორი ფაილი — ძველ ნაშთს ჩაანაცვლებს (ამავე საწყობის ღია
-          ინვენტარიზაციებშიც). დათვლილი რაოდენობები ხელუხლებელი რჩება.
-        </li>
-        <li>ან ჯერ წაშალე ჩატვირთული ნაშთი და მერე ატვირთე.</li>
-      </ul>
       <div className="flex flex-wrap items-center gap-2">
         {hasBook &&
           (ask ? (
@@ -61,9 +56,9 @@ export default function BookFixes({
             <button
               type="button"
               onClick={() => setAsk(true)}
-              className="rounded-full border border-[#d64545]/50 px-3 py-1 font-medium text-[#d64545]"
+              className="text-xs text-ink-faint underline decoration-dotted hover:text-[#d64545]"
             >
-              🗑 ნაშთის წაშლა
+              🗑 ჩატვირთული ნაშთის წაშლა
             </button>
           ))}
         {shelfMismatch && (

@@ -1080,11 +1080,9 @@ export async function spreadBook(stocktakeId: string): Promise<{ notice?: string
   const stale = rows.filter((r) => r.stale).map((r) => r.number);
   return {
     notice:
-      others > 0
-        ? `იგივე ნაშთი განახლდა ამ საწყობის კიდევ ${others} ღია ინვენტარიზაციაში.`
-        : undefined,
+      others > 0 ? `იგივე ნაშთი მიეცა ამ საწყობის კიდევ ${others} ღია ინვენტარიზაციას.` : undefined,
     warn: stale.length
-      ? `⚠ ღიაა და წინა დღეებში დათვლილი აქვს: ${stale.join(', ')} — მათი დათვლა ახლა დღევანდელ ნაშთს ედარება. დათვლილი დღის ბოლოს დახურე.`
+      ? `${stale.join(', ')}-ში წინა დღეებში დათვლილი თაროებია — ახლა ახალ ნაშთს შეედარება.`
       : undefined,
   };
 }
