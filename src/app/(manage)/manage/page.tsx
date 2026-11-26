@@ -5,6 +5,8 @@ import { Card, Stat } from '@/components/ui';
 import type { Stocktake } from '@/types/database';
 import { stockActData } from '@/lib/stock-act';
 import GlobalSearch from './global-search';
+import StocktakePicker from './stocktake-picker';
+import TopbarSlot from '@/components/topbar-slot';
 import { cycleName } from '@/lib/cycles';
 import { aiCost } from '@/lib/ai-usage';
 import { VISION_MODEL } from '@/lib/verification/analyze';
@@ -518,41 +520,30 @@ export default async function ManageDashboard({ searchParams }: PageProps<'/mana
 
   return (
     <div className="grid gap-4">
-      <div className="flex flex-wrap items-end justify-between gap-4 rounded-2xl bg-paper-sunk px-5 py-5">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">დეშბორდი</h1>
-          <p className="mt-1 text-sm text-ink-faint">
-            {company.name} · {open.length} მიმდინარე · {closedCount} დასრულებული
-          </p>
-        </div>
+      <TopbarSlot>
         <GlobalSearch />
-        <div className="flex flex-wrap items-center gap-2">
-          {open.length > 1 && (
-            <form className="flex items-center gap-2">
-              <select
-                name="st"
-                defaultValue={latest?.id}
-                className="rounded-full border border-rule bg-paper px-3 py-2 text-sm"
-                aria-label="აღწერა"
-              >
-                {open.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.number} · {s.branch ?? s.client_name ?? s.name}
-                  </option>
-                ))}
-              </select>
-              <button className="rounded-full border border-rule px-3 py-2 text-sm hover:bg-paper">
-                ნახვა
-              </button>
-            </form>
-          )}
-          <Link
-            href="/manage/new"
-            className="rounded-full bg-[#1f7a4d] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#155c39]"
-          >
-            + ახალი ინვენტარიზაცია
-          </Link>
-        </div>
+        {open.length > 1 && (
+          <StocktakePicker
+            key={latest?.id}
+            current={latest?.id}
+            options={open.map((s) => ({
+              id: s.id,
+              label: `${s.number} · ${s.branch ?? s.client_name ?? s.name}`,
+            }))}
+          />
+        )}
+        <Link
+          href="/manage/new"
+          className="whitespace-nowrap rounded-full bg-[#1f7a4d] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#155c39]"
+        >
+          + ახალი ინვენტარიზაცია
+        </Link>
+      </TopbarSlot>
+      <div className="rounded-2xl bg-paper-sunk px-5 py-4">
+        <h1 className="text-3xl font-semibold tracking-tight">დეშბორდი</h1>
+        <p className="mt-1 text-sm text-ink-faint">
+          {company.name} · {open.length} მიმდინარე · {closedCount} დასრულებული
+        </p>
       </div>
 
       {/* Zone 1 — overall status */}

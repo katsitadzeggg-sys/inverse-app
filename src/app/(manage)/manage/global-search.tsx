@@ -37,7 +37,7 @@ export default function GlobalSearch() {
 
   const short = q.trim().length < 2;
   return (
-    <div ref={box} className="relative w-full sm:max-w-md">
+    <div ref={box} className="relative min-w-[14rem] flex-1 sm:max-w-md">
       <svg
         viewBox="0 0 24 24"
         width="18"
