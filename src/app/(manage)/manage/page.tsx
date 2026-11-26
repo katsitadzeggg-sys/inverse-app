@@ -11,11 +11,6 @@ import { VISION_MODEL } from '@/lib/verification/analyze';
 
 export const metadata = { title: 'მთავარი' };
 
-const KIND: Record<string, string> = {
-  stock: '📦 მარაგები',
-  expiry: '⏳ ვადიანი',
-  assets: '🏷 ძირ. საშუალებები',
-};
 const time = (v: string) =>
   new Date(v).toLocaleString('ka-GE', {
     day: '2-digit',
@@ -29,7 +24,8 @@ const time = (v: string) =>
  * The manager's dashboard: open stocktakes and their progress, today's
  * counting, open differences and the team, with shortcuts to each module.
  */
-export default async function ManageDashboard() {
+export default async function ManageDashboard({ searchParams }: PageProps<'/manage'>) {
+  const sp = await searchParams;
   const { company } = await requireSession();
   const supabase = await createClient();
 
@@ -59,7 +55,79 @@ export default async function ManageDashboard() {
   monthStart.setHours(0, 0, 0, 0);
   const weekAgo = new Date();
   weekAgo.setDate(weekAgo.getDate() - 7);
-  const latest = all.find((s) => s.kind !== 'assets');
+  // The stocktake the dashboard is about: chosen in the header (?st=), else the
+  // newest open stock count, else the newest stock count.
+  const wanted = typeof sp.st === 'string' ? sp.st : undefined;
+  const latest =
+    all.find((s) => s.id === wanted) ??
+    open.find((s) => s.kind !== 'assets') ??
+    all.find((s) => s.kind !== 'assets');
+  const in30 = new Date();
+  in30.setDate(in30.getDate() + 30);
+  const checksP = Promise.resolve(
+    openIds.length
+      ? supabase
+          .from('stocktake_checks')
+          .select('stocktake_id, location_id, status')
+          .in('stocktake_id', openIds)
+          .neq('status', 'ok')
+          .limit(5000)
+          .returns<{ stocktake_id: string; location_id: string; status: string }[]>()
+      : { data: [] as { stocktake_id: string; location_id: string; status: string }[] },
+  );
+  const bookLocP = Promise.resolve(
+    latest
+      ? supabase
+          .from('stocktake_book')
+          .select('location_id')
+          .eq('stocktake_id', latest.id)
+          .not('location_id', 'is', null)
+          .limit(20000)
+          .returns<{ location_id: string }[]>()
+      : { data: [] as { location_id: string }[] },
+  );
+  const aiSelP = Promise.resolve(
+    latest
+      ? supabase
+          .from('shelf_ai_checks')
+          .select('location_id, result, created_at')
+          .eq('stocktake_id', latest.id)
+          .order('created_at', { ascending: false })
+          .limit(2000)
+          .returns<
+            {
+              location_id: string | null;
+              result: { items?: { status: string }[] } | null;
+              created_at: string;
+            }[]
+          >()
+      : {
+          data: [] as {
+            location_id: string | null;
+            result: { items?: { status: string }[] } | null;
+            created_at: string;
+          }[],
+        },
+  );
+  const expiryP = Promise.resolve(
+    openIds.length
+      ? supabase
+          .from('stocktake_entries')
+          .select('quantity, expiry_date, products (name)')
+          .in('stocktake_id', openIds)
+          .not('expiry_date', 'is', null)
+          .lte('expiry_date', in30.toISOString().slice(0, 10))
+          .order('expiry_date')
+          .limit(500)
+          .returns<{ quantity: number; expiry_date: string; products: { name: string } | null }[]>()
+      : {
+          data: [] as {
+            quantity: number;
+            expiry_date: string;
+            products: { name: string } | null;
+          }[],
+        },
+  );
   // Everything below depends only on the list above: start it all at once
   // (one wait instead of a chain of round trips to the database).
   const cyclesP = Promise.resolve(
@@ -111,12 +179,12 @@ export default async function ManageDashboard() {
       .returns<{ id: string; full_name: string | null; email: string }[]>(),
   );
 
-  const [{ data: zones }, { data: team }] = await Promise.all([
+  const [{ data: zones }, { data: _team }] = await Promise.all([
     openIds.length
       ? supabase
           .from('stocktake_zones')
           .select(
-            'stocktake_id, status, done_at, started_at, locations (code), user_profiles (full_name, email)',
+            'stocktake_id, location_id, status, done_at, started_at, locations (code), user_profiles (full_name, email)',
           )
           .in('stocktake_id', openIds)
           .order('started_at', { ascending: false })
@@ -124,6 +192,7 @@ export default async function ManageDashboard() {
           .returns<
             {
               stocktake_id: string;
+              location_id: string;
               status: string;
               done_at: string | null;
               started_at: string;
@@ -148,9 +217,6 @@ export default async function ManageDashboard() {
     else p.counting += 1;
     progress.set(row.stocktake_id, p);
   }
-  const doneToday = z.filter((r) => r.done_at && new Date(r.done_at) >= today).length;
-  const countingNow = z.filter((r) => r.status !== 'done').length;
-  const counters = (team ?? []).filter((m) => m.role === 'member').length;
   const recent = z
     .filter((r) => r.status === 'done' && r.done_at)
     .sort((a, b) => b.done_at!.localeCompare(a.done_at!))
@@ -323,15 +389,132 @@ export default async function ManageDashboard() {
       .join('');
   const AV = ['#fde2e1', '#dcefe4', '#e3e8fd', '#fdf0d5', '#efe2fd'];
 
-  // Semicircle gauge: the done part as an arc of a 180° track.
-  const R = 80;
-  const arc = (from: number, to: number) => {
-    const p = (f: number) => {
-      const a = Math.PI * (1 - f);
-      return `${100 + R * Math.cos(a)} ${100 - R * Math.sin(a)}`;
-    };
-    return `M ${p(from)} A ${R} ${R} 0 0 1 ${p(to)}`;
+  // ---- Needs attention, shelf map, ready to close, expiry, team now ----
+  const [{ data: checks }, { data: bookLocs }, { data: aiSel }, { data: expiring }] =
+    await Promise.all([checksP, bookLocP, aiSelP, expiryP]);
+  const chk = checks ?? [];
+  const frozen = chk.filter((c) => c.status === 'frozen');
+  const recount = chk.filter((c) => c.status === 'recount');
+  const missedSkus = pools.reduce((n, p) => n + p.missed, 0);
+  const missedSum = pools.reduce((n, p) => n + p.missedSum, 0);
+  const firstWith = (rows: { stocktake_id: string }[]) => rows[0]?.stocktake_id ?? latest?.id;
+  // Shelves of the chosen stocktake: those of its balance and those counted.
+  type Cell = {
+    id: string;
+    code: string;
+    state: 'done' | 'counting' | 'recount' | 'alert' | 'todo';
   };
+  const selZones = latest ? z.filter((r) => r.stocktake_id === latest.id) : [];
+  const shelfIds = new Set<string>([
+    ...(bookLocs ?? []).map((b) => b.location_id),
+    ...selZones.map((r) => r.location_id),
+  ]);
+  const codeOf = new Map(selZones.map((r) => [r.location_id, r.locations?.code ?? '']));
+  const missingCodes = [...shelfIds].filter((id) => !codeOf.get(id));
+  if (missingCodes.length) {
+    const { data: locs } = await supabase
+      .from('locations')
+      .select('id, code')
+      .in('id', missingCodes.slice(0, 1000))
+      .returns<{ id: string; code: string }[]>();
+    for (const l of locs ?? []) codeOf.set(l.id, l.code);
+  }
+  const aiRed = new Set<string>();
+  const aiSeen = new Set<string>();
+  for (const c of aiSel ?? []) {
+    if (!c.location_id || aiSeen.has(c.location_id)) continue;
+    aiSeen.add(c.location_id);
+    if ((c.result?.items ?? []).some((it) => it.status === 'mismatch')) aiRed.add(c.location_id);
+  }
+  const selFrozen = new Set(
+    frozen.filter((c) => c.stocktake_id === latest?.id).map((c) => c.location_id),
+  );
+  const selRecount = new Set(
+    recount.filter((c) => c.stocktake_id === latest?.id).map((c) => c.location_id),
+  );
+  const zoneState = new Map(selZones.map((r) => [r.location_id, r.status]));
+  const cells: Cell[] = [...shelfIds]
+    .map((id) => {
+      const zs = zoneState.get(id);
+      const state: Cell['state'] =
+        selFrozen.has(id) || aiRed.has(id)
+          ? 'alert'
+          : selRecount.has(id)
+            ? 'recount'
+            : zs === 'done'
+              ? 'done'
+              : zs
+                ? 'counting'
+                : 'todo';
+      return { id, code: codeOf.get(id) || '—', state };
+    })
+    .sort((a, b) => a.code.localeCompare(b.code, 'ka', { numeric: true }));
+  const cellCount = (k: Cell['state']) => cells.filter((c) => c.state === k).length;
+  const CELL: Record<Cell['state'], [string, string]> = {
+    done: ['bg-[#1f7a4d]', 'დათვლილი'],
+    counting: ['bg-[#8fd3ad]', 'ითვლება'],
+    recount: ['bg-[#f59e0b]', 'გადათვლა'],
+    alert: ['bg-mismatch', 'AI / სხვაობა'],
+    todo: ['bg-[#d5dbd8]', 'დაუთვლელი'],
+  };
+  // Ready to close: every started shelf done, nothing frozen or to recount.
+  const ready = open.filter((st) => {
+    const p = progress.get(st.id);
+    return p && p.all > 0 && p.counting === 0 && !chk.some((c) => c.stocktake_id === st.id);
+  });
+  // Surpluses, by money, in the chosen stocktake.
+  const topPlus = act
+    ? act.lines
+        .filter((l) => l.diff > 0)
+        .map((l) => ({ ...l, gain: l.diff * (l.cost ?? 0) }))
+        .sort((a, b) => b.gain - a.gain || b.diff - a.diff)
+        .slice(0, 10)
+    : [];
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const expired = (expiring ?? []).filter((e) => e.expiry_date < todayIso);
+  const soon = (expiring ?? []).filter((e) => e.expiry_date >= todayIso);
+  // Team right now: who is on which shelf; lines counted today.
+  const nowOn = z
+    .filter((r) => r.status !== 'done')
+    .slice(0, 8)
+    .map((r) => ({
+      who: r.user_profiles?.full_name ?? r.user_profiles?.email ?? '—',
+      code: r.locations?.code ?? '—',
+      st: name.get(r.stocktake_id)?.number ?? '',
+      since: r.started_at,
+    }));
+  const todayLines = new Map<string, number>();
+  for (const e of recentEntries ?? []) {
+    if (!e.counter_id || new Date(e.created_at) < today) continue;
+    todayLines.set(e.counter_id, (todayLines.get(e.counter_id) ?? 0) + 1);
+  }
+  const todayTeam = [...todayLines.entries()]
+    .map(([id, n]) => ({ name: people.get(id) ?? '—', n }))
+    .sort((a, b) => b.n - a.n);
+  const closedCount = all.filter((s) => s.status !== 'open').length;
+  const net = money.plus - money.minus;
+  const attention = [
+    {
+      label: 'გაყინული სხვაობა',
+      n: frozen.length,
+      href: firstWith(frozen) ? `/manage/${firstWith(frozen)}` : '/manage/stocktakes',
+    },
+    {
+      label: 'გადასათვლელი',
+      n: recount.length,
+      href: firstWith(recount) ? `/manage/${firstWith(recount)}` : '/manage/stocktakes',
+    },
+    {
+      label: 'AI წითელი',
+      n: aiRed.size,
+      href: latest ? `/manage/${latest.id}/map` : '/manage/stocktakes',
+    },
+    {
+      label: 'დაუთვლელი თარო',
+      n: cellCount('todo'),
+      href: latest ? `/manage/${latest.id}/map?focus=missed` : '/manage/stocktakes',
+    },
+  ];
 
   return (
     <div className="grid gap-4">
@@ -339,129 +522,154 @@ export default async function ManageDashboard() {
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">დეშბორდი</h1>
           <p className="mt-1 text-sm text-ink-faint">
-            {company.name} · {open.length} მიმდინარე ინვენტარიზაცია · სულ {all.length}
+            {company.name} · {open.length} მიმდინარე · {closedCount} დასრულებული
           </p>
         </div>
         <GlobalSearch />
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {open.length > 1 && (
+            <form className="flex items-center gap-2">
+              <select
+                name="st"
+                defaultValue={latest?.id}
+                className="rounded-full border border-rule bg-paper px-3 py-2 text-sm"
+                aria-label="აღწერა"
+              >
+                {open.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.number} · {s.branch ?? s.client_name ?? s.name}
+                  </option>
+                ))}
+              </select>
+              <button className="rounded-full border border-rule px-3 py-2 text-sm hover:bg-paper">
+                ნახვა
+              </button>
+            </form>
+          )}
           <Link
             href="/manage/new"
             className="rounded-full bg-[#1f7a4d] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#155c39]"
           >
             + ახალი ინვენტარიზაცია
           </Link>
-          <Link
-            href="/manage/sites"
-            className="rounded-full border border-[#1f7a4d] px-5 py-2.5 text-sm font-semibold text-[#155c39] hover:bg-[#eef7f1]"
-          >
-            ობიექტები
-          </Link>
         </div>
       </div>
 
+      {/* Zone 1 — overall status */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat
           featured
-          href="/manage/stocktakes"
-          label="მიმდინარე"
-          value={open.length}
-          hint="ღია ინვენტარიზაცია"
-        />
-        <Stat
-          label="დღეს დაითვალა"
-          value={doneToday}
-          hint={`თარო · ახლა ითვლება: ${countingNow}`}
+          label="დათვლილია"
+          value={`${pct}%`}
+          hint={`${countedAll} / ${bookAll} პროდუქტი · ${cellCount('done')}/${cells.length} თარო`}
         />
         <Stat
           href="/manage/stocktakes?kind=stock"
-          label="სხვაობა თანხით"
-          value={gel(money.plus - money.minus)}
-          tone={money.plus - money.minus < 0 ? 'mismatch' : 'default'}
-          hint={`მეტობა ${gel(money.plus)} · დანაკლისი −${gel(money.minus)}`}
+          label="ნამდვილი სხვაობა"
+          value={gel(net)}
+          tone={net < 0 ? 'mismatch' : 'default'}
+          hint={`მეტობა +${gel(money.plus)} · დანაკლისი −${gel(money.minus)} · მხოლოდ დათვლილზე`}
         />
         <Stat
-          href="/manage/team"
-          label="გუნდი"
-          value={(team ?? []).length}
-          hint={`აღწერის თანამშრომელი: ${counters}`}
+          label="დასათვლელი დარჩა"
+          value={gel(missedSum)}
+          hint={`${missedSkus} პროდუქტი ნაშთიდან · ჯერ სხვაობა არ არის`}
+        />
+        <Stat
+          href="/manage/stocktakes"
+          label="ინვენტარიზაციები"
+          value={open.length}
+          hint={`აქტიური · დასრულებული ${closedCount}`}
         />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-4">
-        {/* Activity */}
-        <Card title="დათვლის აქტივობა · 7 დღე" className="xl:col-span-2">
-          <div className="flex h-44 items-end justify-between gap-3 px-1">
-            {days.map((d, i) => {
-              const h = Math.max(18, Math.round((d.n / peak) * 100));
-              const today = i === 6;
-              return (
-                <div key={d.key} className="flex flex-1 flex-col items-center gap-2">
-                  <div className="relative flex h-36 w-full max-w-14 items-end">
-                    {d.n > 0 && (
-                      <span className="absolute -top-1 left-1/2 -translate-x-1/2 -translate-y-full rounded-md border border-rule bg-paper-sunk px-1.5 text-[10px] tabular-nums text-ink-soft">
-                        {d.n}
-                      </span>
-                    )}
-                    <div
-                      className={`w-full rounded-full ${
-                        d.n === 0
-                          ? 'bar-hatch'
-                          : today
-                            ? 'bg-[#155c39]'
-                            : d.n === peak
-                              ? 'bg-[#1f7a4d]'
-                              : 'bg-[#5fbf8a]'
-                      }`}
-                      style={{ height: `${h}%` }}
-                      title={`${d.key}: ${d.n} ხაზი`}
-                    />
-                  </div>
+      {/* Zone 2 — needs attention */}
+      <Card title="საჭიროებს ყურადღებას">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {attention.map((a) => (
+            <Link
+              key={a.label}
+              href={a.href}
+              className={`rounded-xl border px-4 py-3 hover:bg-paper ${
+                a.n > 0 ? 'border-mismatch/40 bg-mismatch/5' : 'border-rule'
+              }`}
+            >
+              <span className="block text-xs text-ink-faint">{a.label}</span>
+              <span
+                className={`block text-2xl font-semibold tabular-nums ${a.n > 0 ? 'text-mismatch' : 'text-ink-soft'}`}
+              >
+                {a.n}
+              </span>
+            </Link>
+          ))}
+        </div>
+        {ready.length > 0 && (
+          <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-[#bfe3cd] bg-[#eef7f1] px-4 py-3 text-sm">
+            <span className="font-semibold text-[#155c39]">მზადაა დასახურად:</span>
+            {ready.map((st) => (
+              <Link
+                key={st.id}
+                href={`/manage/${st.id}`}
+                className="rounded-full border border-[#1f7a4d] px-3 py-1 text-xs font-medium text-[#155c39] hover:bg-white"
+              >
+                {st.number} · {st.branch ?? st.client_name ?? st.name} →
+              </Link>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* Zone 3 — shelf map + AI control */}
+      <div className="grid gap-4 xl:grid-cols-3">
+        <Card
+          title={`თაროები${latest ? ` · ${latest.number}` : ''}`}
+          className="xl:col-span-2"
+          action={
+            latest && (
+              <Link
+                href={`/manage/${latest.id}/map`}
+                className="rounded-full border border-ink/70 px-3 py-1 text-xs font-medium hover:bg-ink/5"
+              >
+                3D რუკა →
+              </Link>
+            )
+          }
+        >
+          {cells.length === 0 ? (
+            <p className="text-sm text-ink-faint">ამ აღწერაში თაროები ჯერ არ არის.</p>
+          ) : (
+            <>
+              <div className="flex flex-wrap gap-1">
+                {cells.map((c) => (
                   <span
-                    className={`text-xs ${today ? 'font-semibold text-ink' : 'text-ink-faint'}`}
+                    key={c.id}
+                    className={`grid h-7 min-w-11 place-items-center rounded-md px-1 text-[10px] font-medium ${CELL[c.state][0]} ${
+                      c.state === 'todo' || c.state === 'counting' ? 'text-ink-soft' : 'text-white'
+                    }`}
+                    title={`${c.code} · ${CELL[c.state][1]}`}
                   >
-                    {d.label}
+                    {c.code}
                   </span>
-                </div>
-              );
-            })}
-          </div>
+                ))}
+              </div>
+              <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-soft">
+                {(Object.keys(CELL) as Cell['state'][]).map((k) => (
+                  <span key={k} className="inline-flex items-center gap-1.5">
+                    <span className={`h-2.5 w-2.5 rounded-sm ${CELL[k][0]}`} />
+                    {CELL[k][1]} {cellCount(k)}
+                  </span>
+                ))}
+              </p>
+            </>
+          )}
         </Card>
 
-        {/* Progress gauge */}
-        <Card title="პროგრესი">
-          <div className="grid justify-items-center">
-            <svg viewBox="0 0 200 112" className="w-full max-w-60" aria-hidden>
-              <path
-                d={arc(0, 1)}
-                fill="none"
-                stroke="#e4e9e6"
-                strokeWidth="26"
-                strokeLinecap="round"
-              />
-              {pct > 0 && (
-                <path
-                  d={arc(0, Math.min(pct, 99.9) / 100)}
-                  fill="none"
-                  stroke="#1f7a4d"
-                  strokeWidth="26"
-                  strokeLinecap="round"
-                />
-              )}
-            </svg>
-            <p className="-mt-12 text-4xl font-semibold tabular-nums">{pct}%</p>
-            <p className="text-xs text-ink-faint">
-              {countedAll} / {bookAll} პროდუქტი დათვლილია
-            </p>
-          </div>
-        </Card>
-
-        {/* Photo check this month */}
-        <Card title="AI ფოტო-შემოწმება · ეს თვე">
+        <Card title="AI კონტროლი · ეს თვე">
           {aiMonth.checks === 0 ? (
             <p className="text-sm text-ink-faint">ამ თვეში ფოტოებით შემოწმება არ ყოფილა.</p>
           ) : (
             <div className="grid gap-3">
-              <p className="text-3xl font-semibold tabular-nums">
+              <p className="text-3xl font-semibold tabular-nums text-[#1e3a8a]">
                 {aiMonth.checks}
                 <span className="ml-1 text-sm font-normal text-ink-faint">თაროს შემოწმება</span>
               </p>
@@ -483,170 +691,21 @@ export default async function ManageDashboard() {
                 ))}
               </div>
               <p className="text-xs text-ink-soft">
-                <span className="text-match">✓ {aiMonth.match}</span> ·{' '}
-                <span className="text-review">? {aiMonth.unsure}</span> ·{' '}
-                <span className="text-mismatch">⚠ {aiMonth.off}</span> პოზიცია
+                <span className="text-match">✓ ემთხვევა {aiMonth.match}</span> ·{' '}
+                <span className="text-review">? ვერ ჩანს {aiMonth.unsure}</span> ·{' '}
+                <span className="text-mismatch">⚠ არ ემთხვევა {aiMonth.off}</span>
               </p>
-              <p className="text-xs text-ink-faint" title="ფასები: სავარაუდო, ტოკენების მიხედვით">
-                ხარჯი ≈ ${(aiMonth.usd + aiMonth.other).toFixed(2)}
-                {aiMonth.other > 0 && (
-                  <span>
-                    {' '}
-                    (შემოწმება ${aiMonth.usd.toFixed(2)} · ასისტენტი და ამოცნობა $
-                    {aiMonth.other.toFixed(2)})
-                  </span>
-                )}
+              <p className="text-xs text-ink-faint">
+                „არ ემთხვევა“ — სადაც AI-მ ფოტოზე სხვა რაოდენობა დაინახა, ვიდრე მთვლელმა ჩაწერა.
               </p>
             </div>
           )}
         </Card>
       </div>
 
-      {/* Warehouses of the open cycle */}
-      {pools.length > 0 && (
-        <Card title="საწყობები · მიმდინარე ციკლი">
-          <div className="grid gap-1 overflow-x-auto text-sm">
-            <div className="grid min-w-[44rem] grid-cols-[1.6fr_1.4fr_1fr_1fr_1fr_0.7fr] gap-3 px-2 pb-1 text-xs text-ink-faint">
-              <span>საწყობი</span>
-              <span>დათვლილი (ნაშთის პროდუქტებიდან)</span>
-              <span className="text-right">გამორჩენილი</span>
-              <span className="text-right">მეტობა</span>
-              <span className="text-right">დანაკლისი</span>
-              <span className="text-right">AI %</span>
-            </div>
-            {pools.map((p) => (
-              <Link
-                key={p.ids.join()}
-                href={`/manage/stocktakes/pool?kind=missed&ids=${p.ids.join(',')}`}
-                className="grid min-w-[44rem] grid-cols-[1.6fr_1.4fr_1fr_1fr_1fr_0.7fr] items-center gap-3 rounded-xl px-2 py-2 hover:bg-paper"
-              >
-                <span className="min-w-0">
-                  <b className="block truncate">{p.name}</b>
-                  <span className="block truncate text-xs text-ink-faint">
-                    {p.cycle ?? ''} · {p.ids.length} ინვ.
-                  </span>
-                </span>
-                <span className="grid gap-1">
-                  <span className="h-2 overflow-hidden rounded-full bg-[#e4e9e6]">
-                    <span className="block h-full bg-[#1f7a4d]" style={{ width: `${p.pct}%` }} />
-                  </span>
-                  <span className="text-xs tabular-nums text-ink-soft">
-                    {p.pct}% · {p.book - Math.min(p.missed, p.book)} / {p.book}
-                  </span>
-                </span>
-                <span className="text-right tabular-nums text-[#5b21b6]">
-                  {p.missed} SKU
-                  <span className="block text-xs">{gel(p.missedSum)}</span>
-                </span>
-                <span className="text-right tabular-nums text-[#2563eb]">
-                  +{p.plusQty}
-                  <span className="block text-xs">{gel(p.plusSum)}</span>
-                </span>
-                <span className="text-right tabular-nums text-mismatch">
-                  −{p.minusQty}
-                  <span className="block text-xs">−{gel(p.minusSum)}</span>
-                </span>
-                <span className="text-right tabular-nums">
-                  {p.ai ? (
-                    <span className={p.ai.matched === p.ai.checked ? 'text-match' : 'text-review'}>
-                      {p.ai.pct}%
-                      <span className="block text-xs text-ink-faint">
-                        {p.ai.matched}/{p.ai.checked}
-                      </span>
-                    </span>
-                  ) : (
-                    <span className="text-ink-faint">—</span>
-                  )}
-                </span>
-              </Link>
-            ))}
-          </div>
-          <p className="mt-2 text-xs text-ink-faint">
-            ერთი საწყობის ციკლის ყველა ინვენტარიზაცია ერთ დათვლად ითვლება და მთელ ნაშთს ედარება —
-            იგივე ციფრები, რაც ინვენტარიზაციების სიაში. ზოლზე დაჭერით გამორჩენილი პროდუქტების სია
-            იხსნება.
-          </p>
-        </Card>
-      )}
-
+      {/* Zone 4 — money and expiry */}
       <div className="grid gap-4 xl:grid-cols-3">
-        {/* Current stocktakes */}
-        <Card
-          title="მიმდინარე"
-
-          action={
-            <Link
-              href="/manage/new"
-              className="rounded-full border border-ink/70 px-3 py-1 text-xs font-medium hover:bg-ink/5"
-            >
-              + ახალი
-            </Link>
-          }
-        >
-          {open.length === 0 ? (
-            <p className="text-sm text-ink-faint">ღია ინვენტარიზაცია არ არის.</p>
-          ) : (
-            <ul className="grid gap-3">
-              {open.slice(0, 8).map((st, i) => {
-                const p = progress.get(st.id) ?? { all: 0, done: 0, counting: 0 };
-                return (
-                  <li key={st.id}>
-                    <Link
-                      href={`/manage/${st.id}`}
-                      className="flex gap-3 rounded-xl p-1 hover:bg-paper"
-                    >
-                      <span
-                        className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg text-xs font-semibold text-[#155c39]"
-                        style={{ background: AV[i % AV.length] }}
-                      >
-                        {KIND[st.kind]?.slice(0, 2)}
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block truncate text-sm font-medium">
-                          {st.branch ?? st.client_name ?? st.name}
-                        </span>
-                        <span className="block text-xs text-ink-faint">
-                          {st.number} · {p.done}/{p.all} თარო
-                        </span>
-                      </span>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </Card>
-
-        {/* Team speed */}
-        <Card title="გუნდი · სისწრაფე">
-          {speed.length === 0 ? (
-            <p className="text-sm text-ink-faint">ბოლო 7 დღეში დათვლა არ ყოფილა.</p>
-          ) : (
-            <ul className="grid gap-3">
-              {speed.slice(0, 5).map((v, i) => (
-                <li key={v.name} className="flex items-center gap-3">
-                  <span
-                    className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-xs font-semibold text-ink"
-                    style={{ background: AV[i % AV.length] }}
-                  >
-                    {initials(v.name)}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium">{v.name}</span>
-                    <span className="block text-xs text-ink-faint">{v.lines} ხაზი · 7 დღე</span>
-                  </span>
-                  <span className="rounded-md border border-[#bfe3cd] bg-[#eef7f1] px-2 py-0.5 text-xs font-medium tabular-nums text-[#155c39]">
-                    {v.perHour}/სთ
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-2">
-        <Card title={`ტოპ დანაკლისი${latest ? ` · ${latest.number}` : ''}`}>
+        <Card title={`დანაკლისი${latest ? ` · ${latest.number}` : ''}`}>
           {top.length === 0 ? (
             <p className="text-sm text-ink-faint">დანაკლისი არ არის.</p>
           ) : (
@@ -658,38 +717,263 @@ export default async function ManageDashboard() {
                   </span>
                   <span className="tabular-nums text-mismatch">{l.diff}</span>
                   <span className="w-20 text-right tabular-nums text-ink-soft">
-                    {l.loss ? gel(l.loss) : '—'}
+                    {l.loss ? `−${gel(l.loss)}` : '—'}
                   </span>
                 </li>
               ))}
             </ul>
           )}
         </Card>
-
-        <Card title="ბოლოს დათვლილი თაროები">
-          {recent.length === 0 ? (
-            <p className="text-sm text-ink-faint">ჯერ არცერთი.</p>
+        <Card title={`მეტობა${latest ? ` · ${latest.number}` : ''}`}>
+          {topPlus.length === 0 ? (
+            <p className="text-sm text-ink-faint">მეტობა არ არის.</p>
           ) : (
-            <ul className="divide-y divide-rule text-sm">
-              {recent.map((r, i) => (
-                <li key={i} className="flex items-center justify-between gap-2 py-2">
-                  <span className="min-w-0 truncate">
-                    <b>{r.locations?.code}</b> ·{' '}
-                    {r.user_profiles?.full_name ?? r.user_profiles?.email}
-                    <span className="block truncate text-xs text-ink-faint">
-                      {name.get(r.stocktake_id)?.number} ·{' '}
-                      {name.get(r.stocktake_id)?.branch ?? name.get(r.stocktake_id)?.client_name}
-                    </span>
+            <ul className="grid gap-1.5 text-sm">
+              {topPlus.map((l) => (
+                <li key={l.n} className="grid grid-cols-[1fr_auto_auto] gap-3">
+                  <span className="truncate" title={l.name}>
+                    {l.name}
                   </span>
-                  <span className="shrink-0 text-xs tabular-nums text-ink-faint">
-                    {time(r.done_at!)}
+                  <span className="tabular-nums text-[#2563eb]">+{l.diff}</span>
+                  <span className="w-20 text-right tabular-nums text-ink-soft">
+                    {l.gain ? `+${gel(l.gain)}` : '—'}
                   </span>
                 </li>
               ))}
+            </ul>
+          )}
+        </Card>
+        <Card title="ვადები">
+          {expired.length + soon.length === 0 ? (
+            <p className="text-sm text-ink-faint">30 დღეში ვადაგასული პროდუქტი არ ჩაწერილა.</p>
+          ) : (
+            <div className="grid gap-3 text-sm">
+              <p>
+                <span className="font-semibold text-mismatch">{expired.length}</span> ვადაგასული ·{' '}
+                <span className="font-semibold text-review">{soon.length}</span> 30 დღეში
+              </p>
+              <ul className="grid gap-1.5">
+                {[...expired, ...soon].slice(0, 8).map((e, i) => (
+                  <li key={i} className="grid grid-cols-[1fr_auto_auto] gap-3">
+                    <span className="truncate">{e.products?.name ?? '—'}</span>
+                    <span className="tabular-nums text-ink-soft">{e.quantity}</span>
+                    <span
+                      className={`tabular-nums ${e.expiry_date < todayIso ? 'text-mismatch' : 'text-review'}`}
+                    >
+                      {e.expiry_date.slice(5).split('-').reverse().join('.')}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* Zone 5 — team now */}
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Card title="ახლა ითვლება">
+          {nowOn.length === 0 ? (
+            <p className="text-sm text-ink-faint">ამ წუთას არავინ ითვლის.</p>
+          ) : (
+            <ul className="divide-y divide-rule text-sm">
+              {nowOn.map((r, i) => (
+                <li key={i} className="flex items-center justify-between gap-2 py-2">
+                  <span className="min-w-0 truncate">
+                    <b>{r.who}</b> · თარო {r.code}
+                    <span className="block text-xs text-ink-faint">{r.st}</span>
+                  </span>
+                  <span className="shrink-0 text-xs tabular-nums text-ink-faint">
+                    {time(r.since)}-დან
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+        <Card title="გუნდი · დღეს და სისწრაფე">
+          {todayTeam.length === 0 && speed.length === 0 ? (
+            <p className="text-sm text-ink-faint">ბოლო 7 დღეში დათვლა არ ყოფილა.</p>
+          ) : (
+            <ul className="grid gap-3">
+              {(todayTeam.length ? todayTeam : speed.map((v) => ({ name: v.name, n: 0 })))
+                .slice(0, 6)
+                .map((v, i) => {
+                  const sp7 = speed.find((x) => x.name === v.name);
+                  return (
+                    <li key={v.name} className="flex items-center gap-3">
+                      <span
+                        className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-xs font-semibold text-ink"
+                        style={{ background: AV[i % AV.length] }}
+                      >
+                        {initials(v.name)}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">{v.name}</span>
+                        <span className="block text-xs text-ink-faint">
+                          დღეს {v.n} ხაზი{sp7 ? ` · 7 დღეში ${sp7.lines}` : ''}
+                        </span>
+                      </span>
+                      {sp7 && (
+                        <span className="rounded-md border border-[#bfe3cd] bg-[#eef7f1] px-2 py-0.5 text-xs font-medium tabular-nums text-[#155c39]">
+                          {sp7.perHour}/სთ
+                        </span>
+                      )}
+                    </li>
+                  );
+                })}
             </ul>
           )}
         </Card>
       </div>
+
+      {/* Details — folded */}
+      <details className="rounded-2xl border border-rule/70 bg-paper-sunk">
+        <summary className="cursor-pointer px-5 py-4 text-base font-semibold">
+          დეტალები · აქტივობა, საწყობები, ბოლო თაროები, AI ხარჯი
+        </summary>
+        <div className="grid gap-4 px-5 pb-5">
+          <div className="grid gap-4 xl:grid-cols-2">
+            <Card title="დათვლის აქტივობა · 7 დღე">
+              <div className="flex h-40 items-end justify-between gap-3 px-1">
+                {days.map((d, i) => {
+                  const h = Math.max(18, Math.round((d.n / peak) * 100));
+                  const isToday = i === 6;
+                  return (
+                    <div key={d.key} className="flex flex-1 flex-col items-center gap-2">
+                      <div className="relative flex h-32 w-full max-w-14 items-end">
+                        {d.n > 0 && (
+                          <span className="absolute -top-1 left-1/2 -translate-x-1/2 -translate-y-full rounded-md border border-rule bg-paper-sunk px-1.5 text-[10px] tabular-nums text-ink-soft">
+                            {d.n}
+                          </span>
+                        )}
+                        <div
+                          className={`w-full rounded-full ${
+                            d.n === 0
+                              ? 'bar-hatch'
+                              : isToday
+                                ? 'bg-[#155c39]'
+                                : d.n === peak
+                                  ? 'bg-[#1f7a4d]'
+                                  : 'bg-[#5fbf8a]'
+                          }`}
+                          style={{ height: `${h}%` }}
+                          title={`${d.key}: ${d.n} ხაზი`}
+                        />
+                      </div>
+                      <span
+                        className={`text-xs ${isToday ? 'font-semibold text-ink' : 'text-ink-faint'}`}
+                      >
+                        {d.label}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+            <Card title="ბოლოს დათვლილი თაროები">
+              {recent.length === 0 ? (
+                <p className="text-sm text-ink-faint">ჯერ არცერთი.</p>
+              ) : (
+                <ul className="divide-y divide-rule text-sm">
+                  {recent.map((r, i) => (
+                    <li key={i} className="flex items-center justify-between gap-2 py-2">
+                      <span className="min-w-0 truncate">
+                        <b>{r.locations?.code}</b> ·{' '}
+                        {r.user_profiles?.full_name ?? r.user_profiles?.email}
+                        <span className="block truncate text-xs text-ink-faint">
+                          {name.get(r.stocktake_id)?.number} ·{' '}
+                          {name.get(r.stocktake_id)?.branch ??
+                            name.get(r.stocktake_id)?.client_name}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-xs tabular-nums text-ink-faint">
+                        {time(r.done_at!)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+          </div>
+
+          {pools.length > 0 && (
+            <Card title="საწყობები · მიმდინარე ციკლი">
+              <div className="grid gap-1 overflow-x-auto text-sm">
+                <div className="grid min-w-[44rem] grid-cols-[1.6fr_1.4fr_1fr_1fr_1fr_0.7fr] gap-3 px-2 pb-1 text-xs text-ink-faint">
+                  <span>საწყობი</span>
+                  <span>დათვლილი (ნაშთის პროდუქტებიდან)</span>
+                  <span className="text-right">დასათვლელი</span>
+                  <span className="text-right">მეტობა</span>
+                  <span className="text-right">დანაკლისი</span>
+                  <span className="text-right">AI %</span>
+                </div>
+                {pools.map((p) => (
+                  <Link
+                    key={p.ids.join()}
+                    href={`/manage/stocktakes/pool?kind=missed&ids=${p.ids.join(',')}`}
+                    className="grid min-w-[44rem] grid-cols-[1.6fr_1.4fr_1fr_1fr_1fr_0.7fr] items-center gap-3 rounded-xl px-2 py-2 hover:bg-paper"
+                  >
+                    <span className="min-w-0">
+                      <b className="block truncate">{p.name}</b>
+                      <span className="block truncate text-xs text-ink-faint">
+                        {p.cycle ?? ''} · {p.ids.length} ინვ.
+                      </span>
+                    </span>
+                    <span className="grid gap-1">
+                      <span className="h-2 overflow-hidden rounded-full bg-[#e4e9e6]">
+                        <span
+                          className="block h-full bg-[#1f7a4d]"
+                          style={{ width: `${p.pct}%` }}
+                        />
+                      </span>
+                      <span className="text-xs tabular-nums text-ink-soft">
+                        {p.pct}% · {p.book - Math.min(p.missed, p.book)} / {p.book}
+                      </span>
+                    </span>
+                    <span className="text-right tabular-nums text-[#5b21b6]">
+                      {p.missed} SKU
+                      <span className="block text-xs">{gel(p.missedSum)}</span>
+                    </span>
+                    <span className="text-right tabular-nums text-[#2563eb]">
+                      +{p.plusQty}
+                      <span className="block text-xs">{gel(p.plusSum)}</span>
+                    </span>
+                    <span className="text-right tabular-nums text-mismatch">
+                      −{p.minusQty}
+                      <span className="block text-xs">−{gel(p.minusSum)}</span>
+                    </span>
+                    <span className="text-right tabular-nums">
+                      {p.ai ? (
+                        <span
+                          className={p.ai.matched === p.ai.checked ? 'text-match' : 'text-review'}
+                        >
+                          {p.ai.pct}%
+                          <span className="block text-xs text-ink-faint">
+                            {p.ai.matched}/{p.ai.checked}
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="text-ink-faint">—</span>
+                      )}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-ink-faint">
+                „დასათვლელი“ — ნაშთშია, ჯერ არავის დაუთვლია; სხვაობაში არ ითვლება. ზოლზე დაჭერით სია
+                იხსნება.
+              </p>
+            </Card>
+          )}
+
+          <p className="text-xs text-ink-faint" title="ფასები: სავარაუდო, ტოკენების მიხედვით">
+            AI ხარჯი ამ თვეში ≈ ${(aiMonth.usd + aiMonth.other).toFixed(2)}
+            {aiMonth.other > 0 &&
+              ` (შემოწმება $${aiMonth.usd.toFixed(2)} · ასისტენტი და ამოცნობა $${aiMonth.other.toFixed(2)})`}
+          </p>
+        </div>
+      </details>
     </div>
   );
 }
