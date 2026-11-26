@@ -5,7 +5,14 @@ import { inputClass } from '@/components/ui';
 import { recountAll, recountItem, type FormState } from '../../actions';
 import RecountPhotoView from './recount-photo';
 
-type Item = { product_id: string; name: string; code: string; qty?: number };
+type Item = {
+  product_id: string;
+  name: string;
+  code: string;
+  qty?: number;
+  /** Which one it was in this shelf's count (1, 2, 3…); null — not counted here. */
+  pos?: number | null;
+};
 
 const EMPTY: FormState = {};
 
@@ -33,7 +40,12 @@ function Row({
   return (
     <li className="grid gap-2 border-b border-rule/60 py-3">
       <div>
-        <p className="font-medium">{item.name}</p>
+        <p className="font-medium">
+          <span className="mr-1.5 inline-block min-w-8 rounded-md bg-ink px-1.5 py-0.5 text-center text-sm font-bold text-paper">
+            {item.pos ? `№${item.pos}` : '—'}
+          </span>
+          {item.name}
+        </p>
         <p className="text-xs text-ink-faint">
           {shelf} · {item.code}
         </p>
@@ -163,6 +175,12 @@ export default function RecountList({
         {items.map((i) => (
           <li key={i.product_id} className="grid gap-1.5">
             <p className="text-base font-medium leading-tight">
+              <span
+                className="mr-1.5 inline-block min-w-8 rounded-md bg-ink px-1.5 py-0.5 text-center text-sm font-bold text-paper"
+                title="მერამდენე დაითვალა ამ თაროზე"
+              >
+                {i.pos ? `№${i.pos}` : '—'}
+              </span>
               {i.name} <span className="text-xs text-ink-faint">{i.code}</span>
             </p>
             <RecountPhotoView

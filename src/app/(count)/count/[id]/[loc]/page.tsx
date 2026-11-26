@@ -142,6 +142,21 @@ export default async function ZonePage({ params }: PageProps<'/count/[id]/[loc]'
     >();
   // What was counted on this shelf so far: the recount field starts from it (0 if nothing).
   const counted = new Map<string, number>();
+  // The order the products were first counted on this shelf: the recount goes
+  // in the same order, each with its number (Giorgi, 27.11).
+  const order = new Map<string, number>();
+  if ((checks ?? []).length) {
+    const { data: seq } = await supabase
+      .from('stocktake_entries')
+      .select('product_id')
+      .eq('stocktake_id', id)
+      .eq('location_id', loc)
+      .not('product_id', 'is', null)
+      .order('created_at', { ascending: true })
+      .limit(5000);
+    for (const r of seq ?? [])
+      if (!order.has(r.product_id as string)) order.set(r.product_id as string, order.size + 1);
+  }
   if ((checks ?? []).length) {
     const { data: lines } = await supabase
       .from('stocktake_entries')
@@ -164,8 +179,10 @@ export default async function ZonePage({ params }: PageProps<'/count/[id]/[loc]'
       name: c.products?.name ?? '',
       code: c.products?.barcode ?? c.products?.sku ?? '',
       qty: counted.get(c.product_id) ?? 0,
+      pos: order.get(c.product_id) ?? null,
     }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+    // In counting order; never counted here (only in the book) go last.
+    .sort((a, b) => (a.pos ?? 1e9) - (b.pos ?? 1e9) || a.name.localeCompare(b.name, 'ka'));
 
   return (
     <div className="grid gap-5">
