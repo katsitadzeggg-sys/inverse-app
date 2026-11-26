@@ -198,13 +198,6 @@ export default async function CyclesPage({ searchParams }: PageProps<'/manage/cy
             </Link>
           </div>
         </div>
-        <p className="text-sm text-ink-soft">
-          ციკლი = ერთი აღწერა საწყობში (მაგ. „2026 წლის ბოლო აღწერა“). მენეჯერი ქმნის სახელით („+
-          ახალი ციკლი“ ან ახალი ინვენტარიზაციის გახსნისას); კოდი (C4) ინვენტარიზაციის ნომრის გვერდით
-          ჩანს. სტატუსი: მიმდინარე → დახურული → არქივი. მთავრდება, როცა დახურავ. ღია ციკლის ყველა
-          ინვენტარიზაცია ერთად ითვლება — გამორჩენილი და გადასამოწმებელი მხოლოდ მისია. დახურვისას
-          შედეგი ფიქსირდება, ხოლო შემდეგი ინვენტარიზაცია ახალ ციკლს იწყებს.
-        </p>
       </div>
       {warehouses.length === 0 && <p className="text-ink-soft">ჯერ არცერთი ციკლი არ არის.</p>}
       {warehouses.map((wh) => {
@@ -334,13 +327,6 @@ export default async function CyclesPage({ searchParams }: PageProps<'/manage/cy
           </section>
         );
       })}
-      <p className="text-xs text-ink-faint">
-        სიზუსტე = პროდუქციის წილი, რომლის დათვლილი ემთხვევა ნაშთს. მიმდინარე ციკლის ციფრები
-        ცოცხალია, დახურულისა — დახურვის მომენტისაა.{' '}
-        <Link href="/manage/stocktakes" className="underline">
-          ინვენტარიზაციები →
-        </Link>
-      </p>
     </div>
   );
 }
