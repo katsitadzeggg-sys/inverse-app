@@ -18,15 +18,15 @@ export type MapTile = {
 type State = MapTile['state'];
 
 const STYLE: Record<State, string> = {
-  idle: 'border-rule bg-paper-sunk text-ink-faint',
+  idle: 'border-[#e9c64d] bg-[#fdf6d8] text-ink',
   counting: 'border-review bg-review/15 text-ink',
   ok: 'border-match bg-match/15 text-ink',
   diff: 'border-mismatch bg-mismatch/15 text-ink',
 };
 const LABEL: Record<State, string> = {
-  idle: 'არ გახსნილა',
+  idle: 'დასათვლელი',
   counting: 'ითვლება',
-  ok: 'დათვლილია, ემთხვევა',
+  ok: 'დათვლილია, სწორია',
   diff: 'სხვაობაა',
 };
 

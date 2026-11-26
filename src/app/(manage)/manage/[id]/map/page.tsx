@@ -168,10 +168,6 @@ export default async function StocktakeMap({
           რუკა ·{' '}
           {whole || focus ? `${pool.key} (${pool.ids.length} ინვ.)` : (st.client_name ?? st.name)}
         </h1>
-        <p className="text-sm text-ink-soft">
-          ახლდება ყოველ 30 წამში. მოძებნე თარო ან პროდუქტი — თარო აინთება. დააჭირე თაროს — გაიხსნება
-          მისი შედეგი.
-        </p>
         <div className="mt-2 flex flex-wrap gap-2 text-sm">
           <Link href={q({ view: null })} className={tab(!view3d)}>
             ▦ ბადე
