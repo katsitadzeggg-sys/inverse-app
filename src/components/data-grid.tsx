@@ -199,6 +199,11 @@ export default function DataGrid<T extends object>({
                 grid.current?.api.exportDataAsCsv({
                   fileName: `${fileName}.csv`,
                   skipPinnedBottom: false,
+                  // Only columns that hold data: buttons (edit, delete) stay out of the file.
+                  columnKeys: grid.current.api.getAllDisplayedColumns().filter((c) => {
+                    const d = c.getColDef();
+                    return d.field != null || d.valueGetter != null;
+                  }),
                 })
               }
               className="rounded-full border border-rule-strong px-3 py-1.5 text-xs font-medium hover:bg-ink/5"

@@ -125,6 +125,8 @@ export default function SitesGrid({ rows }: { rows: SiteRow[] }) {
         headerName: 'რუკა',
         colId: 'map',
         width: 90,
+        valueGetter: (p) =>
+          p.data?.lat != null && p.data?.lng != null ? mapsLink(p.data.lat, p.data.lng) : '',
         sortable: false,
         filter: false,
         cellRenderer: (p: ICellRendererParams<SiteRow>) =>
@@ -143,6 +145,8 @@ export default function SitesGrid({ rows }: { rows: SiteRow[] }) {
         headerName: '3D საწყობი',
         colId: 'map3d',
         width: 140,
+        valueGetter: (p) =>
+          p.data?.map_id ? `${window.location.origin}/manage/${p.data.map_id}/map?view=3d` : '',
         sortable: false,
         filter: false,
         // The app's own map of this warehouse (every stocktake together).
