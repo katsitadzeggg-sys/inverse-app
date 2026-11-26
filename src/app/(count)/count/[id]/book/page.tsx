@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
 import type { Stocktake } from '@/types/database';
+import PhotoLinksImport from './photo-links-import';
 import BookImport from './book-import';
 import BookFixes from './book-fixes';
 
@@ -112,6 +113,7 @@ export default async function BookPage({ params }: PageProps<'/count/[id]/book'>
           ინვენტარიზაციაში ჩატვირთე.
         </p>
       )}
+      <PhotoLinksImport />
       <p className="text-xs text-ink-faint">
         ღია ინვენტარიზაციაში ჩატვირთული ნაშთი ავტომატურად განახლდება ამავე საწყობის სხვა ღია
         ინვენტარიზაციებშიც; დახურულები ხელუხლებელი რჩება. ნაშთი ერთი დილიდან მეორემდე თუ შეიცვალა და
