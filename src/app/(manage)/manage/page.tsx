@@ -894,10 +894,9 @@ export default async function ManageDashboard({ searchParams }: PageProps<'/mana
                   <span className="text-right">AI %</span>
                 </div>
                 {pools.map((p) => (
-                  <Link
+                  <div
                     key={p.ids.join()}
-                    href={`/manage/stocktakes/pool?kind=missed&ids=${p.ids.join(',')}`}
-                    className="grid min-w-[44rem] grid-cols-[1.6fr_1.4fr_1fr_1fr_1fr_0.7fr] items-center gap-3 rounded-xl px-2 py-2 hover:bg-paper"
+                    className="grid min-w-[44rem] grid-cols-[1.6fr_1.4fr_1fr_1fr_1fr_0.7fr] items-center gap-3 rounded-xl px-2 py-2"
                   >
                     <span className="min-w-0">
                       <b className="block truncate">{p.name}</b>
@@ -942,7 +941,7 @@ export default async function ManageDashboard({ searchParams }: PageProps<'/mana
                         <span className="text-ink-faint">—</span>
                       )}
                     </span>
-                  </Link>
+                  </div>
                 ))}
               </div>
               <p className="mt-2 text-xs text-ink-faint">
