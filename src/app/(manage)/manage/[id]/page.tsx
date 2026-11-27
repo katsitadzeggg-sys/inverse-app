@@ -259,9 +259,6 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
           <Link href={`/count/${id}/register`} className={btn}>
             📄 რეესტრი
           </Link>
-          <Link href={`/count/${id}/labels`} className={btn}>
-            🏷 ეტიკეტები
-          </Link>
         </div>
       ) : (
         <div className="flex flex-wrap gap-2">
@@ -273,9 +270,6 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
           </Link>
           <Link href={`/manage/${id}/act`} className={btn}>
             🖨 აქტი
-          </Link>
-          <Link href={`/count/${id}/labels`} className={btn}>
-            🏷 ეტიკეტები
           </Link>
           {/* The app's own map: shelves, what is left to count, what to re-check. */}
           <Link href={`/manage/${id}/map?view=3d`} className={btn}>

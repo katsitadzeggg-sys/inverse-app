@@ -18,6 +18,7 @@ const I = {
   ),
   cycle: <path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v4h-4" />,
   chat: <path d="M4 5h16v11H9l-5 4zM8 9h8M8 12h5" />,
+  tag: <path d="M3 12V4h8l10 10-8 8zM7.5 7.5h.01" />,
   phone: (
     <path d="M8 2h8a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zM11 18h2" />
   ),
@@ -84,6 +85,12 @@ export default function ManageNav({ platform, open }: { platform: boolean; open:
       label: 'ციკლები',
       icon: 'cycle',
       active: pathname.startsWith('/manage/cycles'),
+    },
+    {
+      href: '/manage/labels',
+      label: 'ეტიკეტები',
+      icon: 'tag',
+      active: pathname.startsWith('/manage/labels'),
     },
     {
       href: '/manage/assistant',
