@@ -329,13 +329,20 @@ export default function Map3D({
         return s;
       };
       // Rack letters (orange, as on the site) at the start of each rack line.
-      const seen = new Set<string>();
+      // Back-to-back racks: the front one is named at its left end, the back
+      // one at its right end, so the two letters never sit on each other.
+      const ends = new Map<string, { rack: string; z: number; min: number; max: number }>();
       for (const s of secs) {
         const key = `${s.rack}|${s.z}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        const t = sprite(s.rack, '#F5A524', '#0b1220', 0.6);
-        t.position.set(s.x - 0.9, UH + 0.5, s.z);
+        const e = ends.get(key) ?? { rack: s.rack, z: s.z, min: s.x, max: s.x };
+        e.min = Math.min(e.min, s.x);
+        e.max = Math.max(e.max, s.x);
+        ends.set(key, e);
+      }
+      for (const e of ends.values()) {
+        const back = Math.round((e.z % (2 * DEP + AISLE)) / DEP) === 1;
+        const t = sprite(e.rack, '#F5A524', '#0b1220', 0.6);
+        t.position.set(back ? e.max + 0.9 : e.min - 0.9, UH + 0.5, e.z);
         scene.add(t);
       }
       // Section numbers: a pool reused for the sections nearest the camera.
