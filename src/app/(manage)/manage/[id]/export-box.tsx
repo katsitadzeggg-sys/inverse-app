@@ -64,7 +64,7 @@ export default function ExportBox({
     'rounded-xl border border-accent bg-paper-sunk px-4 py-2 text-center text-sm font-semibold text-accent shadow-sm transition hover:bg-accent/10 active:translate-y-px disabled:opacity-60';
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <span className="text-sm text-ink-soft">⬇ ჩამოტვირთვა:</span>
+      <span className="text-sm text-ink-faint">⬇ ჩამოტვირთვა</span>
       <select
         value={shelf}
         onChange={(e) => setShelf(e.target.value)}
