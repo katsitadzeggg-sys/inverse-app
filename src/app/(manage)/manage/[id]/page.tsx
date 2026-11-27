@@ -1,5 +1,6 @@
 import { cycleCode, cycleName } from '@/lib/cycles';
 import Link from 'next/link';
+import TopbarSlot from '@/components/topbar-slot';
 import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
@@ -153,76 +154,78 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
   return (
     <div className="grid gap-3">
       {/* Header: back, name; below it number · date · cycle · address; the book switch right. */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-3 rounded-2xl bg-paper-sunk px-5 py-4">
-        <Link
-          href={`/manage/stocktakes?kind=${st.kind}`}
-          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-rule-strong text-lg text-ink hover:bg-paper"
-          aria-label="დაბრუნება"
-          title="დაბრუნება"
-        >
-          ←
-        </Link>
-        <div className="min-w-0">
-          <h1 className="text-2xl font-semibold leading-tight">
-            {st.branch ?? st.client_name ?? st.name}
-            {st.branch && st.client_name && (
-              <span className="text-base font-normal text-ink-faint"> · {st.client_name}</span>
-            )}
-          </h1>
-          <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-sm text-ink-faint">
-            <span>
-              {st.kind === 'expiry' ? '⏳' : st.kind === 'assets' ? '🏷' : '📦'} {st.number}
-            </span>
-            <span>· {new Date(st.count_date).toLocaleDateString('ka-GE')}</span>
-            {cy && (
-              <Link href="/manage/cycles" className="hover:underline">
-                · {cycleCode(cy.code)} {cycleName(cy, company.cycle_period)}
-              </Link>
-            )}
-            {(st.address || st.lat != null) &&
-              (st.lat != null && st.lng != null ? (
-                <a
-                  href={mapsLink(st.lat, st.lng)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="hover:underline"
-                >
-                  · 📍 {st.address || 'რუკაზე'}
-                </a>
-              ) : (
-                <span>· 📍 {st.address}</span>
-              ))}
-          </p>
-        </div>
-        {st.kind !== 'assets' && (
-          // Counters see the book quantity while counting (on), or count blind (off).
-          <form action={setShowBook.bind(null, id, !st.show_book)} className="ml-auto">
-            <button
-              type="submit"
-              role="switch"
-              aria-checked={st.show_book}
-              title={
-                st.show_book
-                  ? 'დააჭირე — ბრმა დათვლა'
-                  : 'დააჭირე — აღწერის თანამშრომელს ნაშთი გამოუჩნდება'
-              }
-              className="flex items-center gap-2 rounded-full border border-rule px-3 py-1.5 text-sm text-ink-soft hover:bg-paper"
-            >
-              👁 ნაშთი აღმწერს
-              <span
-                className={`relative inline-block h-5 w-9 rounded-full transition ${st.show_book ? 'bg-[#16a34a]' : 'bg-[#cbd5d0]'}`}
-              >
-                <span
-                  className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${st.show_book ? 'left-[18px]' : 'left-0.5'}`}
-                />
+      <TopbarSlot>
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-2">
+          <Link
+            href={`/manage/stocktakes?kind=${st.kind}`}
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-rule-strong text-lg text-ink hover:bg-paper"
+            aria-label="დაბრუნება"
+            title="დაბრუნება"
+          >
+            ←
+          </Link>
+          <div className="min-w-0">
+            <h1 className="text-2xl font-semibold leading-tight">
+              {st.branch ?? st.client_name ?? st.name}
+              {st.branch && st.client_name && (
+                <span className="text-base font-normal text-ink-faint"> · {st.client_name}</span>
+              )}
+            </h1>
+            <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-sm text-ink-faint">
+              <span>
+                {st.kind === 'expiry' ? '⏳' : st.kind === 'assets' ? '🏷' : '📦'} {st.number}
               </span>
-              <b className={st.show_book ? 'text-[#1f9d5c]' : 'text-ink-faint'}>
-                {st.show_book ? 'უჩანს' : 'არ უჩანს'}
-              </b>
-            </button>
-          </form>
-        )}
-      </div>
+              <span>· {new Date(st.count_date).toLocaleDateString('ka-GE')}</span>
+              {cy && (
+                <Link href="/manage/cycles" className="hover:underline">
+                  · {cycleCode(cy.code)} {cycleName(cy, company.cycle_period)}
+                </Link>
+              )}
+              {(st.address || st.lat != null) &&
+                (st.lat != null && st.lng != null ? (
+                  <a
+                    href={mapsLink(st.lat, st.lng)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="hover:underline"
+                  >
+                    · 📍 {st.address || 'რუკაზე'}
+                  </a>
+                ) : (
+                  <span>· 📍 {st.address}</span>
+                ))}
+            </p>
+          </div>
+          {st.kind !== 'assets' && (
+            // Counters see the book quantity while counting (on), or count blind (off).
+            <form action={setShowBook.bind(null, id, !st.show_book)} className="ml-auto">
+              <button
+                type="submit"
+                role="switch"
+                aria-checked={st.show_book}
+                title={
+                  st.show_book
+                    ? 'დააჭირე — ბრმა დათვლა'
+                    : 'დააჭირე — აღწერის თანამშრომელს ნაშთი გამოუჩნდება'
+                }
+                className="flex items-center gap-2 rounded-full border border-rule px-3 py-1.5 text-sm text-ink-soft hover:bg-paper"
+              >
+                👁 ნაშთი აღმწერს
+                <span
+                  className={`relative inline-block h-5 w-9 rounded-full transition ${st.show_book ? 'bg-[#16a34a]' : 'bg-[#cbd5d0]'}`}
+                >
+                  <span
+                    className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${st.show_book ? 'left-[18px]' : 'left-0.5'}`}
+                  />
+                </span>
+                <b className={st.show_book ? 'text-[#1f9d5c]' : 'text-ink-faint'}>
+                  {st.show_book ? 'უჩანს' : 'არ უჩანს'}
+                </b>
+              </button>
+            </form>
+          )}
+        </div>
+      </TopbarSlot>
 
       {st.kind === 'assets' && (
         // Fixed assets: the register figures (the list's figures are for stock).
