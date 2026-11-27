@@ -21,7 +21,15 @@ export async function setProductPhotos(
   const clean = rows
     .map((r) => ({
       url: r.url.trim(),
-      codes: [...new Set(r.codes.map((c) => c.trim()).filter((c) => c.length >= 4))],
+      // Excel drops leading zeros ("095866682606" → "95866682606"): try both forms.
+      codes: [
+        ...new Set(
+          r.codes
+            .map((c) => c.trim())
+            .filter((c) => c.length >= 4)
+            .flatMap((c) => (/^\d+$/.test(c) ? [c, c.replace(/^0+/, ''), `0${c}`] : [c])),
+        ),
+      ],
     }))
     .filter((r) => /^https?:\/\/\S+$/i.test(r.url) && r.codes.length);
   if (!clean.length) return { matched: 0, updated: 0 };
