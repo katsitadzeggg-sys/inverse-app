@@ -65,8 +65,8 @@ export default function PhotoLinksImport() {
 
   return (
     <div className="grid gap-2 text-sm">
-      <label className="w-fit cursor-pointer rounded-full border border-rule-strong px-4 py-2 font-medium hover:border-[#2fbf71]">
-        📂 ფაილი ფოტოს ბმულებით (Excel)
+      <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-rule-strong bg-paper px-4 py-3 text-base font-semibold hover:border-[#2fbf71]">
+        🖼 ფოტოების ატვირთვა (ბმულები, Excel)
         <input
           type="file"
           accept=".xlsx,.xls"

@@ -5,8 +5,10 @@ import { Alert } from '@/components/ui';
 import { clearBook, dropBookShelves, repairNumericUnits } from '../../actions';
 
 /**
- * Ways out of a wrong upload: empty the balance and load the right file, and
- * mend product units that a price column overwrote.
+ * Ways out of a wrong upload, at the bottom of the balance page: drop the
+ * balance's shelves when none matches a counted shelf, mend units a price
+ * column overwrote, and empty the balance. Each one that cannot be undone
+ * asks first.
  */
 export default function BookFixes({
   stocktakeId,
@@ -20,71 +22,99 @@ export default function BookFixes({
   /** The balance's shelves and the counted shelves have nothing in common. */
   shelfMismatch: string | null;
 }) {
-  const [ask, setAsk] = useState(false);
+  const [ask, setAsk] = useState<'clear' | 'drop' | null>(null);
   const [msg, setMsg] = useState<{ error?: string; notice?: string } | null>(null);
   const [pending, start] = useTransition();
   if (!hasBook && !badUnits && !msg) return null;
-  const problem = !!shelfMismatch || badUnits > 0;
+
+  const confirm = (text: string, yes: string, run: () => Promise<typeof msg>) => (
+    <div className="grid gap-2 rounded-xl border border-[#d64545]/30 bg-paper p-3">
+      <p>{text}</p>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() =>
+            start(async () => {
+              setMsg(await run());
+              setAsk(null);
+            })
+          }
+          className="rounded-xl bg-[#d64545] px-4 py-2 font-semibold text-white"
+        >
+          {pending ? '…' : yes}
+        </button>
+        <button
+          type="button"
+          onClick={() => setAsk(null)}
+          className="rounded-xl border border-rule-strong px-4 py-2"
+        >
+          არა
+        </button>
+      </div>
+    </div>
+  );
+
   return (
-    <div
-      className={`grid gap-2 text-sm ${problem ? 'rounded-xl border border-[#d64545]/30 bg-[#d64545]/5 p-4' : ''}`}
-    >
-      {shelfMismatch && <p className="font-semibold text-mismatch">⚠ {shelfMismatch}</p>}
-      <div className="flex flex-wrap items-center gap-2">
-        {hasBook &&
-          (ask ? (
-            <>
-              <span>ნამდვილად წავშალო ჩატვირთული ნაშთი?</span>
-              <button
-                type="button"
-                disabled={pending}
-                onClick={() =>
-                  start(async () => {
-                    setMsg(await clearBook(stocktakeId));
-                    setAsk(false);
-                  })
-                }
-                className="rounded-full bg-[#d64545] px-3 py-1 font-semibold text-white"
-              >
-                {pending ? '…' : 'კი, წაშალე'}
-              </button>
-              <button type="button" onClick={() => setAsk(false)} className="underline">
-                არა
-              </button>
-            </>
+    <section className="grid gap-3 rounded-2xl border border-rule/70 bg-paper-sunk/60 p-5 text-sm">
+      <h2 className="text-base font-semibold">ნაშთის გასწორება</h2>
+
+      {shelfMismatch && (
+        <div className="grid gap-2 rounded-xl border border-[#d64545]/30 bg-[#d64545]/5 p-4">
+          <p className="font-semibold text-mismatch">⚠ {shelfMismatch}</p>
+          {ask === 'drop' ? (
+            confirm(
+              'ნაშთის ხაზებს თაროს კოდი მოეხსნება (რაოდენობა და ფასი რჩება) და შედარება პროდუქტებით, მთელ საწყობზე მოხდება. თაროების დასაბრუნებლად ფაილი თავიდან უნდა ატვირთო.',
+              'კი, მოხსენი',
+              () => dropBookShelves(stocktakeId),
+            )
           ) : (
             <button
               type="button"
-              onClick={() => setAsk(true)}
-              className="text-xs text-ink-faint underline decoration-dotted hover:text-[#d64545]"
+              onClick={() => setAsk('drop')}
+              className="w-fit rounded-xl border border-rule-strong bg-paper px-4 py-2 font-medium"
             >
-              🗑 ჩატვირთული ნაშთის წაშლა
+              📍 თაროები ნაშთიდან მოხსნა
             </button>
-          ))}
-        {shelfMismatch && (
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() => start(async () => setMsg(await dropBookShelves(stocktakeId)))}
-            className="rounded-full bg-[#1f7a4d] px-3 py-1 font-semibold text-white"
-          >
-            📍 თაროები ნაშთიდან მოხსნა — შედარება პროდუქტებით
-          </button>
-        )}
-        {badUnits > 0 && (
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() => start(async () => setMsg(await repairNumericUnits()))}
-            className="rounded-full border border-rule-strong px-3 py-1 font-medium"
-            title="ფასის სვეტი შეცდომით ერთეულად წაიკითხა — ერთეული „ცალი“ დაუბრუნდება"
-          >
-            🔧 {badUnits} პროდუქტს ერთეულად რიცხვი აქვს — გასწორება
-          </button>
-        )}
-      </div>
+          )}
+        </div>
+      )}
+
+      {badUnits > 0 && (
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() => start(async () => setMsg(await repairNumericUnits()))}
+          className="w-fit rounded-xl border border-rule-strong bg-paper px-4 py-2 font-medium"
+          title="ფასის სვეტი შეცდომით ერთეულად წაიკითხა — ერთეული „ცალი“ დაუბრუნდება"
+        >
+          🔧 {badUnits} პროდუქტს ერთეულად რიცხვი აქვს — გასწორება
+        </button>
+      )}
+
+      {hasBook &&
+        (ask === 'clear' ? (
+          confirm('ნამდვილად წავშალო ჩატვირთული ნაშთი? დათვლილი არ წაიშლება.', 'კი, წაშალე', () =>
+            clearBook(stocktakeId),
+          )
+        ) : (
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setAsk('clear')}
+              className="rounded-xl border border-[#d64545]/40 bg-paper px-4 py-2 font-medium text-[#d64545]"
+            >
+              🗑 ნაშთის წაშლა
+            </button>
+            <span className="text-xs text-ink-faint">
+              მხოლოდ მაშინ, თუ ნაშთი შეცდომით ამ ინვენტარიზაციაში ჩაიტვირთა. სწორი ფაილისთვის წაშლა
+              არ გჭირდება — ახალი ატვირთვა ძველს ჩაანაცვლებს.
+            </span>
+          </div>
+        ))}
+
       {msg?.error && <Alert>{msg.error}</Alert>}
       {msg?.notice && <Alert tone="info">{msg.notice}</Alert>}
-    </div>
+    </section>
   );
 }

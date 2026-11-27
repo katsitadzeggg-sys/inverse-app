@@ -7,8 +7,9 @@ import PhotoLinksImport from './photo-links-import';
 import BookImport from './book-import';
 import BookFixes from './book-fixes';
 
-export default async function BookPage({ params }: PageProps<'/count/[id]/book'>) {
+export default async function BookPage({ params, searchParams }: PageProps<'/count/[id]/book'>) {
   const { id } = await params;
+  const showList = (await searchParams).list === '1';
   const { profile } = await requireSession();
   if (profile.role !== 'owner' && profile.role !== 'admin') redirect(`/count/${id}`);
   const supabase = await createClient();
@@ -89,17 +90,25 @@ export default async function BookPage({ params }: PageProps<'/count/[id]/book'>
       })
     : null;
   const open = stocktake.status === 'open';
-  const card = 'grid gap-3 rounded-2xl border border-rule/70 bg-paper-sunk/60 p-5';
+  const card = 'grid content-start gap-3 rounded-2xl border border-rule/70 bg-paper-sunk/60 p-5';
   const tile = (label: string, v: string) => (
     <div className="min-w-24 rounded-xl bg-paper px-3 py-1.5">
       <p className="text-[11px] text-ink-faint">{label}</p>
       <p className="whitespace-nowrap text-lg font-semibold tabular-nums">{v}</p>
     </div>
   );
+  const head = (title: string, note?: string) => (
+    <div className="flex items-baseline justify-between gap-2">
+      <h2 className="text-base font-semibold">{title}</h2>
+      {note && <span className="text-xs text-ink-faint">{note}</span>}
+    </div>
+  );
+  const link = 'text-center text-sm text-[#1f7a4d] underline decoration-dotted';
+  const skus = new Set(lines.map((l) => l.products?.sku)).size;
 
   return (
     <div data-wide className="grid gap-4">
-      {/* Row 1: back, title and what is loaded now — one line on a wide screen. */}
+      {/* Row 1: back, title and what is loaded now. */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-2xl border border-rule/70 bg-paper-sunk/60 px-5 py-4">
         <Link
           href={`/manage/${id}`}
@@ -125,108 +134,96 @@ export default async function BookPage({ params }: PageProps<'/count/[id]/book'>
         ) : (
           <p className="text-sm text-ink-soft">ნაშთი ჯერ არ არის ჩატვირთული.</p>
         )}
-        <div className="ml-auto grid justify-items-end gap-1 text-xs text-ink-faint">
-          {loaded && <span>ჩაიტვირთა {loaded}</span>}
-          {open && (
-            <BookFixes
-              stocktakeId={id}
-              hasBook={count > 0}
-              badUnits={badUnits ?? 0}
-              shelfMismatch={shelfMismatch}
-            />
-          )}
-        </div>
+        {loaded && <span className="ml-auto text-xs text-ink-faint">ჩაიტვირთა {loaded}</span>}
       </div>
 
-      {/* Row 2: upload (wide) · photos and the loaded list (side). */}
-      <div className="grid items-start gap-4 lg:grid-cols-[2fr_1fr]">
-        <section className={card}>
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="text-base font-semibold">
-              {count ? 'ახალი ნაშთის ატვირთვა' : 'ნაშთის ატვირთვა'}
-              {count > 0 && open && (
-                <span className="ml-2 text-xs font-normal text-ink-faint">
-                  ძველს ჩაანაცვლებს · დათვლილი არ იცვლება
-                </span>
-              )}
-            </h2>
-            <a
-              href="/templates/nashti-shabloni.xlsx"
-              download
-              className="text-sm text-[#2fbf71] underline decoration-dotted"
-            >
-              ⬇ შაბლონი
-            </a>
-          </div>
-          {open ? (
-            <BookImport stocktakeId={id} expiry={stocktake.kind === 'expiry'} />
-          ) : (
+      {/* Row 2: three equal cards — upload · photos · the loaded list. */}
+      <div className="grid items-stretch gap-4 lg:grid-cols-3">
+        {open ? (
+          <BookImport
+            stocktakeId={id}
+            expiry={stocktake.kind === 'expiry'}
+            cardClass={card}
+            replace={count > 0}
+          >
+            {head('ნაშთი', count > 0 ? 'ძველს ჩაანაცვლებს · დათვლილი არ იცვლება' : undefined)}
+          </BookImport>
+        ) : (
+          <section className={card}>
+            {head('ნაშთი')}
             <p className="text-sm text-ink-soft">ინვენტარიზაცია დახურულია — ნაშთი აღარ იცვლება.</p>
+          </section>
+        )}
+
+        <section className={card}>
+          {head('ფოტოები', count > 0 ? `აქვს ${fmt(withPhoto)} / ${fmt(skus)}` : undefined)}
+          <PhotoLinksImport />
+          {count > 0 && withPhoto < skus && (
+            <a href={`/count/${id}/no-photos`} className={link}>
+              ⬇ ფოტოს გარეშე — {fmt(skus - withPhoto)} (Excel)
+            </a>
           )}
         </section>
 
-        <div className="grid gap-4">
-          <section className={card}>
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h2 className="text-base font-semibold">🖼 ფოტოები</h2>
-              {count > 0 && (
-                <span className="text-xs text-ink-faint">
-                  აქვს {fmt(withPhoto)} / {fmt(new Set(lines.map((l) => l.products?.sku)).size)}
-                </span>
-              )}
-            </div>
-            <PhotoLinksImport />
-            {count > 0 && withPhoto < new Set(lines.map((l) => l.products?.sku)).size && (
-              <a
-                href={`/count/${id}/no-photos`}
-                className="w-fit text-sm text-[#2fbf71] underline decoration-dotted"
-              >
-                ⬇ ფოტოს გარეშე — {fmt(new Set(lines.map((l) => l.products?.sku)).size - withPhoto)}{' '}
-                (Excel)
-              </a>
-            )}
-          </section>
-
-          {count > 0 && (
-            <details className="rounded-2xl border border-rule/70 bg-paper-sunk/60 p-5">
-              <summary className="cursor-pointer text-base font-semibold">
-                📋 ჩატვირთული სია — {fmt(count)} ხაზი, {shelves.length} თარო
-              </summary>
-              <div className="mt-3 max-h-[50vh] overflow-auto">
-                <div className="grid gap-2">
-                  {shelves.map(([shelf, rows]) => (
-                    <details
-                      key={shelf}
-                      className="rounded-control border border-rule/70 px-3 py-2"
-                    >
-                      <summary className="cursor-pointer text-sm">
-                        <b>{shelf}</b> · {rows.length} პოზიცია ·{' '}
-                        {fmt(rows.reduce((t, r) => t + Number(r.book_qty), 0))} ერთ.
-                      </summary>
-                      <table className="mt-2 w-full text-xs">
-                        <tbody>
-                          {rows.map((r, i) => (
-                            <tr key={i} className="border-t border-rule/50">
-                              <td className="py-1 pr-2">{r.products?.name}</td>
-                              <td className="px-2 text-ink-faint tabular-nums">
-                                {r.products?.barcode ?? r.products?.sku}
-                              </td>
-                              <td className="px-2 text-right tabular-nums">{fmt(r.book_qty)}</td>
-                              <td className="pl-2 text-right text-ink-faint tabular-nums">
-                                {r.unit_cost != null ? `${Number(r.unit_cost).toFixed(2)} ₾` : ''}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </details>
-                  ))}
-                </div>
-              </div>
-            </details>
+        <section className={card}>
+          {head('თაროები', count > 0 ? `${fmt(count)} ხაზი · ${shelves.length} თარო` : undefined)}
+          {count > 0 ? (
+            <Link
+              href={showList ? `/count/${id}/book` : `/count/${id}/book?list=1#book-list`}
+              scroll={false}
+              className="flex items-center justify-center gap-2 rounded-xl border border-rule-strong bg-paper px-4 py-3 text-base font-semibold hover:border-[#2fbf71]"
+            >
+              📋 {showList ? 'სიის დამალვა' : 'ჩატვირთული სიის ნახვა'}
+            </Link>
+          ) : (
+            <p className="text-sm text-ink-soft">ნაშთის ჩატვირთვის მერე აქ თაროებით ჩანს.</p>
           )}
-        </div>
+        </section>
       </div>
+
+      {showList && count > 0 && (
+        <section id="book-list" className={card}>
+          {head(`ჩატვირთული სია — ${fmt(count)} ხაზი, ${shelves.length} თარო`)}
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            {shelves.map(([shelf, rows]) => (
+              <details
+                key={shelf}
+                className="rounded-control border border-rule/70 bg-paper px-3 py-2"
+              >
+                <summary className="cursor-pointer text-sm">
+                  <b>{shelf}</b> · {rows.length} პოზიცია ·{' '}
+                  {fmt(rows.reduce((t, r) => t + Number(r.book_qty), 0))} ერთ.
+                </summary>
+                <table className="mt-2 w-full text-xs">
+                  <tbody>
+                    {rows.map((r, i) => (
+                      <tr key={i} className="border-t border-rule/50">
+                        <td className="py-1 pr-2">{r.products?.name}</td>
+                        <td className="px-2 text-ink-faint tabular-nums">
+                          {r.products?.barcode ?? r.products?.sku}
+                        </td>
+                        <td className="px-2 text-right tabular-nums">{fmt(r.book_qty)}</td>
+                        <td className="pl-2 text-right text-ink-faint tabular-nums">
+                          {r.unit_cost != null ? `${Number(r.unit_cost).toFixed(2)} ₾` : ''}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </details>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {open && (
+        <BookFixes
+          stocktakeId={id}
+          hasBook={count > 0}
+          badUnits={badUnits ?? 0}
+          shelfMismatch={shelfMismatch}
+        />
+      )}
     </div>
   );
 }

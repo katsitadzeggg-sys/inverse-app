@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, type ReactNode } from 'react';
 import readXlsxFile from 'read-excel-file';
 import { Alert } from '@/components/ui';
 import { parseDate } from '@/lib/expiry';
@@ -67,9 +67,17 @@ const num = (v: string) =>
 export default function BookImport({
   stocktakeId,
   expiry = false,
+  children,
+  cardClass = '',
+  replace = false,
 }: {
   stocktakeId: string;
   expiry?: boolean;
+  /** Shown in the card above the button (title, template link). */
+  children?: ReactNode;
+  cardClass?: string;
+  /** A balance is loaded already: the button says "new". */
+  replace?: boolean;
 }) {
   const [table, setTable] = useState<string[][] | null>(null);
   const [headerRow, setHeaderRow] = useState(0);
@@ -250,180 +258,200 @@ export default function BookImport({
     ] as [number, string, 'error' | 'warn'][]
   ).filter(([c]) => c > 0);
 
+  // The card holds the button; what the file holds opens full width below
+  // the row of cards (the parent grid gives it all columns).
   return (
-    <div className="grid gap-4">
-      <label className="grid cursor-pointer justify-items-center gap-1 rounded-xl border-2 border-dashed border-rule-strong px-6 py-5 text-center hover:border-[#2fbf71] hover:bg-[#2fbf71]/5">
-        <span className="text-2xl">📂</span>
-        <span className="text-base font-semibold">აირჩიე Excel ან CSV</span>
-        <span className="text-xs text-ink-faint">
-          დასახელება · შტრიხკოდი · ნაშთი · თარო · ფასი{expiry ? ' · ვადა' : ''}
-        </span>
-        <input
-          type="file"
-          accept=".xlsx,.xlsm,.csv,.txt"
-          className="hidden"
-          onChange={(e) => e.target.files?.[0] && load(e.target.files[0])}
-        />
-      </label>
-
-      {table && (
-        <>
-          {/* What the file holds: counts, shelves and what is missing. */}
-          <div className="grid gap-2 rounded-xl border border-rule/70 p-3">
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
-              {(
-                [
-                  [
-                    'ხაზი',
-                    `${valid.length}${valid.length !== body.length ? ` / ${body.length}` : ''}`,
-                  ],
-                  ['SKU', n(sum.skus)],
-                  ['ჯამური ნაშთი', n(Math.round(sum.qty))],
-                  ['თარო', map.location >= 0 ? n(sum.shelves) : '—'],
-                  ...(map.cost >= 0 ? [['თანხა', `${n(Math.round(sum.money))} ₾`]] : []),
-                  ...(map.barcode2 >= 0 ? [['მეორე შტრიხკოდი', n(sum.miss.second)]] : []),
-                ] as [string, string][]
-              ).map(([k, v]) => (
-                <div key={k} className="rounded-lg bg-paper-sunk px-2.5 py-1.5">
-                  <p className="truncate text-[11px] text-ink-faint">{k}</p>
-                  <p className="whitespace-nowrap text-base font-semibold tabular-nums">{v}</p>
+    <>
+      <section className={cardClass}>
+        {children}
+        <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#1f7a4d] px-4 py-3 text-base font-semibold text-white hover:bg-[#155c39]">
+          📂 {replace ? 'ახალი ნაშთის ატვირთვა' : 'ნაშთის ატვირთვა'}
+          <input
+            type="file"
+            accept=".xlsx,.xlsm,.csv,.txt"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              e.target.value = '';
+              if (f) load(f);
+            }}
+          />
+        </label>
+        <a
+          href="/templates/nashti-shabloni.xlsx"
+          download
+          className="text-center text-sm text-[#1f7a4d] underline decoration-dotted"
+        >
+          ⬇ შაბლონის ჩამოტვირთვა
+        </a>
+      </section>
+      {(table || done || msg) && (
+        <div className="grid gap-4 lg:col-span-3">
+          {table && (
+            <>
+              {/* What the file holds: counts, shelves and what is missing. */}
+              <div className="grid gap-2 rounded-xl border border-rule/70 p-3">
+                <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+                  {(
+                    [
+                      [
+                        'ხაზი',
+                        `${valid.length}${valid.length !== body.length ? ` / ${body.length}` : ''}`,
+                      ],
+                      ['SKU', n(sum.skus)],
+                      ['ჯამური ნაშთი', n(Math.round(sum.qty))],
+                      ['თარო', map.location >= 0 ? n(sum.shelves) : '—'],
+                      ...(map.cost >= 0 ? [['თანხა', `${n(Math.round(sum.money))} ₾`]] : []),
+                      ...(map.barcode2 >= 0 ? [['მეორე შტრიხკოდი', n(sum.miss.second)]] : []),
+                    ] as [string, string][]
+                  ).map(([k, v]) => (
+                    <div key={k} className="rounded-lg bg-paper-sunk px-2.5 py-1.5">
+                      <p className="truncate text-[11px] text-ink-faint">{k}</p>
+                      <p className="whitespace-nowrap text-base font-semibold tabular-nums">{v}</p>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-            {clashes.map(([col, fs]) => (
-              <p key={col} className="text-sm font-semibold text-mismatch">
-                ✗ ერთი სვეტი „{header[col] || `სვეტი ${col + 1}`}“ მიბმულია რამდენიმე ველზე:{' '}
-                {fs.map((f) => LABELS[f].replace(' *', '')).join(', ')} — ქვემოთ გაასწორე.
-              </p>
-            ))}
-            {lacking.length > 0 && (
-              <p className="text-sm font-semibold text-mismatch">
-                ✗ ვერ ვიპოვე სვეტი: {lacking.map((f) => LABELS[f].replace(' *', '')).join(', ')} —
-                მიუთითე ქვემოთ.
-              </p>
-            )}
-            {warn.length === 0 && lacking.length === 0 ? (
-              <p className="text-sm text-match">✓ ინფორმაცია სრულია.</p>
-            ) : (
-              <ul className="grid gap-1 text-sm">
-                {warn.map(([c, t, tone]) => (
-                  <li key={t} className={tone === 'error' ? 'text-mismatch' : 'text-review'}>
-                    ⚠ {t}: <b className="tabular-nums">{n(c)}</b>
-                  </li>
+                {clashes.map(([col, fs]) => (
+                  <p key={col} className="text-sm font-semibold text-mismatch">
+                    ✗ ერთი სვეტი „{header[col] || `სვეტი ${col + 1}`}“ მიბმულია რამდენიმე ველზე:{' '}
+                    {fs.map((f) => LABELS[f].replace(' *', '')).join(', ')} — ქვემოთ გაასწორე.
+                  </p>
                 ))}
-              </ul>
-            )}
-            {(['location', 'group', 'cost', 'barcode2'] as Field[])
-              .filter((f) => map[f] < 0)
-              .map((f) => LABELS[f])
-              .join(', ') && (
-              <p className="text-xs text-ink-faint">
-                ფაილში არ არის:{' '}
+                {lacking.length > 0 && (
+                  <p className="text-sm font-semibold text-mismatch">
+                    ✗ ვერ ვიპოვე სვეტი: {lacking.map((f) => LABELS[f].replace(' *', '')).join(', ')}{' '}
+                    — მიუთითე ქვემოთ.
+                  </p>
+                )}
+                {warn.length === 0 && lacking.length === 0 ? (
+                  <p className="text-sm text-match">✓ ინფორმაცია სრულია.</p>
+                ) : (
+                  <ul className="grid gap-1 text-sm">
+                    {warn.map(([c, t, tone]) => (
+                      <li key={t} className={tone === 'error' ? 'text-mismatch' : 'text-review'}>
+                        ⚠ {t}: <b className="tabular-nums">{n(c)}</b>
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 {(['location', 'group', 'cost', 'barcode2'] as Field[])
                   .filter((f) => map[f] < 0)
                   .map((f) => LABELS[f])
-                  .join(', ')}
-                .
-              </p>
-            )}
-          </div>
-
-          <details
-            open={lacking.length > 0 || clashes.length > 0}
-            className="rounded-xl border border-rule/70 px-4 py-2.5"
-          >
-            <summary className="cursor-pointer text-sm font-semibold">
-              სვეტები — ავტომატურად ამოცნობილი (შეცვლა)
-            </summary>
-            <div className="mt-3 grid gap-2">
-              {(Object.keys(LABELS) as Field[])
-                .filter((f) => expiry || f !== 'expiry')
-                .map((f) => (
-                  <label key={f} className="grid grid-cols-[9rem_1fr] items-center gap-2 text-sm">
-                    <span>{LABELS[f]}</span>
-                    <select
-                      value={map[f]}
-                      onChange={(e) => setMap({ ...map, [f]: Number(e.target.value) })}
-                      className="rounded-control border border-rule-strong bg-paper-sunk px-2 py-1.5"
-                    >
-                      <option value={-1}>—</option>
-                      {header.map((c, i) => (
-                        <option key={i} value={i}>
-                          {c || `სვეტი ${i + 1}`}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                ))}
-            </div>
-          </details>
-
-          <button
-            type="button"
-            disabled={pending || !valid.length || clashes.length > 0}
-            onClick={() =>
-              start(async () => {
-                // Sent in parts of 1 000 rows: a big file does not fit in one request.
-                const PART = 1000;
-                let lines = 0;
-                let created = 0;
-                let shelves = 0;
-                for (let i = 0; i < valid.length; i += PART) {
-                  setMsg({
-                    tone: 'info',
-                    text: `იტვირთება… ${Math.min(i + PART, valid.length)} / ${valid.length}`,
-                  });
-                  const res = await importBook(stocktakeId, valid.slice(i, i + PART), i > 0);
-                  if (res.error) {
-                    setMsg({
-                      tone: 'error',
-                      text: `${res.error} (ჩაიტვირთა ${i} ხაზი ${valid.length}-დან — ფაილი თავიდან ატვირთე)`,
-                    });
-                    return;
-                  }
-                  lines += res.lines ?? 0;
-                  created += res.created ?? 0;
-                  shelves += res.shelves ?? 0;
-                }
-                // The same balance to the other open stocktakes of the warehouse.
-                const spread = await spreadBook(stocktakeId);
-                setMsg(null);
-                setDone({ lines, created, shelves, ...spread });
-              })
-            }
-            className="rounded-xl bg-[#1f7a4d] px-4 py-3 text-base font-semibold text-white hover:bg-[#155c39] disabled:opacity-50"
-          >
-            {pending ? 'იტვირთება…' : `ნაშთის ჩატვირთვა (${valid.length})`}
-          </button>
-        </>
-      )}
-
-      {done && (
-        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[#2fbf71]/40 bg-[#2fbf71]/10 px-4 py-3">
-          <p className="text-base font-semibold text-[#2fbf71]">✓ ნაშთი ჩაიტვირთა</p>
-          <div className="flex flex-wrap gap-2 text-center">
-            {(
-              [
-                ['პოზიცია', done.lines],
-                ['ახალი პროდუქტი', done.created],
-                ['ახალი თარო', done.shelves],
-              ] as [string, number][]
-            ).map(([k, v]) => (
-              <div key={k} className="rounded-lg bg-paper px-3 py-1">
-                <p className="text-base font-semibold tabular-nums">{v.toLocaleString('ka-GE')}</p>
-                <p className="text-[11px] text-ink-faint">{k}</p>
+                  .join(', ') && (
+                  <p className="text-xs text-ink-faint">
+                    ფაილში არ არის:{' '}
+                    {(['location', 'group', 'cost', 'barcode2'] as Field[])
+                      .filter((f) => map[f] < 0)
+                      .map((f) => LABELS[f])
+                      .join(', ')}
+                    .
+                  </p>
+                )}
               </div>
-            ))}
-          </div>
-          {done.notice && <p className="basis-full text-sm text-ink-soft">{done.notice}</p>}
-          {done.warn && <p className="basis-full text-sm text-review">ℹ {done.warn}</p>}
+
+              <details
+                open={lacking.length > 0 || clashes.length > 0}
+                className="rounded-xl border border-rule/70 px-4 py-2.5"
+              >
+                <summary className="cursor-pointer text-sm font-semibold">
+                  სვეტები — ავტომატურად ამოცნობილი (შეცვლა)
+                </summary>
+                <div className="mt-3 grid gap-2">
+                  {(Object.keys(LABELS) as Field[])
+                    .filter((f) => expiry || f !== 'expiry')
+                    .map((f) => (
+                      <label
+                        key={f}
+                        className="grid grid-cols-[9rem_1fr] items-center gap-2 text-sm"
+                      >
+                        <span>{LABELS[f]}</span>
+                        <select
+                          value={map[f]}
+                          onChange={(e) => setMap({ ...map, [f]: Number(e.target.value) })}
+                          className="rounded-control border border-rule-strong bg-paper-sunk px-2 py-1.5"
+                        >
+                          <option value={-1}>—</option>
+                          {header.map((c, i) => (
+                            <option key={i} value={i}>
+                              {c || `სვეტი ${i + 1}`}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ))}
+                </div>
+              </details>
+
+              <button
+                type="button"
+                disabled={pending || !valid.length || clashes.length > 0}
+                onClick={() =>
+                  start(async () => {
+                    // Sent in parts of 1 000 rows: a big file does not fit in one request.
+                    const PART = 1000;
+                    let lines = 0;
+                    let created = 0;
+                    let shelves = 0;
+                    for (let i = 0; i < valid.length; i += PART) {
+                      setMsg({
+                        tone: 'info',
+                        text: `იტვირთება… ${Math.min(i + PART, valid.length)} / ${valid.length}`,
+                      });
+                      const res = await importBook(stocktakeId, valid.slice(i, i + PART), i > 0);
+                      if (res.error) {
+                        setMsg({
+                          tone: 'error',
+                          text: `${res.error} (ჩაიტვირთა ${i} ხაზი ${valid.length}-დან — ფაილი თავიდან ატვირთე)`,
+                        });
+                        return;
+                      }
+                      lines += res.lines ?? 0;
+                      created += res.created ?? 0;
+                      shelves += res.shelves ?? 0;
+                    }
+                    // The same balance to the other open stocktakes of the warehouse.
+                    const spread = await spreadBook(stocktakeId);
+                    setMsg(null);
+                    setDone({ lines, created, shelves, ...spread });
+                  })
+                }
+                className="rounded-xl bg-[#1f7a4d] px-4 py-3 text-base font-semibold text-white hover:bg-[#155c39] disabled:opacity-50"
+              >
+                {pending ? 'იტვირთება…' : `ნაშთის ჩატვირთვა (${valid.length})`}
+              </button>
+            </>
+          )}
+
+          {done && (
+            <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[#2fbf71]/40 bg-[#2fbf71]/10 px-4 py-3">
+              <p className="text-base font-semibold text-[#2fbf71]">✓ ნაშთი ჩაიტვირთა</p>
+              <div className="flex flex-wrap gap-2 text-center">
+                {(
+                  [
+                    ['პოზიცია', done.lines],
+                    ['ახალი პროდუქტი', done.created],
+                    ['ახალი თარო', done.shelves],
+                  ] as [string, number][]
+                ).map(([k, v]) => (
+                  <div key={k} className="rounded-lg bg-paper px-3 py-1">
+                    <p className="text-base font-semibold tabular-nums">
+                      {v.toLocaleString('ka-GE')}
+                    </p>
+                    <p className="text-[11px] text-ink-faint">{k}</p>
+                  </div>
+                ))}
+              </div>
+              {done.notice && <p className="basis-full text-sm text-ink-soft">{done.notice}</p>}
+              {done.warn && <p className="basis-full text-sm text-review">ℹ {done.warn}</p>}
+            </div>
+          )}
+          {msg && (
+            <Alert tone={msg.tone}>
+              <span className="whitespace-pre-line">{msg.text}</span>
+            </Alert>
+          )}
         </div>
       )}
-      {msg && (
-        <Alert tone={msg.tone}>
-          <span className="whitespace-pre-line">{msg.text}</span>
-        </Alert>
-      )}
-    </div>
+    </>
   );
 }
