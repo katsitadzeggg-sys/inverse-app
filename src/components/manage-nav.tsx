@@ -16,6 +16,7 @@ const I = {
   building: (
     <path d="M4 21V5l8-3v19M12 8h8v13M4 21h16M8 7h.01M8 11h.01M8 15h.01M16 12h.01M16 16h.01" />
   ),
+  tree: <path d="M12 3v18M12 8H6v5M12 8h6v5M6 13v3M18 13v3" />,
   cycle: <path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v4h-4" />,
   chat: <path d="M4 5h16v11H9l-5 4zM8 9h8M8 12h5" />,
   tag: <path d="M3 12V4h8l10 10-8 8zM7.5 7.5h.01" />,
@@ -113,7 +114,15 @@ export default function ManageNav({ platform, open }: { platform: boolean; open:
             href: '/manage/platform',
             label: 'პლატფორმა',
             icon: 'building' as const,
-            active: pathname.startsWith('/manage/platform'),
+            active:
+              pathname.startsWith('/manage/platform') &&
+              !pathname.startsWith('/manage/platform/tree'),
+          },
+          {
+            href: '/manage/platform/tree',
+            label: 'აპის სტრუქტურა',
+            icon: 'tree' as const,
+            active: pathname.startsWith('/manage/platform/tree'),
           },
         ]
       : []),
