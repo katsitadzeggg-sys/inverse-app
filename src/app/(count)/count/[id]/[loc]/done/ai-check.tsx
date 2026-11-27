@@ -51,7 +51,7 @@ export async function videoFrames(url: string, count: number): Promise<string[]>
     // Autoplay refused: seeking still works on most browsers.
   }
   const d = Number.isFinite(v.duration) && v.duration > 0 ? v.duration : 1;
-  const k = Math.min(1, 1024 / Math.max(v.videoWidth || 1024, v.videoHeight || 1024));
+  const k = Math.min(1, 1280 / Math.max(v.videoWidth || 1280, v.videoHeight || 1280));
   const c = document.createElement('canvas');
   c.width = Math.round((v.videoWidth || 1024) * k);
   c.height = Math.round((v.videoHeight || 768) * k);
@@ -83,18 +83,44 @@ export async function videoFrames(url: string, count: number): Promise<string[]>
     for (let i = 0; i < px.length; i += 4) sum += px[i] + px[i + 1] + px[i + 2];
     return sum / (px.length / 4) / 3 < 10;
   };
+  // Sharpness of the frame on the canvas: mean squared difference between
+  // neighbouring pixels of a small grey copy. A moving phone gives a smeared
+  // frame (low value); a still moment gives a sharp one.
+  const sharp = () => {
+    const w = 160;
+    const h = Math.max(1, Math.round((c.height / c.width) * w));
+    const s = document.createElement('canvas');
+    s.width = w;
+    s.height = h;
+    const sc = s.getContext('2d', { willReadFrequently: true })!;
+    sc.drawImage(c, 0, 0, w, h);
+    const px = sc.getImageData(0, 0, w, h).data;
+    const g = (x: number, y: number) => {
+      const i = (y * w + x) * 4;
+      return px[i] * 0.3 + px[i + 1] * 0.59 + px[i + 2] * 0.11;
+    };
+    let sum = 0;
+    for (let y = 0; y < h - 1; y++)
+      for (let x = 0; x < w - 1; x++) {
+        const a = g(x, y);
+        sum += (a - g(x + 1, y)) ** 2 + (a - g(x, y + 1)) ** 2;
+      }
+    return sum / (w * h);
+  };
+  // Around each moment, the sharpest of five nearby frames (not a dark one).
   const out: string[] = [];
   for (let i = 0; i < count; i++) {
     const t = (d * (i + 0.5)) / count;
-    for (const offset of [0, 0.35, -0.35]) {
+    let best: { score: number; url: string } | null = null;
+    for (const offset of [0, -0.2, 0.2, -0.4, 0.4]) {
       await seek(t + offset);
       await painted();
       ctx.drawImage(v, 0, 0, c.width, c.height);
-      if (!dark()) {
-        out.push(c.toDataURL('image/jpeg', 0.7));
-        break;
-      }
+      if (dark()) continue;
+      const score = sharp();
+      if (!best || score > best.score) best = { score, url: c.toDataURL('image/jpeg', 0.82) };
     }
+    if (best) out.push(best.url);
   }
   v.removeAttribute('src');
   v.load();
@@ -136,6 +162,7 @@ export default function AiCheck({
   const [fresh, setFresh] = useState<{ result: AiResult; at: string; images: number } | null>(null);
   // Signed URLs of the video frames this run stored (the page signs them on reload).
   const [frameUrls, setFrameUrls] = useState<Record<string, string>>({});
+  const [focus, setFocus] = useState<number | null>(null);
   const last = fresh ?? stored;
 
   function run() {
@@ -192,7 +219,7 @@ export default function AiCheck({
             {last.result.quality === 'poor' && ' · ფოტოები ცუდი ხარისხისაა'}
           </p>
           <p className="text-sm">{last.result.summary}</p>
-          <ShelfHud result={last.result} urls={{ ...urls, ...frameUrls }} />
+          <ShelfHud result={last.result} urls={{ ...urls, ...frameUrls }} focus={focus} />
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -206,12 +233,29 @@ export default function AiCheck({
               </thead>
               <tbody>
                 {last.result.items.map((i, n) => (
-                  <tr key={n} className="border-t border-rule/50 align-top">
+                  <tr
+                    key={n}
+                    onClick={() => {
+                      const img = i.boxes?.[0]?.image;
+                      if (img == null) return;
+                      setFocus(n);
+                      document
+                        .getElementById(`ai-img-${img}`)
+                        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }}
+                    title={i.boxes?.length ? 'ფოტოზე ჩვენება' : undefined}
+                    className={`border-t border-rule/50 align-top ${i.boxes?.length ? 'cursor-pointer hover:bg-paper-sunk' : ''} ${focus === n ? 'bg-paper-sunk' : ''}`}
+                  >
                     <td className={`py-1 pr-2 font-semibold ${tone[i.status]}`}>
                       {mark[i.status]}
                     </td>
                     <td className="py-1 pr-2">
                       {i.name}
+                      {i.boxes?.length ? (
+                        <span className="ml-1 text-xs text-sky-500">
+                          📷 {[...new Set(i.boxes.map((b) => b.image + 1))].join(', ')}
+                        </span>
+                      ) : null}
                       {i.code && <span className="block text-xs text-ink-faint">{i.code}</span>}
                     </td>
                     <td className="py-1 pr-2 text-right tabular-nums">{i.counted ?? '—'}</td>

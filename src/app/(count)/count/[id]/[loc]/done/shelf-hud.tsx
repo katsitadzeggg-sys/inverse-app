@@ -19,8 +19,11 @@ const color = {
 export default function ShelfHud({
   result,
   urls,
+  focus = null,
 }: {
   result: AiResult;
+  /** The product picked in the list below: its frames stand out, the rest fade. */
+  focus?: number | null;
   /** Signed URL per storage path (photos, and video posters). */
   urls: Record<string, string>;
 }) {
@@ -30,8 +33,8 @@ export default function ShelfHud({
     .map((path, image) => ({
       image,
       url: path ? urls[path] : undefined,
-      boxes: result.items.flatMap((item) =>
-        (item.boxes ?? []).filter((b) => b.image === image).map((b) => ({ ...b, item })),
+      boxes: result.items.flatMap((item, idx) =>
+        (item.boxes ?? []).filter((b) => b.image === image).map((b) => ({ ...b, item, idx })),
       ),
     }))
     .filter((s) => s.url && s.boxes.length);
@@ -52,11 +55,12 @@ export default function ShelfHud({
       {shots.map((s) => (
         <figure
           key={s.image}
-          className="relative overflow-hidden rounded-control bg-black"
+          id={`ai-img-${s.image}`}
+          className="relative scroll-mt-20 overflow-hidden rounded-control bg-black"
           style={{ boxShadow: '0 0 0 1px #0ea5e955, 0 0 18px #0ea5e933 inset' }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element -- signed storage URL */}
-          <img src={s.url} alt="" className="block w-full opacity-80" />
+          <img src={s.url} alt="" className="block w-full" />
           {/* Scan grid */}
           <div
             aria-hidden
@@ -69,6 +73,8 @@ export default function ShelfHud({
           />
           {s.boxes.map((b, n) => {
             const c = color[b.item.status];
+            const on = focus === b.idx;
+            const dim = focus != null && !on;
             const corner = (pos: CSSProperties) => (
               <span
                 className="absolute h-2.5 w-2.5"
@@ -84,16 +90,18 @@ export default function ShelfHud({
                   top: `${b.y0 * 100}%`,
                   width: `${(b.x1 - b.x0) * 100}%`,
                   height: `${(b.y1 - b.y0) * 100}%`,
-                  border: `1px solid ${c}99`,
-                  background: `${c}14`,
-                  boxShadow: `0 0 8px ${c}66`,
+                  border: on ? `3px solid ${c}` : `1px solid ${c}99`,
+                  background: on ? `${c}26` : `${c}14`,
+                  boxShadow: on ? `0 0 0 9999px #0008, 0 0 16px ${c}` : `0 0 8px ${c}66`,
+                  opacity: dim ? 0.35 : 1,
+                  zIndex: on ? 2 : 1,
                 }}
               >
                 {corner({ left: -2, top: -2, borderWidth: '2px 0 0 2px' })}
                 {corner({ right: -2, top: -2, borderWidth: '2px 2px 0 0' })}
                 {corner({ left: -2, bottom: -2, borderWidth: '0 0 2px 2px' })}
                 {corner({ right: -2, bottom: -2, borderWidth: '0 2px 2px 0' })}
-                {labels && (
+                {(labels || on) && (
                   <span
                     className={`absolute left-0 max-w-[14rem] px-1 py-0.5 text-[10px] leading-tight text-white ${b.y0 < 0.08 ? 'top-0' : '-translate-y-full'}`}
                     style={{
