@@ -16,15 +16,23 @@ export type BookVersion = {
   status: 'active' | 'replaced' | 'cancelled';
 };
 
-const fmt = (n: number) => Number(n).toLocaleString('ka-GE', { maximumFractionDigits: 0 });
-const when = (d: string) =>
-  new Date(d).toLocaleString('ka-GE', {
-    timeZone: 'Asia/Tbilisi',
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+const fmt = (n: number) => Math.round(Number(n)).toLocaleString('ka-GE');
+/** DD.MM, HH:MM in Tbilisi time, whatever the browser's language. */
+const when = (d: string) => {
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Tbilisi',
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    })
+      .formatToParts(new Date(d))
+      .map((x) => [x.type, x.value]),
+  );
+  return `${p.day}.${p.month}, ${p.hour}:${p.minute}`;
+};
 const STATUS: Record<BookVersion['status'], [string, string]> = {
   active: ['მოქმედი', 'bg-[#2fbf71]/15 text-[#1f7a4d]'],
   replaced: ['ძველი', 'bg-paper-sunk text-ink-soft'],
