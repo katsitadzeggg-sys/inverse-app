@@ -6,6 +6,7 @@ import type { Stocktake } from '@/types/database';
 import PhotoLinksImport from './photo-links-import';
 import BookImport from './book-import';
 import BookFixes from './book-fixes';
+import BookVersions, { type BookVersion } from './book-versions';
 
 export default async function BookPage({ params, searchParams }: PageProps<'/count/[id]/book'>) {
   const { id } = await params;
@@ -90,6 +91,28 @@ export default async function BookPage({ params, searchParams }: PageProps<'/cou
       })
     : null;
   const open = stocktake.status === 'open';
+  // Every balance loaded here, newest first (a balance from before versions
+  // existed gets its version on first view).
+  if (count > 0) await supabase.rpc('book_active_version', { p_stocktake: id });
+  const { data: vrows } = await supabase
+    .from('stocktake_book_versions')
+    .select('id, loaded_at, loaded_by, file_name, note, lines, units, value, status')
+    .eq('stocktake_id', id)
+    .order('loaded_at', { ascending: false })
+    .returns<(Omit<BookVersion, 'who'> & { loaded_by: string | null })[]>();
+  const whoIds = [...new Set((vrows ?? []).map((v) => v.loaded_by).filter(Boolean))] as string[];
+  const { data: people } = whoIds.length
+    ? await supabase
+        .from('user_profiles')
+        .select('id, full_name, email')
+        .in('id', whoIds)
+        .returns<{ id: string; full_name: string | null; email: string }[]>()
+    : { data: [] };
+  const nameOf = new Map((people ?? []).map((p) => [p.id, p.full_name || p.email]));
+  const versions: BookVersion[] = (vrows ?? []).map((v) => ({
+    ...v,
+    who: v.loaded_by ? (nameOf.get(v.loaded_by) ?? null) : null,
+  }));
   const card = 'grid content-start gap-3 rounded-2xl border border-rule/70 bg-paper-sunk/60 p-5';
   const tile = (label: string, v: string) => (
     <div className="min-w-24 rounded-xl bg-paper px-3 py-1.5">
@@ -215,6 +238,8 @@ export default async function BookPage({ params, searchParams }: PageProps<'/cou
           </div>
         </section>
       )}
+
+      <BookVersions stocktakeId={id} versions={versions} open={open} />
 
       {open && (
         <BookFixes

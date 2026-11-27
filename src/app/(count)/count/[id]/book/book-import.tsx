@@ -4,7 +4,7 @@ import { useState, useTransition, type ReactNode } from 'react';
 import readXlsxFile from 'read-excel-file';
 import { Alert } from '@/components/ui';
 import { parseDate } from '@/lib/expiry';
-import { importBook, spreadBook, type BookRow } from '../../actions';
+import { bookOverlap, importBook, spreadBook, type BookRow } from '../../actions';
 
 type Field =
   | 'barcode'
@@ -102,10 +102,15 @@ export default function BookImport({
     warn?: string;
   } | null>(null);
   const [pending, start] = useTransition();
+  const [fileName, setFileName] = useState<string | null>(null);
+  // Few products in common with this warehouse: asked once before loading.
+  const [foreign, setForeign] = useState<{ common: number; total: number } | null>(null);
 
   async function load(file: File) {
     setMsg(null);
     setDone(null);
+    setForeign(null);
+    setFileName(file.name);
     let rows: string[][];
     if (/\.xls$/i.test(file.name)) {
       setMsg({
@@ -387,6 +392,18 @@ export default function BookImport({
                 disabled={pending || !valid.length || clashes.length > 0}
                 onClick={() =>
                   start(async () => {
+                    // Another warehouse's file? Compare with what this one knows.
+                    if (!foreign) {
+                      const codes = valid
+                        .map((r) => r.barcode.trim() || r.code.trim())
+                        .slice(0, 3000);
+                      const o = await bookOverlap(stocktakeId, codes);
+                      const total = new Set(codes).size;
+                      if (o.known > 20 && total > 20 && o.common / total < 0.3) {
+                        setForeign({ common: o.common, total });
+                        return;
+                      }
+                    }
                     // Sent in parts of 1 000 rows: a big file does not fit in one request.
                     const PART = 1000;
                     let lines = 0;
@@ -410,15 +427,26 @@ export default function BookImport({
                       shelves += res.shelves ?? 0;
                     }
                     // The same balance to the other open stocktakes of the warehouse.
-                    const spread = await spreadBook(stocktakeId);
+                    const spread = await spreadBook(stocktakeId, fileName ?? undefined);
                     setMsg(null);
                     setDone({ lines, created, shelves, ...spread });
                   })
                 }
                 className="rounded-xl bg-[#1f7a4d] px-4 py-3 text-base font-semibold text-white hover:bg-[#155c39] disabled:opacity-50"
               >
-                {pending ? 'იტვირთება…' : `ნაშთის ჩატვირთვა (${valid.length})`}
+                {pending
+                  ? 'იტვირთება…'
+                  : foreign
+                    ? `მაინც ჩატვირთე (${valid.length})`
+                    : `ნაშთის ჩატვირთვა (${valid.length})`}
               </button>
+              {foreign && (
+                <Alert>
+                  ⚠ ეს სხვა საწყობის ნაშთს ჰგავს: ფაილის {foreign.total} პროდუქტიდან ამ საწყობში
+                  მხოლოდ {foreign.common} გვხვდება (ნაშთში ან დათვლილში). შეამოწმე ფაილი — თუ
+                  სწორია, დააჭირე „მაინც ჩატვირთე“.
+                </Alert>
+              )}
             </>
           )}
 

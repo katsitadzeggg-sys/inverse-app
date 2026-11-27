@@ -1085,10 +1085,20 @@ export async function importBook(
  * stocktakes of the same warehouse (closed ones keep the balance of their day).
  * Warns about open ones counted before today: their count now meets today's balance.
  */
-export async function spreadBook(stocktakeId: string): Promise<{ notice?: string; warn?: string }> {
+export async function spreadBook(
+  stocktakeId: string,
+  fileName?: string,
+): Promise<{ notice?: string; warn?: string }> {
   const session = await requireSession();
   if (!isManager(session.profile.role)) return {};
   const supabase = await createClient();
+  // The balance just loaded becomes the stocktake's active version.
+  const { error: vError } = await supabase.rpc('new_book_version', {
+    p_stocktake: stocktakeId,
+    p_file: fileName ?? null,
+    p_note: null,
+  });
+  if (vError) return { warn: `ვერსია ვერ შეინახა: ${vError.message}` };
   const { data, error } = await supabase.rpc('spread_book', { p_from: stocktakeId });
   if (error) return { warn: `სხვა ღია ინვენტარიზაციებში ვერ განახლდა: ${error.message}` };
   const rows = (data ?? []) as { number: string; stale: boolean }[];
@@ -1602,30 +1612,6 @@ export async function repairNumericUnits(): Promise<FormState> {
 }
 
 /**
- * A wrong file: the stocktake's balance is emptied (kept in the log) so the
- * right one can be loaded. Only while the stocktake is open; counts stay.
- */
-export async function clearBook(stocktakeId: string): Promise<FormState> {
-  const session = await requireSession();
-  if (!isManager(session.profile.role)) return { error: 'მხოლოდ მენეჯერს შეუძლია.' };
-  const supabase = await createClient();
-  const { data: st } = await supabase
-    .from('stocktakes')
-    .select('status')
-    .eq('id', stocktakeId)
-    .eq('company_id', session.company.id)
-    .maybeSingle<{ status: string }>();
-  if (!st) return { error: 'ინვენტარიზაცია ვერ მოიძებნა.' };
-  if (st.status !== 'open') return { error: 'დახურულ ინვენტარიზაციაში ნაშთი არ იცვლება.' };
-  await supabase.rpc('log_book', { p_stocktake: stocktakeId });
-  const { error } = await supabase.from('stocktake_book').delete().eq('stocktake_id', stocktakeId);
-  if (error) return { error: error.message };
-  revalidatePath(`/count/${stocktakeId}`, 'layout');
-  revalidatePath(`/manage/${stocktakeId}`);
-  return { notice: '✓ ნაშთი წაიშალა. ახლა სწორი ფაილი ატვირთე.' };
-}
-
-/**
  * The balance's shelves were wrong (e.g. the whole file on one shelf, or a
  * column read as the shelf by mistake): the balance is kept, its shelves are
  * dropped, so it is compared product by product over the whole warehouse.
@@ -1677,6 +1663,9 @@ export async function dropBookShelves(stocktakeId: string): Promise<FormState> {
     stocktake_id: stocktakeId,
     location_id: null,
   }));
+  // The balance with its shelves is kept as a version (it can come back).
+  const { error: logError } = await supabase.rpc('log_book', { p_stocktake: stocktakeId });
+  if (logError) return { error: logError.message };
   const { error: delError } = await supabase
     .from('stocktake_book')
     .delete()
@@ -1689,6 +1678,11 @@ export async function dropBookShelves(stocktakeId: string): Promise<FormState> {
         error: `ჩაიწერა ${i} ხაზი ${rows.length}-დან (${error.message}) — ატვირთე ფაილი თავიდან, თაროს სვეტის გარეშე.`,
       };
   }
+  await supabase.rpc('new_book_version', {
+    p_stocktake: stocktakeId,
+    p_file: null,
+    p_note: 'თაროები მოხსნილია',
+  });
   revalidatePath(`/count/${stocktakeId}`, 'layout');
   revalidatePath(`/manage/${stocktakeId}`);
   revalidatePath('/manage/stocktakes');
@@ -1924,4 +1918,82 @@ export async function shelfCandidates(
     const prod = byId.get(p.id);
     return prod ? [{ ...prod, why: p.why }] : [];
   });
+}
+
+/**
+ * "This balance is wrong" (another warehouse, a wrong file): the version is
+ * marked cancelled and left out of missed / re-check everywhere; if it was
+ * the balance in use, the previous version comes back. Counts stay.
+ */
+export async function cancelBookVersion(
+  stocktakeId: string,
+  versionId: string,
+): Promise<FormState> {
+  const session = await requireSession();
+  if (!isManager(session.profile.role)) return { error: 'მხოლოდ მენეჯერს შეუძლია.' };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc('cancel_book_version', { p_version: versionId });
+  if (error)
+    return {
+      error: error.message.includes('closed')
+        ? 'დახურულ ინვენტარიზაციაში ნაშთი არ იცვლება.'
+        : error.message,
+    };
+  revalidatePath(`/count/${stocktakeId}`, 'layout');
+  revalidatePath(`/manage/${stocktakeId}`);
+  revalidatePath('/manage/stocktakes');
+  return {
+    notice:
+      data === 'none'
+        ? '✓ ნაშთი გაუქმდა. წინა ნაშთი არ იყო — ახლა სწორი ფაილი ატვირთე.'
+        : '✓ ნაშთი გაუქმდა და წინა ნაშთი დაბრუნდა. დათვლილი არ შეცვლილა.',
+  };
+}
+
+/**
+ * Before a new balance goes in: how many of its products the warehouse
+ * already knows (the balance in use and what was counted). Few in common =
+ * probably another warehouse's file. Codes are matched as written in the file.
+ */
+export async function bookOverlap(
+  stocktakeId: string,
+  codes: string[],
+): Promise<{ known: number; common: number }> {
+  const session = await requireSession();
+  if (!isManager(session.profile.role)) return { known: 0, common: 0 };
+  const supabase = await createClient();
+  const ids = new Set<string>();
+  for (const table of ['stocktake_book', 'stocktake_entries'] as const) {
+    for (let from = 0; ; from += 1000) {
+      const { data } = await supabase
+        .from(table)
+        .select('product_id')
+        .eq('stocktake_id', stocktakeId)
+        .not('product_id', 'is', null)
+        .range(from, from + 999)
+        .returns<{ product_id: string }[]>();
+      for (const r of data ?? []) ids.add(r.product_id);
+      if (!data || data.length < 1000) break;
+    }
+  }
+  if (!ids.size) return { known: 0, common: 0 };
+  const mine = new Set<string>();
+  const list = [...ids];
+  for (let i = 0; i < list.length; i += 300) {
+    const { data } = await supabase
+      .from('products')
+      .select('sku, barcode')
+      .eq('company_id', session.company.id)
+      .in('id', list.slice(i, i + 300))
+      .returns<{ sku: string; barcode: string | null }[]>();
+    for (const p of data ?? []) {
+      mine.add(p.sku.trim().toLowerCase());
+      if (p.barcode) for (const b of barcodeVariants(p.barcode)) mine.add(b.toLowerCase());
+    }
+  }
+  const sample = [...new Set(codes.map((c) => c.trim().toLowerCase()).filter(Boolean))];
+  const common = sample.filter(
+    (c) => mine.has(c) || barcodeVariants(c).some((b) => mine.has(b.toLowerCase())),
+  ).length;
+  return { known: ids.size, common };
 }
