@@ -473,7 +473,7 @@ export default function Map3D({
           const x = list.reduce((a, s) => a + s.x, 0) / list.length;
           const z = list.reduce((a, s) => a + s.z, 0) / list.length;
           const len = Math.max(...list.map((s) => s.x)) - Math.min(...list.map((s) => s.x));
-          const d = Math.max(6, len * 0.8);
+          const d = Math.max(11, len * 0.9);
           go(new THREE.Vector3(x - d * 0.2, d * 0.6, z + d * 0.8), new THREE.Vector3(x, 0.8, z));
         },
       };
