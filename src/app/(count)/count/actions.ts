@@ -40,6 +40,22 @@ export async function createStocktake(_prev: FormState, formData: FormData): Pro
   if (!branch) return { error: 'ჩაწერე საწყობი ან ფილიალი.' };
 
   const supabase = await createClient();
+  // One open stocktake per warehouse and kind (Giorgi, 27.11): a second one has
+  // no use — two counters work in the same one, each on their own shelf. The
+  // missed / re-check forms and an expiry check are separate and still open.
+  const { data: already } = await supabase
+    .from('stocktakes')
+    .select('id')
+    .eq('company_id', session.company.id)
+    .eq('status', 'open')
+    .eq('kind', kind)
+    .is('archived_at', null)
+    .is('form_kind', null)
+    .ilike('branch', branch.replace(/[%_\\]/g, '\\$&'))
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle<{ id: string }>();
+  if (already) redirect(manager ? `/manage/${already.id}` : `/count/${already.id}`);
   // The manager names the warehouse's new cycle when none is open there
   // (otherwise the stocktake joins the open one).
   let cycleId: string | undefined;
