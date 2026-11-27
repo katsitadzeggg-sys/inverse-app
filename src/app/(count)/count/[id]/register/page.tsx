@@ -23,7 +23,7 @@ export default async function RegisterPage({ params }: PageProps<'/count/[id]/re
     .eq('stocktake_id', id);
 
   return (
-    <div className="grid gap-5">
+    <div data-wide className="grid gap-5">
       <div>
         <Link
           href={`/manage/${id}`}

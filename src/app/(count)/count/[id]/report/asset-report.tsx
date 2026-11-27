@@ -72,7 +72,7 @@ export default function AssetReport({
   const labels = rows.filter((r) => r.needsLabel).length;
 
   return (
-    <div className="grid gap-6">
+    <div data-wide className="grid gap-6">
       <div>
         <Link
           href={`/manage/${id}`}

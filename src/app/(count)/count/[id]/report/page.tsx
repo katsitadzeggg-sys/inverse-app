@@ -315,7 +315,7 @@ export default async function ReportPage({ params }: PageProps<'/count/[id]/repo
   };
 
   return (
-    <div className="grid gap-6">
+    <div data-wide className="grid gap-6">
       <div>
         <Link
           href={`/manage/${id}`}
