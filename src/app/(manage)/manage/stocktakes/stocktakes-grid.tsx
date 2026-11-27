@@ -117,11 +117,12 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
         filter: false,
       },
       {
-        // Number (and cycle code) over the warehouse and cycle.
-        headerName: 'ინვენტარიზაცია / საწყობი',
+        // The warehouse first and large, so each row is recognised at a glance;
+        // the number, cycle and form badge below it.
+        headerName: 'საწყობი / ინვენტარიზაცია',
         field: 'number',
         flex: 1.8,
-        minWidth: 170,
+        minWidth: 190,
         filterValueGetter: (p) => `${p.data?.number ?? ''} ${p.data?.warehouse ?? ''}`,
         getQuickFilterText: (p) =>
           `${p.data?.number ?? ''} ${p.data?.warehouse ?? ''} ${p.data?.cycle ?? ''}`,
@@ -130,39 +131,34 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
           if (!d) return null;
           if (d.left || d.review)
             return (
-              <Two
-                className={d.left ? 'text-[#5b21b6]' : 'text-[#b45309]'}
-                top={<b>{d.left ? 'გამორჩენილი' : 'გადასამოწმებელი'}</b>}
-                sub={d.warehouse}
-              />
+              <span className="flex min-w-0 flex-col justify-center leading-tight">
+                <span className="truncate text-[15px] font-semibold text-ink">{d.warehouse}</span>
+                <span
+                  className={`truncate text-xs font-semibold ${d.left ? 'text-[#5b21b6]' : 'text-[#b45309]'}`}
+                >
+                  {d.left ? '⏳ გამორჩენილი' : '🔎 გადასამოწმებელი'}
+                </span>
+              </span>
             );
           return (
-            <Two
-              top={
-                <span className="font-medium text-[#155c39]">
-                  {d.number}
-                  {d.cycleCode && (
-                    <span className="ml-1 text-xs font-normal text-ink-faint">· {d.cycleCode}</span>
-                  )}
-                  {d.formKind === 'missed' && (
-                    <span className="ml-1 rounded-full bg-[#ece5ff] px-1.5 text-[10px] text-[#5b21b6]">
-                      გამორჩენილი
-                    </span>
-                  )}
-                  {d.formKind === 'review' && (
-                    <span className="ml-1 rounded-full bg-[#ffe8cc] px-1.5 text-[10px] text-[#b45309]">
-                      გადამოწმება
-                    </span>
-                  )}
-                </span>
-              }
-              sub={
-                <>
-                  <b className="text-ink">{d.warehouse}</b>
-                  {d.cycle && <span> · {d.cycle}</span>}
-                </>
-              }
-            />
+            <span className="flex min-w-0 flex-col justify-center leading-tight">
+              <span className="truncate text-[15px] font-semibold text-ink">{d.warehouse}</span>
+              <span className="truncate text-xs text-ink-faint">
+                <span className="font-medium text-[#155c39]">{d.number}</span>
+                {d.cycleCode && <span> · {d.cycleCode}</span>}
+                {d.cycle && <span> · {d.cycle}</span>}
+                {d.formKind === 'missed' && (
+                  <span className="ml-1 rounded-full bg-[#ece5ff] px-1.5 text-[10px] text-[#5b21b6]">
+                    გამორჩენილი
+                  </span>
+                )}
+                {d.formKind === 'review' && (
+                  <span className="ml-1 rounded-full bg-[#ffe8cc] px-1.5 text-[10px] text-[#b45309]">
+                    გადამოწმება
+                  </span>
+                )}
+              </span>
+            </span>
           );
         },
       },
@@ -335,11 +331,11 @@ export default function StocktakesGrid({ rows, left }: { rows: StRow[]; left: St
       columns={columns}
       rowId={(r) => r.id}
       fileName="inventarizaciebi"
-      height={Math.min(720, 140 + (rows.length + left.length) * 40)}
+      height={Math.min(760, 140 + (rows.length + left.length) * 60)}
       rowClass={(p) =>
         p.data?.left ? 'st-left-row' : p.data?.review ? 'st-review-row' : undefined
       }
-      rowHeight={52}
+      rowHeight={60}
       rowHref={(r) =>
         r.left || r.review
           ? r.ids?.length
