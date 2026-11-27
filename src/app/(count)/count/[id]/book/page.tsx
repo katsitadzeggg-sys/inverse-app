@@ -176,6 +176,15 @@ export default async function BookPage({ params }: PageProps<'/count/[id]/book'>
               )}
             </div>
             <PhotoLinksImport />
+            {count > 0 && withPhoto < new Set(lines.map((l) => l.products?.sku)).size && (
+              <a
+                href={`/count/${id}/no-photos`}
+                className="w-fit text-sm text-[#2fbf71] underline decoration-dotted"
+              >
+                ⬇ ფოტოს გარეშე — {fmt(new Set(lines.map((l) => l.products?.sku)).size - withPhoto)}{' '}
+                (Excel)
+              </a>
+            )}
           </section>
 
           {count > 0 && (
