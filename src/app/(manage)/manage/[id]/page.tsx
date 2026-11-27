@@ -324,7 +324,7 @@ export default async function ManageStocktake({ params }: PageProps<'/manage/[id
                 {list.map((z) => (
                   <tr key={z.id} className="border-t border-rule/60 align-top">
                     <td className="px-2 py-1 font-semibold">
-                      <Link href={`/count/${id}/${z.location_id}/done`} className="underline">
+                      <Link href={`/manage/${id}/shelf/${z.location_id}`} className="underline">
                         {z.locations?.code}
                       </Link>
                     </td>

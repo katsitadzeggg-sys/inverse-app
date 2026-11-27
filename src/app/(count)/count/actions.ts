@@ -1701,7 +1701,11 @@ export async function dropBookShelves(stocktakeId: string): Promise<FormState> {
  * "Add / fix on this shelf": the closed shelf opens again for counting — for
  * its own counter or a manager — so a product left out can be added.
  */
-export async function reopenShelf(stocktakeId: string, locationId: string): Promise<FormState> {
+export async function reopenShelf(
+  stocktakeId: string,
+  locationId: string,
+  back?: string,
+): Promise<FormState> {
   const session = await requireSession();
   const supabase = await createClient();
   const { data: zone } = await supabase
@@ -1746,6 +1750,11 @@ export async function reopenShelf(stocktakeId: string, locationId: string): Prom
     }
   }
   revalidatePath(`/count/${stocktakeId}`);
+  // A manager sends the shelf back to the counter and stays on their own page.
+  if (back?.startsWith('/manage/')) {
+    revalidatePath(back);
+    redirect(back, RedirectType.replace);
+  }
   redirect(`/count/${stocktakeId}/${locationId}`, RedirectType.replace);
 }
 

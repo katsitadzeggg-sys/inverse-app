@@ -90,7 +90,7 @@ export default async function StocktakeMap({
       code: z.locations?.code ?? '?',
       state,
       who: z.user_profiles?.full_name ?? z.user_profiles?.email,
-      href: `/count/${z.stocktake_id}/${z.location_id}/done`,
+      href: `/manage/${z.stocktake_id}/shelf/${z.location_id}`,
     });
   }
 

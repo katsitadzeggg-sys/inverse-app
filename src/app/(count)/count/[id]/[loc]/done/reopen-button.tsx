@@ -7,9 +7,12 @@ import { reopenShelf } from '../../../actions';
 export default function ReopenButton({
   stocktakeId,
   locationId,
+  back,
 }: {
   stocktakeId: string;
   locationId: string;
+  /** Manager's page: stay there after sending the shelf back. */
+  back?: string;
 }) {
   const [err, setErr] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -20,13 +23,21 @@ export default function ReopenButton({
         disabled={pending}
         onClick={() =>
           start(async () => {
-            const r = await reopenShelf(stocktakeId, locationId);
+            const r = await reopenShelf(stocktakeId, locationId, back);
             if (r?.error) setErr(r.error);
           })
         }
-        className="rounded-control border-2 border-review px-4 py-3 text-base font-semibold text-review disabled:opacity-50"
+        className={
+          back
+            ? 'w-fit rounded-full border border-review px-4 py-2 text-sm font-semibold text-review disabled:opacity-50'
+            : 'rounded-control border-2 border-review px-4 py-3 text-base font-semibold text-review disabled:opacity-50'
+        }
       >
-        {pending ? '…' : '➕ პროდუქტის დამატება / ჩასწორება (თაროს გახსნა)'}
+        {pending
+          ? '…'
+          : back
+            ? '↩ თაროს დაბრუნება გადასათვლელად'
+            : '➕ პროდუქტის დამატება / ჩასწორება (თაროს გახსნა)'}
       </button>
       {err && <p className="text-sm text-mismatch">{err}</p>}
     </div>

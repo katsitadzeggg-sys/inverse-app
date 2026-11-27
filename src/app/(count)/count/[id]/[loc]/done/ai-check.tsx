@@ -144,12 +144,15 @@ export default function AiCheck({
   locationId,
   videos,
   photos,
+  wide = false,
   last: stored,
   urls,
 }: {
   stocktakeId: string;
   locationId: string;
   videos: string[];
+  /** Manager's wide page: the AI photos side by side. */
+  wide?: boolean;
   photos: number;
   last: { result: AiResult; at: string; images: number } | null;
   /** Signed URL per storage path, to draw the AI's frames on the photos. */
@@ -219,7 +222,12 @@ export default function AiCheck({
             {last.result.quality === 'poor' && ' · ფოტოები ცუდი ხარისხისაა'}
           </p>
           <p className="text-sm">{last.result.summary}</p>
-          <ShelfHud result={last.result} urls={{ ...urls, ...frameUrls }} focus={focus} />
+          <ShelfHud
+            result={last.result}
+            urls={{ ...urls, ...frameUrls }}
+            focus={focus}
+            wide={wide}
+          />
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>

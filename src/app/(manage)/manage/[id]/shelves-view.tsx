@@ -179,7 +179,7 @@ export default function ShelvesView({
                   <div className="grid gap-2 border-t border-rule/60 bg-paper-sunk/50 p-2">
                     <div className="flex flex-wrap gap-3 text-xs">
                       <Link
-                        href={`/count/${id}/${s.locationId}/done`}
+                        href={`/manage/${id}/shelf/${s.locationId}`}
                         className="font-semibold underline"
                       >
                         თაროს გვერდი: ფოტოები და AI შემოწმება →
