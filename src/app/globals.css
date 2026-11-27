@@ -1020,6 +1020,13 @@ select:focus {
   --grid-hover: #22352b;
   --grid-selected: #22402f;
 }
+/* The stock counter app keeps its orange action colour on the light ground,
+   so the counter still sees which app is open. */
+.theme-light[data-app='stock'] {
+  --color-accent: #d9690f;
+  --color-accent-deep: #b65609;
+  --color-accent-text: #c25e0c;
+}
 .theme-light ::selection {
   background-color: #cde8d9;
   color: #17251e;

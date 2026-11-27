@@ -19,12 +19,23 @@ export default function LabelStudio({
   owner,
   shelves,
   stocktakes,
+  picked,
 }: {
   owner: string;
+  /** The labels of the stocktake chosen in the URL (?st=…&src=…). */
+  picked: {
+    id: string;
+    kind: string;
+    number: string;
+    src: 'shelves' | 'products' | 'assets';
+    all: boolean;
+    note: string;
+    items: LabelData[];
+  } | null;
   shelves: { code: string; name: string }[];
   stocktakes: { id: string; label: string }[];
 }) {
-  const [tab, setTab] = useState<Tab>('numbers');
+  const [tab, setTab] = useState<Tab>(picked ? 'stocktake' : 'numbers');
   const [prefix, setPrefix] = useState('A-');
   const [from, setFrom] = useState(1);
   const [to, setTo] = useState(50);
@@ -33,7 +44,7 @@ export default function LabelStudio({
   const [mode, setMode] = useState<LabelMode>('qr');
   const [text, setText] = useState('');
   const [listMode, setListMode] = useState<LabelMode>('barcode');
-  const [st, setSt] = useState(stocktakes[0]?.id ?? '');
+  const [st, setSt] = useState(picked?.id ?? stocktakes[0]?.id ?? '');
 
   const count = Math.max(0, Math.min(5000, to - from + 1));
   const items: LabelData[] = useMemo(() => {
@@ -61,8 +72,8 @@ export default function LabelStudio({
         footer: owner,
         mode: 'qr' as const,
       }));
-    return [];
-  }, [tab, count, prefix, from, digits, title, owner, mode, text, listMode, shelves]);
+    return picked && picked.id === st ? picked.items : [];
+  }, [tab, count, prefix, from, digits, title, owner, mode, text, listMode, shelves, picked, st]);
 
   const tabBtn = (t: Tab, label: string) => (
     <button
@@ -210,17 +221,44 @@ export default function LabelStudio({
                 ))}
               </select>
               {st && (
-                <div className="grid gap-2">
-                  <Link href={`/count/${st}/labels?src=shelves`} className="underline">
-                    ▦ ამ ინვენტარიზაციის თაროები
+                <div className="flex flex-wrap gap-2">
+                  {(
+                    [
+                      ['shelves', '▦ თაროები'],
+                      ['products', '║ პროდუქცია'],
+                      ['assets', '№ ინვენტარის ნომრები'],
+                    ] as const
+                  ).map(([k, l]) => (
+                    <Link
+                      key={k}
+                      href={`/manage/labels?st=${st}&src=${k}`}
+                      className={`rounded-full px-3 py-1.5 ${picked?.id === st && picked.src === k ? 'bg-ink text-paper' : 'border border-rule'}`}
+                    >
+                      {l}
+                    </Link>
+                  ))}
+                </div>
+              )}
+              {picked && picked.id === st && picked.src !== 'products' && (
+                <div className="flex flex-wrap gap-2 text-xs">
+                  <Link
+                    href={`/manage/labels?st=${st}&src=${picked.src}`}
+                    className={`rounded-full px-3 py-1 ${!picked.all ? 'bg-ink text-paper' : 'border border-rule'}`}
+                  >
+                    {picked.src === 'assets' ? 'ეტიკეტი აკლია' : 'ამ ინვენტარიზაციის'}
                   </Link>
-                  <Link href={`/count/${st}/labels?src=products`} className="underline">
-                    ║ პროდუქციის შტრიხკოდები
-                  </Link>
-                  <Link href={`/count/${st}/labels?src=assets`} className="underline">
-                    № ინვენტარის ნომრები (ძირ. საშ.)
+                  <Link
+                    href={`/manage/labels?st=${st}&src=${picked.src}&all=1`}
+                    className={`rounded-full px-3 py-1 ${picked.all ? 'bg-ink text-paper' : 'border border-rule'}`}
+                  >
+                    {picked.src === 'assets' ? 'მთელი რეესტრი' : 'ყველა თარო'}
                   </Link>
                 </div>
+              )}
+              {picked && picked.id === st && (
+                <p className="text-ink-soft">
+                  {picked.note}: {picked.items.length} ეტიკეტი
+                </p>
               )}
             </>
           )}
@@ -229,7 +267,7 @@ export default function LabelStudio({
         <section className="rounded-2xl bg-paper-sunk p-5">
           {items.length > 0 ? (
             <ZebraPanel
-              key={`${tab}-${mode}-${listMode}`}
+              key={`${tab}-${mode}-${listMode}-${picked?.src ?? ''}`}
               items={items}
               fileName={tab === 'numbers' ? `${prefix}${from}-${to}` : tab}
               kind={

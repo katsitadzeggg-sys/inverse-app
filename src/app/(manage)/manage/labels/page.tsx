@@ -1,5 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
+import type { Stocktake } from '@/types/database';
+import { stocktakeLabels } from '@/lib/stocktake-labels';
 import LabelStudio from './label-studio';
 
 export const metadata = { title: 'ეტიკეტები' };
@@ -10,9 +12,27 @@ export const metadata = { title: 'ეტიკეტები' };
  * inventory numbers of one stocktake. Printing as before: label printer,
  * Bluetooth (Zebra) or sticker sheets on A4.
  */
-export default async function LabelsPage() {
+export default async function LabelsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const sp = await searchParams;
   const { company } = await requireSession();
   const supabase = await createClient();
+  // One stocktake's labels (?st=…&src=shelves|products|assets&all=1).
+  const stId = typeof sp.st === 'string' ? sp.st : null;
+  const { data: st } = stId
+    ? await supabase.from('stocktakes').select('*').eq('id', stId).maybeSingle<Stocktake>()
+    : { data: null };
+  const fromSt = st
+    ? await stocktakeLabels(
+        supabase,
+        st,
+        typeof sp.src === 'string' ? sp.src : undefined,
+        sp.all === '1',
+      )
+    : null;
   const shelves: { code: string; name: string }[] = [];
   for (let from = 0; from < 50000; from += 1000) {
     const { data } = await supabase
@@ -38,6 +58,19 @@ export default async function LabelsPage() {
   return (
     <LabelStudio
       owner={company.name}
+      picked={
+        st && fromSt
+          ? {
+              id: st.id,
+              kind: st.kind,
+              number: st.number,
+              src: fromSt.src,
+              all: sp.all === '1',
+              note: fromSt.note,
+              items: fromSt.items,
+            }
+          : null
+      }
       shelves={shelves}
       stocktakes={(open ?? []).map((s) => ({
         id: s.id as string,

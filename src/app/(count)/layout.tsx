@@ -11,7 +11,7 @@ export const viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
-  themeColor: '#0f172a',
+  themeColor: '#f3f5f4',
 };
 
 /** The counter's phone screen: one column, big targets, Georgian only. */
@@ -23,7 +23,7 @@ export default async function CountLayout({ children }: LayoutProps<'/'>) {
   const home = app === 'stock' ? '/stock' : '/count';
 
   return (
-    <div data-app={app} className="flex min-h-dvh flex-col bg-paper">
+    <div data-app={app} className="theme-light flex min-h-dvh flex-col bg-paper">
       <FormHelpers />
       <header className="sticky top-0 z-10 border-b border-rule/70 bg-paper/90 backdrop-blur">
         <div className="mx-auto flex max-w-xl items-center gap-3 px-4 py-3 [body:has([data-wide])_&]:max-w-7xl">
