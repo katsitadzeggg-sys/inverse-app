@@ -58,11 +58,6 @@ const COUNTER: Node[] = [
   { label: 'თარო დახურულია: ფოტო, AI', state: 'ok' },
 ];
 
-const OLD: Node[] = ['/dashboard', '/checks', '/products', '/locations', '/verify'].map((p) => ({
-  label: p,
-  state: 'old' as const,
-}));
-
 const TONE: Record<State, string> = {
   ok: 'border-match/40 bg-match/10',
   fix: 'border-review/60 bg-review/15',
@@ -116,13 +111,10 @@ export default async function AppTreePage() {
         <div className="flex flex-wrap gap-2 text-xs">
           <span className={`rounded-control border px-2 py-0.5 ${TONE.ok}`}>მზადაა</span>
           <span className={`rounded-control border px-2 py-0.5 ${TONE.fix}`}>გასასწორებელი</span>
-          <span className={`rounded-control border px-2 py-0.5 ${TONE.old}`}>
-            ძველი, შესამოწმებელი
-          </span>
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[2fr_1fr_1fr]">
+      <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
         <section className="rounded-control border border-rule bg-paper p-5">
           <h2 className="mb-3 font-semibold">მენეჯერი · კომპიუტერი</h2>
           <Branch nodes={MANAGER} />
@@ -130,13 +122,6 @@ export default async function AppTreePage() {
         <section className="rounded-control border border-rule bg-paper p-5">
           <h2 className="mb-3 font-semibold">აღმწერი · ტელეფონი</h2>
           <Branch nodes={COUNTER} />
-        </section>
-        <section className="rounded-control border border-rule bg-paper p-5">
-          <h2 className="mb-3 font-semibold">ძველი ნაწილი</h2>
-          <Branch nodes={OLD} />
-          <p className="mt-3 text-xs text-ink-faint">
-            არავისთვის ჩანს: ყველა მენეჯერთან ან აღმწერთან გადადის.
-          </p>
         </section>
       </div>
     </div>
