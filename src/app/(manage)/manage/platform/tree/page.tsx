@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/session';
 
-export const metadata = { title: 'აპის ხე' };
+export const metadata = { title: 'აპის სტრუქტურა' };
 
 /** ok = ready, fix = to rework (narrow etc.), old = old prototype to review. */
 type State = 'ok' | 'fix' | 'old';
@@ -46,7 +46,7 @@ const MANAGER: Node[] = [
     label: 'პლატფორმა',
     href: '/manage/platform',
     state: 'ok',
-    kids: [{ label: 'აპის ხე (ეს გვერდი)', state: 'ok' }],
+    kids: [{ label: 'აპის სტრუქტურა (ეს გვერდი)', state: 'ok' }],
   },
 ];
 
@@ -111,7 +111,7 @@ export default async function AppTreePage() {
           <Link href="/manage/platform" className="text-sm text-ink-faint hover:text-ink">
             ← პლატფორმა
           </Link>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">აპის ხე</h1>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight">აპის სტრუქტურა</h1>
         </div>
         <div className="flex flex-wrap gap-2 text-xs">
           <span className={`rounded-control border px-2 py-0.5 ${TONE.ok}`}>მზადაა</span>

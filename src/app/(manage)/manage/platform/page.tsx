@@ -88,7 +88,7 @@ export default async function PlatformPage() {
           href="/manage/platform/tree"
           className="rounded-control border border-rule-strong px-3 py-1.5 text-sm text-ink-soft transition hover:border-ink-faint hover:text-ink"
         >
-          🌳 აპის ხე
+          🌳 აპის სტრუქტურა
         </Link>
       </div>
 
