@@ -251,12 +251,18 @@ export default function AiCheck({
                     </td>
                     <td className="py-1 pr-2">
                       {i.name}
-                      {i.boxes?.length ? (
-                        <span className="ml-1 text-xs text-sky-500">
-                          📷 {[...new Set(i.boxes.map((b) => b.image + 1))].join(', ')}
-                        </span>
-                      ) : null}
                       {i.code && <span className="block text-xs text-ink-faint">{i.code}</span>}
+                      {i.boxes?.length ? (
+                        <button
+                          type="button"
+                          className="mt-1 inline-flex items-center gap-1 rounded-full border border-sky-500/60 px-2.5 py-0.5 text-xs font-medium text-sky-500 hover:bg-sky-500/10"
+                        >
+                          🔍 მოძებნე ფოტოზე
+                          <span className="text-ink-faint">
+                            ({[...new Set(i.boxes.map((b) => b.image + 1))].join(', ')})
+                          </span>
+                        </button>
+                      ) : null}
                     </td>
                     <td className="py-1 pr-2 text-right tabular-nums">{i.counted ?? '—'}</td>
                     <td className="py-1 pr-2 text-right tabular-nums">
