@@ -99,6 +99,13 @@ export default function BookImport({
     setMsg(null);
     setDone(null);
     let rows: string[][];
+    if (/\.xls$/i.test(file.name)) {
+      setMsg({
+        tone: 'error',
+        text: 'ეს ძველი .xls ფორმატია — Excel-ში გახსენი და შეინახე როგორც .xlsx (File → Save As → Excel Workbook), მერე ატვირთე.',
+      });
+      return;
+    }
     try {
       if (/\.(xlsx|xlsm)$/i.test(file.name)) {
         // A date cell comes as a Date at UTC midnight: keep it as YYYY-MM-DD.

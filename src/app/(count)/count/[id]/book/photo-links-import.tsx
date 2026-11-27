@@ -23,6 +23,12 @@ export default function PhotoLinksImport() {
   async function run(file: File) {
     setError(null);
     setDone(null);
+    if (!/\.xlsx$/i.test(file.name)) {
+      setError(
+        'ეს ძველი .xls ფორმატია — Excel-ში გახსენი და შეინახე როგორც .xlsx (File → Save As → Excel Workbook), მერე ატვირთე.',
+      );
+      return;
+    }
     setBusy('ფაილს ვკითხულობ…');
     try {
       const sheet = (await readXlsxFile(file)).map((r) => r.map(cell));
@@ -63,7 +69,7 @@ export default function PhotoLinksImport() {
         📂 ფაილი ფოტოს ბმულებით (Excel)
         <input
           type="file"
-          accept=".xlsx"
+          accept=".xlsx,.xls"
           className="hidden"
           disabled={!!busy}
           onChange={(e) => {
