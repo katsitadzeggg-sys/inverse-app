@@ -26,7 +26,7 @@ export default async function CountLayout({ children }: LayoutProps<'/'>) {
     <div data-app={app} className="flex min-h-dvh flex-col bg-paper">
       <FormHelpers />
       <header className="sticky top-0 z-10 border-b border-rule/70 bg-paper/90 backdrop-blur">
-        <div className="mx-auto flex max-w-xl items-center gap-3 px-4 py-3">
+        <div className="mx-auto flex max-w-xl items-center gap-3 px-4 py-3 [body:has([data-wide])_&]:max-w-7xl">
           {manager ? (
             <Link
               href="/manage"
@@ -62,7 +62,7 @@ export default async function CountLayout({ children }: LayoutProps<'/'>) {
         <OutboxStatus />
         <SwRegister />
       </header>
-      <main className="mx-auto w-full min-w-0 max-w-xl flex-1 overflow-x-clip px-4 py-5">
+      <main className="mx-auto w-full min-w-0 max-w-xl flex-1 overflow-x-clip px-4 py-5 has-[[data-wide]]:max-w-7xl">
         {children}
       </main>
     </div>

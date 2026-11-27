@@ -91,36 +91,32 @@ export default async function BookPage({ params }: PageProps<'/count/[id]/book'>
   const open = stocktake.status === 'open';
   const card = 'grid gap-3 rounded-2xl border border-rule/70 bg-paper-sunk/60 p-5';
   const tile = (label: string, v: string) => (
-    <div className="rounded-xl bg-paper px-3 py-2.5">
-      <p className="text-xs text-ink-faint">{label}</p>
-      <p className="text-xl font-semibold tabular-nums">{v}</p>
+    <div className="min-w-24 rounded-xl bg-paper px-3 py-1.5">
+      <p className="text-[11px] text-ink-faint">{label}</p>
+      <p className="whitespace-nowrap text-lg font-semibold tabular-nums">{v}</p>
     </div>
   );
 
   return (
-    <div className="mx-auto grid w-full max-w-3xl gap-4">
-      <div className="flex flex-wrap items-center gap-3">
+    <div data-wide className="grid gap-4">
+      {/* Row 1: back, title and what is loaded now — one line on a wide screen. */}
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-2xl border border-rule/70 bg-paper-sunk/60 px-5 py-4">
         <Link
           href={`/manage/${id}`}
-          className="inline-flex items-center rounded-full border border-rule-strong px-4 py-2 text-sm font-medium"
+          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-rule-strong text-lg"
+          aria-label="დაბრუნება"
+          title="დაბრუნება"
         >
-          ← დაბრუნება
+          ←
         </Link>
-        <div>
-          <h1 className="text-2xl font-semibold">ნაშთი</h1>
+        <div className="min-w-0">
+          <h1 className="text-2xl font-semibold leading-tight">ნაშთი</h1>
           <p className="text-sm text-ink-faint">
             {stocktake.branch ?? stocktake.name} · {stocktake.number}
           </p>
         </div>
-      </div>
-
-      <section className={card}>
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-base font-semibold">ახლა ჩატვირთულია</h2>
-          {loaded && <span className="text-xs text-ink-faint">{loaded}</span>}
-        </div>
         {count ? (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="flex flex-wrap items-center gap-2">
             {tile('პოზიცია', fmt(count))}
             {tile('ცალი', fmt(Math.round(units)))}
             {tile('თარო', fmt(shelves.filter(([k]) => k !== 'თაროს გარეშე').length))}
@@ -129,88 +125,99 @@ export default async function BookPage({ params }: PageProps<'/count/[id]/book'>
         ) : (
           <p className="text-sm text-ink-soft">ნაშთი ჯერ არ არის ჩატვირთული.</p>
         )}
-        {open && (
-          <BookFixes
-            stocktakeId={id}
-            hasBook={count > 0}
-            badUnits={badUnits ?? 0}
-            shelfMismatch={shelfMismatch}
-          />
-        )}
-      </section>
-
-      <section className={card}>
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-base font-semibold">
-            {count ? 'ახალი ნაშთის ატვირთვა' : 'ნაშთის ატვირთვა'}
-          </h2>
-          <a
-            href="/templates/nashti-shabloni.xlsx"
-            download
-            className="text-sm text-[#2fbf71] underline decoration-dotted"
-          >
-            ⬇ შაბლონი
-          </a>
-        </div>
-        {open ? (
-          <>
-            {count > 0 && (
-              <p className="text-xs text-ink-faint">
-                ძველს ჩაანაცვლებს · დათვლილი არ იცვლება · ძველი ნაშთი ჟურნალში რჩება
-              </p>
-            )}
-            <BookImport stocktakeId={id} expiry={stocktake.kind === 'expiry'} />
-          </>
-        ) : (
-          <p className="text-sm text-ink-soft">ინვენტარიზაცია დახურულია — ნაშთი აღარ იცვლება.</p>
-        )}
-      </section>
-
-      <section className={card}>
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-base font-semibold">🖼 პროდუქტის ფოტოები</h2>
-          {count > 0 && (
-            <span className="text-xs text-ink-faint">
-              ფოტო აქვს {fmt(withPhoto)} / {fmt(new Set(lines.map((l) => l.products?.sku)).size)}
-            </span>
+        <div className="ml-auto grid justify-items-end gap-1 text-xs text-ink-faint">
+          {loaded && <span>ჩაიტვირთა {loaded}</span>}
+          {open && (
+            <BookFixes
+              stocktakeId={id}
+              hasBook={count > 0}
+              badUnits={badUnits ?? 0}
+              shelfMismatch={shelfMismatch}
+            />
           )}
         </div>
-        <PhotoLinksImport />
-      </section>
+      </div>
 
-      {count > 0 && (
-        <details className="rounded-2xl border border-rule/70 bg-paper-sunk/60 p-5">
-          <summary className="cursor-pointer text-base font-semibold">
-            📋 ჩატვირთული სია — {count} ხაზი, {shelves.length} თარო
-          </summary>
-          <div className="mt-3 grid gap-2">
-            {shelves.map(([shelf, rows]) => (
-              <details key={shelf} className="rounded-control border border-rule/70 px-3 py-2">
-                <summary className="cursor-pointer text-sm">
-                  <b>{shelf}</b> · {rows.length} პოზიცია ·{' '}
-                  {fmt(rows.reduce((t, r) => t + Number(r.book_qty), 0))} ერთ.
-                </summary>
-                <table className="mt-2 w-full text-xs">
-                  <tbody>
-                    {rows.map((r, i) => (
-                      <tr key={i} className="border-t border-rule/50">
-                        <td className="py-1 pr-2">{r.products?.name}</td>
-                        <td className="px-2 text-ink-faint tabular-nums">
-                          {r.products?.barcode ?? r.products?.sku}
-                        </td>
-                        <td className="px-2 text-right tabular-nums">{fmt(r.book_qty)}</td>
-                        <td className="pl-2 text-right text-ink-faint tabular-nums">
-                          {r.unit_cost != null ? `${Number(r.unit_cost).toFixed(2)} ₾` : ''}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </details>
-            ))}
+      {/* Row 2: upload (wide) · photos and the loaded list (side). */}
+      <div className="grid items-start gap-4 lg:grid-cols-[2fr_1fr]">
+        <section className={card}>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-base font-semibold">
+              {count ? 'ახალი ნაშთის ატვირთვა' : 'ნაშთის ატვირთვა'}
+              {count > 0 && open && (
+                <span className="ml-2 text-xs font-normal text-ink-faint">
+                  ძველს ჩაანაცვლებს · დათვლილი არ იცვლება
+                </span>
+              )}
+            </h2>
+            <a
+              href="/templates/nashti-shabloni.xlsx"
+              download
+              className="text-sm text-[#2fbf71] underline decoration-dotted"
+            >
+              ⬇ შაბლონი
+            </a>
           </div>
-        </details>
-      )}
+          {open ? (
+            <BookImport stocktakeId={id} expiry={stocktake.kind === 'expiry'} />
+          ) : (
+            <p className="text-sm text-ink-soft">ინვენტარიზაცია დახურულია — ნაშთი აღარ იცვლება.</p>
+          )}
+        </section>
+
+        <div className="grid gap-4">
+          <section className={card}>
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="text-base font-semibold">🖼 ფოტოები</h2>
+              {count > 0 && (
+                <span className="text-xs text-ink-faint">
+                  აქვს {fmt(withPhoto)} / {fmt(new Set(lines.map((l) => l.products?.sku)).size)}
+                </span>
+              )}
+            </div>
+            <PhotoLinksImport />
+          </section>
+
+          {count > 0 && (
+            <details className="rounded-2xl border border-rule/70 bg-paper-sunk/60 p-5">
+              <summary className="cursor-pointer text-base font-semibold">
+                📋 ჩატვირთული სია — {fmt(count)} ხაზი, {shelves.length} თარო
+              </summary>
+              <div className="mt-3 max-h-[50vh] overflow-auto">
+                <div className="grid gap-2">
+                  {shelves.map(([shelf, rows]) => (
+                    <details
+                      key={shelf}
+                      className="rounded-control border border-rule/70 px-3 py-2"
+                    >
+                      <summary className="cursor-pointer text-sm">
+                        <b>{shelf}</b> · {rows.length} პოზიცია ·{' '}
+                        {fmt(rows.reduce((t, r) => t + Number(r.book_qty), 0))} ერთ.
+                      </summary>
+                      <table className="mt-2 w-full text-xs">
+                        <tbody>
+                          {rows.map((r, i) => (
+                            <tr key={i} className="border-t border-rule/50">
+                              <td className="py-1 pr-2">{r.products?.name}</td>
+                              <td className="px-2 text-ink-faint tabular-nums">
+                                {r.products?.barcode ?? r.products?.sku}
+                              </td>
+                              <td className="px-2 text-right tabular-nums">{fmt(r.book_qty)}</td>
+                              <td className="pl-2 text-right text-ink-faint tabular-nums">
+                                {r.unit_cost != null ? `${Number(r.unit_cost).toFixed(2)} ₾` : ''}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </details>
+                  ))}
+                </div>
+              </div>
+            </details>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

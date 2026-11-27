@@ -245,8 +245,8 @@ export default function BookImport({
 
   return (
     <div className="grid gap-4">
-      <label className="grid cursor-pointer justify-items-center gap-1.5 rounded-xl border-2 border-dashed border-rule-strong px-6 py-8 text-center hover:border-[#2fbf71] hover:bg-[#2fbf71]/5">
-        <span className="text-3xl">📂</span>
+      <label className="grid cursor-pointer justify-items-center gap-1 rounded-xl border-2 border-dashed border-rule-strong px-6 py-5 text-center hover:border-[#2fbf71] hover:bg-[#2fbf71]/5">
+        <span className="text-2xl">📂</span>
         <span className="text-base font-semibold">აირჩიე Excel ან CSV</span>
         <span className="text-xs text-ink-faint">
           დასახელება · შტრიხკოდი · ნაშთი · თარო · ფასი{expiry ? ' · ვადა' : ''}
@@ -262,8 +262,8 @@ export default function BookImport({
       {table && (
         <>
           {/* What the file holds: counts, shelves and what is missing. */}
-          <div className="grid gap-3 rounded-control border border-rule/70 p-4">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="grid gap-2 rounded-xl border border-rule/70 p-3">
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
               {(
                 [
                   [
@@ -271,15 +271,15 @@ export default function BookImport({
                     `${valid.length}${valid.length !== body.length ? ` / ${body.length}` : ''}`,
                   ],
                   ['SKU', n(sum.skus)],
-                  ['ჯამური ნაშთი', n(sum.qty)],
+                  ['ჯამური ნაშთი', n(Math.round(sum.qty))],
                   ['თარო', map.location >= 0 ? n(sum.shelves) : '—'],
                   ...(map.cost >= 0 ? [['თანხა', `${n(Math.round(sum.money))} ₾`]] : []),
                   ...(map.barcode2 >= 0 ? [['მეორე შტრიხკოდი', n(sum.miss.second)]] : []),
                 ] as [string, string][]
               ).map(([k, v]) => (
-                <div key={k} className="rounded-control bg-paper-sunk px-3 py-2">
-                  <p className="text-xs text-ink-faint">{k}</p>
-                  <p className="text-xl font-semibold tabular-nums">{v}</p>
+                <div key={k} className="rounded-lg bg-paper-sunk px-2.5 py-1.5">
+                  <p className="truncate text-[11px] text-ink-faint">{k}</p>
+                  <p className="whitespace-nowrap text-base font-semibold tabular-nums">{v}</p>
                 </div>
               ))}
             </div>
@@ -323,7 +323,7 @@ export default function BookImport({
 
           <details
             open={lacking.length > 0 || clashes.length > 0}
-            className="rounded-control border border-rule/70 p-4"
+            className="rounded-xl border border-rule/70 px-4 py-2.5"
           >
             <summary className="cursor-pointer text-sm font-semibold">
               სვეტები — ავტომატურად ამოცნობილი (შეცვლა)
@@ -384,7 +384,7 @@ export default function BookImport({
                 setDone({ lines, created, shelves, ...spread });
               })
             }
-            className="rounded-control bg-ink px-4 py-4 text-base font-semibold text-paper disabled:opacity-50"
+            className="rounded-xl bg-[#1f7a4d] px-4 py-3 text-base font-semibold text-white hover:bg-[#155c39] disabled:opacity-50"
           >
             {pending ? 'იტვირთება…' : `ნაშთის ჩატვირთვა (${valid.length})`}
           </button>
@@ -392,9 +392,9 @@ export default function BookImport({
       )}
 
       {done && (
-        <div className="grid gap-3 rounded-xl border border-[#2fbf71]/40 bg-[#2fbf71]/10 p-4">
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[#2fbf71]/40 bg-[#2fbf71]/10 px-4 py-3">
           <p className="text-base font-semibold text-[#2fbf71]">✓ ნაშთი ჩაიტვირთა</p>
-          <div className="grid grid-cols-3 gap-2 text-center">
+          <div className="flex flex-wrap gap-2 text-center">
             {(
               [
                 ['პოზიცია', done.lines],
@@ -402,14 +402,14 @@ export default function BookImport({
                 ['ახალი თარო', done.shelves],
               ] as [string, number][]
             ).map(([k, v]) => (
-              <div key={k} className="rounded-lg bg-paper px-2 py-2">
-                <p className="text-lg font-semibold tabular-nums">{v.toLocaleString('ka-GE')}</p>
-                <p className="text-xs text-ink-faint">{k}</p>
+              <div key={k} className="rounded-lg bg-paper px-3 py-1">
+                <p className="text-base font-semibold tabular-nums">{v.toLocaleString('ka-GE')}</p>
+                <p className="text-[11px] text-ink-faint">{k}</p>
               </div>
             ))}
           </div>
-          {done.notice && <p className="text-sm text-ink-soft">{done.notice}</p>}
-          {done.warn && <p className="text-sm text-review">ℹ {done.warn}</p>}
+          {done.notice && <p className="basis-full text-sm text-ink-soft">{done.notice}</p>}
+          {done.warn && <p className="basis-full text-sm text-review">ℹ {done.warn}</p>}
         </div>
       )}
       {msg && (
