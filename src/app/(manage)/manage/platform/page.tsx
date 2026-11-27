@@ -77,11 +77,19 @@ export default async function PlatformPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">🏢 პლატფორმა — კლიენტები</h1>
-        <p className="mt-1 text-sm text-ink-faint">
-          ყველა კომპანია, ვინც Inverse-ს იყენებს: აქტივობა, მოდულები, ტრენდი.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">🏢 პლატფორმა — კლიენტები</h1>
+          <p className="mt-1 text-sm text-ink-faint">
+            ყველა კომპანია, ვინც Inverse-ს იყენებს: აქტივობა, მოდულები, ტრენდი.
+          </p>
+        </div>
+        <Link
+          href="/manage/platform/tree"
+          className="rounded-control border border-rule-strong px-3 py-1.5 text-sm text-ink-soft transition hover:border-ink-faint hover:text-ink"
+        >
+          🌳 აპის ხე
+        </Link>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
