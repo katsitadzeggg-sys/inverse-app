@@ -1,9 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import readXlsxFile from 'read-excel-file';
-import type { LabelData, LabelMode } from '@/lib/zebra';
+import { DEFAULT_LOOK, type LabelData, type LabelLook, type LabelMode } from '@/lib/zebra';
 import {
   assetsFromRows,
   notBarcodable,
@@ -18,6 +18,19 @@ type Tab = 'shelves' | 'products' | 'assets' | 'numbers' | 'stocktake';
 
 const field =
   'h-10 rounded-xl border border-rule bg-paper px-3 text-sm outline-none focus:border-[#1f7a4d]';
+
+function load(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+function store(key: string, v: string) {
+  try {
+    localStorage.setItem(key, v);
+  } catch {}
+}
 
 /** An Excel (.xlsx) or CSV file as rows of text cells. */
 async function readRows(file: File): Promise<string[][]> {
@@ -76,8 +89,37 @@ export default function LabelStudio({
   // Shelves
   const [shelfSrc, setShelfSrc] = useState<'ranges' | 'excel' | 'company'>('ranges');
   const [ranges, setRanges] = useState('');
+  // The sticker's text and style, kept per company on this device.
   const [shelfTitle, setShelfTitle] = useState('');
-  const [shelfOwner, setShelfOwner] = useState(owner);
+  const [company, setCompany] = useState(owner);
+  const [look, setLook] = useState<LabelLook>(DEFAULT_LOOK);
+  const keyOf = (k: string) => `label-${k}-${owner}`;
+  useEffect(() => {
+    const t = load(`label-warehouse-${owner}`);
+    const c = load(`label-company-${owner}`);
+    const l = load(`label-look-${owner}`);
+    /* eslint-disable react-hooks/set-state-in-effect */
+    if (t != null) setShelfTitle(t);
+    if (c != null) setCompany(c);
+    if (l)
+      try {
+        setLook({ ...DEFAULT_LOOK, ...(JSON.parse(l) as LabelLook) });
+      } catch {}
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [owner]);
+  const saveWarehouse = (v: string) => {
+    setShelfTitle(v);
+    store(keyOf('warehouse'), v);
+  };
+  const saveCompany = (v: string) => {
+    setCompany(v);
+    store(keyOf('company'), v);
+  };
+  const saveLook = (line: keyof LabelLook, part: { bold?: boolean; scale?: number }) => {
+    const next = { ...look, [line]: { ...DEFAULT_LOOK[line], ...look[line], ...part } };
+    setLook(next);
+    store(keyOf('look'), JSON.stringify(next));
+  };
   const [shelfRows, setShelfRows] = useState<LabelData[]>([]);
 
   // Products
@@ -105,7 +147,7 @@ export default function LabelStudio({
   const parsed = useMemo(() => parseRanges(ranges), [ranges]);
   const count = Math.max(0, Math.min(5000, to - from + 1));
 
-  const items: LabelData[] = useMemo(() => {
+  const raw: LabelData[] = useMemo(() => {
     /** N copies each, or one per unit of the quantity column. */
     const withCopies = (list: LabelData[]) =>
       list.map((d) => ({ ...d, copies: perUnit ? (d.qty ?? 0) : each }));
@@ -121,11 +163,7 @@ export default function LabelStudio({
                 mode: 'qr' as const,
               }));
       // Beside the QR: code / warehouse / company. The QR holds only the code.
-      return base.map((d) => ({
-        ...d,
-        title: shelfTitle.trim() || d.title,
-        footer: shelfOwner.trim() || undefined,
-      }));
+      return base.map((d) => ({ ...d, title: shelfTitle.trim() || d.title }));
     }
     if (tab === 'products')
       return withCopies(prodSrc === 'excel' ? prodRows : productsFromText(prodText));
@@ -147,7 +185,6 @@ export default function LabelStudio({
     shelfSrc,
     parsed,
     shelfTitle,
-    shelfOwner,
     shelfRows,
     shelves,
     owner,
@@ -168,6 +205,23 @@ export default function LabelStudio({
     picked,
     st,
   ]);
+
+  // Shelves and fixed assets carry the company line; every label the style.
+  const companyLine =
+    tab === 'shelves' ||
+    tab === 'assets' ||
+    (tab === 'stocktake' && (picked?.src === 'shelves' || picked?.src === 'assets'));
+  const warehouseLine = tab === 'shelves' || (tab === 'stocktake' && picked?.src === 'shelves');
+  const items: LabelData[] = useMemo(
+    () =>
+      raw.map((d) => ({
+        ...d,
+        title: warehouseLine && tab === 'stocktake' ? shelfTitle.trim() || d.title : d.title,
+        footer: companyLine ? company.trim() || undefined : d.footer,
+        look,
+      })),
+    [raw, warehouseLine, companyLine, tab, shelfTitle, company, look],
+  );
 
   // Assets without an accounting code got an Inverse number (INV-0001…).
   const noCode = tab === 'assets' ? items.filter((d) => /^INV-\d{4,}$/.test(d.code)).length : 0;
@@ -297,26 +351,6 @@ export default function LabelStudio({
                   {fileInput((rows) => setShelfRows(shelvesFromRows(rows)))}
                 </>
               )}
-              <div className="grid grid-cols-2 gap-2">
-                <label className="grid gap-1">
-                  <span className="text-xs text-ink-faint">საწყობი / ფილიალი</span>
-                  <input
-                    className={field}
-                    value={shelfTitle}
-                    placeholder="მაგ. მელიქიშვილი"
-                    onChange={(e) => setShelfTitle(e.target.value)}
-                  />
-                </label>
-                <label className="grid gap-1">
-                  <span className="text-xs text-ink-faint">კომპანია</span>
-                  <input
-                    className={field}
-                    value={shelfOwner}
-                    placeholder="მაგ. სს ექსტრა"
-                    onChange={(e) => setShelfOwner(e.target.value)}
-                  />
-                </label>
-              </div>
               <p className="text-xs text-ink-faint">
                 QR-ში მხოლოდ თაროს კოდია — სკანერი მარტო თაროს ამოიკითხავს.
               </p>
@@ -537,6 +571,40 @@ export default function LabelStudio({
             </>
           )}
 
+          {tab !== 'numbers' && (
+            <div className="grid gap-2 rounded-xl border border-rule p-3">
+              <span className="text-xs font-semibold text-ink-faint">
+                სტიკერის ტექსტი — ინახება ამ კომპანიისთვის
+              </span>
+              {warehouseLine && (
+                <TextLine
+                  label="საწყობი / ფილიალი"
+                  value={shelfTitle}
+                  placeholder="მაგ. მელიქიშვილი"
+                  onText={saveWarehouse}
+                  look={look.title}
+                  onLook={(p) => saveLook('title', p)}
+                />
+              )}
+              {!warehouseLine && (
+                <TextLine
+                  label="დასახელება"
+                  look={look.title}
+                  onLook={(p) => saveLook('title', p)}
+                />
+              )}
+              {companyLine && (
+                <TextLine
+                  label="კომპანია"
+                  value={company}
+                  placeholder="მაგ. სს ექსტრა"
+                  onText={saveCompany}
+                  look={look.footer}
+                  onLook={(p) => saveLook('footer', p)}
+                />
+              )}
+            </div>
+          )}
           {bad.length > 0 && (
             <p className="text-xs text-[#b45309]">
               {bad.length} კოდს ქართული ასო აქვს — შტრიხკოდად ვერ დაიბეჭდება, მხოლოდ ტექსტად (მაგ.{' '}
@@ -570,6 +638,62 @@ export default function LabelStudio({
             </p>
           )}
         </section>
+      </div>
+    </div>
+  );
+}
+
+/** One text line of the sticker: its text (when editable), bold, size. */
+function TextLine({
+  label,
+  value,
+  placeholder,
+  onText,
+  look,
+  onLook,
+}: {
+  label: string;
+  value?: string;
+  placeholder?: string;
+  onText?: (v: string) => void;
+  look?: { bold?: boolean; scale?: number };
+  onLook: (p: { bold?: boolean; scale?: number }) => void;
+}) {
+  const scale = look?.scale ?? 1;
+  const bold = look?.bold ?? false;
+  const step = (d: number) =>
+    onLook({ scale: Math.round(Math.min(1.6, Math.max(0.6, scale + d)) * 10) / 10 });
+  const btn = 'h-10 min-w-10 rounded-xl border border-rule px-2 text-sm';
+  return (
+    <div className="grid gap-1">
+      <span className="text-xs text-ink-faint">{label}</span>
+      <div className="flex items-center gap-1.5">
+        {onText ? (
+          <input
+            className={`${field} min-w-0 flex-1`}
+            value={value}
+            placeholder={placeholder}
+            onChange={(e) => onText(e.target.value)}
+          />
+        ) : (
+          <span className="flex-1 text-ink-soft">სტილი</span>
+        )}
+        <button
+          type="button"
+          onClick={() => onLook({ bold: !bold })}
+          className={`${btn} font-bold ${bold ? 'bg-ink text-paper' : ''}`}
+          aria-label="მუქი შრიფტი"
+          title="მუქი"
+        >
+          B
+        </button>
+        <button type="button" onClick={() => step(-0.1)} className={btn} aria-label="პატარა">
+          A−
+        </button>
+        <span className="w-10 text-center text-xs tabular-nums">{Math.round(scale * 100)}%</span>
+        <button type="button" onClick={() => step(0.1)} className={btn} aria-label="დიდი">
+          A+
+        </button>
       </div>
     </div>
   );

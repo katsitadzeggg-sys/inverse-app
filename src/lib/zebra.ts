@@ -18,6 +18,20 @@ export type LabelSize = { w: number; h: number }; // millimetres
  * both — QR and a line barcode (inventory numbers, readable by any scanner).
  */
 export type LabelMode = 'qr' | 'barcode' | 'both';
+/** How one text line looks: bold or not, and its size against the default (1). */
+export type LineLook = { bold?: boolean; scale?: number };
+/** Per-company text style of a label: the name line and the company line. */
+export type LabelLook = { title?: LineLook; footer?: LineLook };
+/** Default: name regular, company bold and a little larger. */
+export const DEFAULT_LOOK: Required<{ [K in keyof LabelLook]: Required<LineLook> }> = {
+  title: { bold: false, scale: 1 },
+  footer: { bold: true, scale: 1.1 },
+};
+const weightOf = (l: LineLook | undefined, fallback: Required<LineLook>) =>
+  (l?.bold ?? fallback.bold) ? 700 : 500;
+const scaleOf = (l: LineLook | undefined, fallback: Required<LineLook>) =>
+  Math.min(1.6, Math.max(0.6, l?.scale ?? fallback.scale));
+
 export type LabelData = {
   code: string;
   title: string;
@@ -31,6 +45,8 @@ export type LabelData = {
   copies?: number;
   /** A quantity from the data (book balance), for "one label per unit". */
   qty?: number | null;
+  /** Text style of the name and company lines (set per company in the studio). */
+  look?: LabelLook;
 };
 
 /**
@@ -154,8 +170,12 @@ function drawBarcodeLabel(
     codeSize = Math.round(codeSize * 0.92);
     ctx.font = font(codeSize, 700);
   }
-  const nameSize = Math.max(14, Math.round(codeSize * 0.9));
-  ctx.font = font(nameSize, 600);
+  const nameW = weightOf(data.look?.title, { bold: true, scale: 1 });
+  const nameSize = Math.max(
+    14,
+    Math.round(codeSize * 0.9 * scaleOf(data.look?.title, { bold: true, scale: 1 })),
+  );
+  ctx.font = font(nameSize, nameW);
   const lines = fitText(ctx, data.title, tw, H > W * 0.55 ? 2 : 1);
   const gap = Math.round(pad * 0.5);
   const textH =
@@ -182,7 +202,7 @@ function drawBarcodeLabel(
   y += Math.round(codeSize * 1.15);
   if (lines.length) {
     y += gap;
-    ctx.font = font(nameSize, 600);
+    ctx.font = font(nameSize, nameW);
     for (const l of lines) {
       ctx.fillText(l, W / 2, y, tw);
       y += Math.round(nameSize * 1.15);
@@ -236,16 +256,30 @@ function drawQrLabel(
     }
     return size;
   };
-  const rest = [data.sub, data.title, data.footer].filter((t): t is string => !!t);
-  let codeSize = Math.min(Math.round(room / (1.2 + rest.length * 0.75)), Math.round(W * 0.14));
+  const tLook = {
+    w: weightOf(data.look?.title, DEFAULT_LOOK.title),
+    k: scaleOf(data.look?.title, DEFAULT_LOOK.title),
+  };
+  const fLook = {
+    w: weightOf(data.look?.footer, DEFAULT_LOOK.footer),
+    k: scaleOf(data.look?.footer, DEFAULT_LOOK.footer),
+  };
+  const rest: [string, number, number][] = [];
+  if (data.sub) rest.push([data.sub, 1, 500]);
+  if (data.title) rest.push([data.title, tLook.k, tLook.w]);
+  if (data.footer) rest.push([data.footer, fLook.k, fLook.w]);
+  const share = rest.reduce((s2, [, k]) => s2 + 0.75 * k, 0);
+  let codeSize = Math.min(Math.round(room / (1.2 + share)), Math.round(W * 0.14));
   codeSize = fit(data.code, Math.max(18, codeSize), 700, 14);
-  let small = Math.max(14, Math.round(codeSize * 0.6));
-  for (const t of rest) small = Math.min(small, fit(t, small, 500, 12));
+  // One base size for the smaller lines, each scaled by its own setting and
+  // shrunk only as much as its own text needs to fit the width.
+  const base = Math.max(14, Math.round(codeSize * 0.6));
+  const sized = rest.map(([t, k, w]) => [t, fit(t, Math.round(base * k), w, 11), w] as const);
   const lines: [string, number, number][] = [];
-  if (data.sub) lines.push([data.sub, small, 500]);
+  const subLine = data.sub ? sized.shift() : undefined;
+  if (subLine) lines.push([...subLine]);
   lines.push([data.code, codeSize, 700]);
-  if (data.title) lines.push([data.title, small, 500]);
-  if (data.footer) lines.push([data.footer, small, 500]);
+  for (const l of sized) lines.push([...l]);
   const lh = (sz: number) => Math.round(sz * 1.25);
   const block = lines.reduce((s2, [, sz]) => s2 + lh(sz), 0);
   let ty = top + Math.max(0, Math.round((room - block) / 2));
