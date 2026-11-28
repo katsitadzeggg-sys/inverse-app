@@ -86,7 +86,7 @@ function qty(v: unknown): number | null {
 const SHELF_CODE = ['თარო', 'კოდი', 'code', 'shelf', 'ადგილ', 'მისამართ'];
 const SHELF_NAME = ['დასახელ', 'სახელ', 'name', 'აღწერ'];
 
-/** Excel rows of shelves: code (+ name). Without a header: column A, B. */
+/** Excel rows of shelves: code (+ warehouse/name). Without a header: column A, B. */
 export function shelvesFromRows(rows: string[][]): LabelData[] {
   const hr = headerRow(rows, [...SHELF_CODE, ...SHELF_NAME]);
   const h = hr >= 0 ? rows[hr].map(norm) : [];
@@ -100,7 +100,7 @@ export function shelvesFromRows(rows: string[][]): LabelData[] {
     if (!code || seen.has(code)) continue;
     seen.add(code);
     const name = ni >= 0 && ni !== ci ? clean(r[ni]) : '';
-    out.push({ code, title: name && name.toUpperCase() !== code ? name : 'თარო', mode: 'qr' });
+    out.push({ code, title: name && name.toUpperCase() !== code ? name : '', mode: 'qr' });
   }
   return out;
 }
@@ -114,7 +114,7 @@ export type ProductLabel = LabelData;
 
 /**
  * Excel rows of products: barcode, code/article, name, quantity.
- * The barcode is printed as bars; the code under it as "კოდი …".
+ * The barcode is printed as bars with its digits and the name under them.
  * Without a barcode the code itself becomes the bars.
  */
 export function productsFromRows(rows: string[][]): ProductLabel[] {
@@ -136,7 +136,6 @@ export function productsFromRows(rows: string[][]): ProductLabel[] {
     out.push({
       code: main,
       title: name,
-      sub: barcode && code && code !== barcode ? `კოდი ${code}` : undefined,
       mode: 'barcode',
       qty: qi >= 0 ? qty(r[qi]) : null,
     });
@@ -155,15 +154,21 @@ export function productsFromText(text: string): ProductLabel[] {
   );
 }
 
+/** The link a fixed asset's QR holds: its card with photos in the app. */
+export function assetQr(base: string, code: string): string | undefined {
+  return base ? `${base.replace(/\/$/, '')}/inv/${encodeURIComponent(code)}` : undefined;
+}
+
 const A_CODE = ['ბუღ', 'საინვ', 'ინვენტ', 'კოდი', 'ნომერ', 'inv', 'code', '№'];
 const A_NAME = ['დასახელ', 'სახელ', 'name', 'აღწერ'];
 
 /**
  * Excel rows of fixed assets: accounting code + name. The accounting code is
- * the barcode, the QR and the printed number — nothing new is invented.
- * A row without a code gets an Inverse number (INV-0001…), marked as such.
+ * the printed number and the barcode — nothing new is invented. The QR opens
+ * the asset's card with its photos: {qrBase}/inv/{code}.
+ * A row without a code gets an Inverse number (INV-0001…).
  */
-export function assetsFromRows(rows: string[][], start = 1): LabelData[] {
+export function assetsFromRows(rows: string[][], start = 1, qrBase = ''): LabelData[] {
   const hr = headerRow(rows, [...A_CODE, ...A_NAME]);
   const h = hr >= 0 ? rows[hr].map(norm) : [];
   let ci = hr >= 0 ? col(h, A_CODE) : 0;
@@ -180,13 +185,13 @@ export function assetsFromRows(rows: string[][], start = 1): LabelData[] {
     if (code) {
       if (seen.has(code)) continue;
       seen.add(code);
-      out.push({ code, title: name, sub: 'ბუღ. №', mode: 'both' });
+      out.push({ code, title: name, qr: assetQr(qrBase, code), mode: 'both' });
     } else {
       let inv = '';
       do inv = `INV-${String(n++).padStart(4, '0')}`;
       while (seen.has(inv));
       seen.add(inv);
-      out.push({ code: inv, title: name, sub: 'Inverse №', mode: 'both' });
+      out.push({ code: inv, title: name, qr: assetQr(qrBase, inv), mode: 'both' });
     }
   }
   return out;

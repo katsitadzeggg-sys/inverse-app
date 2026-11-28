@@ -23,8 +23,10 @@ export type LabelData = {
   title: string;
   footer?: string;
   mode?: LabelMode;
-  /** A small line under the code, e.g. "კოდი 10234" or "ბუღ. №". */
+  /** A small line over the code (optional). */
   sub?: string;
+  /** What the QR holds when not the code itself (e.g. a link to the asset's photos). */
+  qr?: string;
   /** How many of this label to print (times the panel's copies); default 1. */
   copies?: number;
   /** A quantity from the data (book balance), for "one label per unit". */
@@ -131,7 +133,10 @@ export function drawLabel(size: LabelSize, data: LabelData): HTMLCanvasElement {
   return canvas;
 }
 
-/** Product label: name on top, bars in the middle, digits under the bars. */
+/**
+ * Product label: bars on top, the digits under them, the name under the
+ * digits (up to two lines) — all centred, the two text sizes in proportion.
+ */
 function drawBarcodeLabel(
   ctx: CanvasRenderingContext2D,
   W: number,
@@ -142,48 +147,55 @@ function drawBarcodeLabel(
 ) {
   const tw = W - pad * 2;
   ctx.textAlign = 'center';
-  let small = Math.max(16, Math.min(Math.round(H * 0.11), Math.round(W * 0.07)));
-  ctx.font = font(small, 600);
-  const lines = fitText(ctx, data.title, tw, H > W * 0.55 ? 2 : 1);
-  let y = pad;
-  for (const l of lines) {
-    ctx.fillText(l, W / 2, y, tw);
-    y += Math.round(small * 1.15);
-  }
-  y += Math.round(pad * 0.4);
-  let codeSize = Math.max(16, Math.round(small * 0.95));
-  ctx.font = font(codeSize, 600);
+  // Digits and name share one size scale: digits a little larger and bold.
+  let codeSize = Math.max(16, Math.min(Math.round(H * 0.12), Math.round(W * 0.075)));
+  ctx.font = font(codeSize, 700);
   while (codeSize > 12 && ctx.measureText(data.code).width > tw) {
-    codeSize = Math.round(codeSize * 0.9);
-    ctx.font = font(codeSize, 600);
+    codeSize = Math.round(codeSize * 0.92);
+    ctx.font = font(codeSize, 700);
   }
-  const footer = data.footer ? Math.round(small * 0.75) : 0;
-  const barsH =
-    H - y - pad - codeSize * 1.2 - (footer ? footer * 1.2 : 0) - (data.sub ? codeSize * 1.1 : 0);
-  if (bits && barsH > 24) drawBars(ctx, bits, pad, y, tw, Math.round(Math.min(barsH, W * 0.45)));
-  else if (!bits) {
+  const nameSize = Math.max(14, Math.round(codeSize * 0.9));
+  ctx.font = font(nameSize, 600);
+  const lines = fitText(ctx, data.title, tw, H > W * 0.55 ? 2 : 1);
+  const gap = Math.round(pad * 0.5);
+  const textH =
+    Math.round(codeSize * 1.15) +
+    (lines.length ? gap + lines.length * Math.round(nameSize * 1.15) : 0);
+  let y = pad;
+  const barsH = Math.round(Math.min(H - pad * 2 - textH - gap, W * 0.45));
+  if (bits && barsH > 24) {
+    // Bars and text as one block, centred top to bottom.
+    y = Math.max(pad, Math.round((H - (barsH + gap + textH)) / 2));
+    drawBars(ctx, bits, pad, y, tw, barsH);
+    y += barsH + gap;
+    ctx.font = font(codeSize, 700);
+    ctx.fillText(data.code, W / 2, y, tw);
+  } else {
     // No barcode possible (letters it cannot carry) — the code large instead.
-    small = Math.round(codeSize * 1.6);
-    ctx.font = font(small);
-    ctx.fillText(data.code, W / 2, y + Math.max(0, barsH / 2 - small / 2), tw);
-    ctx.font = font(codeSize, 600);
+    const big = Math.round(codeSize * 1.6);
+    ctx.font = font(big);
+    y = Math.max(pad, Math.round((H - (big * 1.15 + gap + textH - codeSize * 1.15)) / 2));
+    ctx.fillText(data.code, W / 2, y, tw);
+    y += Math.round(big * 0.05);
+    codeSize = big;
   }
-  y +=
-    Math.max(0, Math.round(bits ? Math.min(barsH, W * 0.45) : barsH)) + Math.round(codeSize * 0.15);
-  if (bits) ctx.fillText(data.code, W / 2, y, tw);
-  y += Math.round(codeSize * 1.1);
-  if (data.sub && y + codeSize <= H - pad / 2) {
-    ctx.font = font(codeSize, 600);
-    ctx.fillText(data.sub, W / 2, y, tw);
-    y += Math.round(codeSize * 1.1);
-  }
-  if (footer && data.footer) {
-    ctx.font = font(footer, 400);
-    ctx.fillText(data.footer, W / 2, y, tw);
+  y += Math.round(codeSize * 1.15);
+  if (lines.length) {
+    y += gap;
+    ctx.font = font(nameSize, 600);
+    for (const l of lines) {
+      ctx.fillText(l, W / 2, y, tw);
+      y += Math.round(nameSize * 1.15);
+    }
   }
 }
 
-/** QR on the left (or top on narrow labels), code + name + footer as text. */
+/**
+ * QR on the left (top on narrow labels); beside it the code, the name and the
+ * footer (e.g. AA01 / მელიქიშვილი / სს ექსტრა) as one block centred both
+ * ways, each line as large as fits, the code largest. The QR holds only the
+ * code unless the label says otherwise.
+ */
 function drawQrLabel(
   ctx: CanvasRenderingContext2D,
   W: number,
@@ -191,7 +203,7 @@ function drawQrLabel(
   pad: number,
   data: LabelData,
 ) {
-  const qr = QRCode.create(data.code, { errorCorrectionLevel: 'M' }).modules;
+  const qr = QRCode.create(data.qr ?? data.code, { errorCorrectionLevel: 'M' }).modules;
   const landscape = W / H >= 1.35;
 
   // QR: as large as the layout allows, whole dots per module so it scans crisp.
@@ -207,43 +219,41 @@ function drawQrLabel(
       if (qr.data[y * qr.size + x]) ctx.fillRect(qrX + x * mod, qrY + y * mod, mod, mod);
   }
 
-  // Text: code (bold), title (up to 2 lines), footer (small).
+  // The text area beside (or under) the QR.
   const tx = landscape ? qrX + qrPx + pad : pad;
   const tw = W - tx - pad;
-  let ty = landscape ? pad : qrY + qrPx + Math.round(pad * 0.6);
-  const room = H - ty - pad;
-  let codeSize = Math.max(
-    18,
-    Math.min(Math.round(landscape ? H * 0.16 : room * 0.38), Math.round(W * 0.12)),
-  );
-  ctx.font = font(codeSize);
-  while (codeSize > 14 && ctx.measureText(data.code).width > tw) {
-    codeSize = Math.round(codeSize * 0.9);
-    ctx.font = font(codeSize);
-  }
-  ctx.textAlign = landscape ? 'left' : 'center';
-  const ax = landscape ? tx : W / 2;
-  if (data.sub) {
-    const s = Math.max(12, Math.round(codeSize * 0.5));
-    ctx.font = font(s, 500);
-    ctx.fillText(data.sub, ax, ty, tw);
-    ty += Math.round(s * 1.15);
-    ctx.font = font(codeSize);
-  }
-  ctx.fillText(data.code, ax, ty, tw);
-  ty += Math.round(codeSize * 1.15);
+  const top = landscape ? pad : qrY + qrPx + Math.round(pad * 0.6);
+  const room = H - top - pad;
+  const cx = tx + tw / 2;
+  ctx.textAlign = 'center';
 
-  const small = Math.max(14, Math.round(codeSize * 0.62));
-  ctx.font = font(small, 500);
-  const titleLines = fitText(ctx, data.title, tw, landscape || room > codeSize * 3 ? 2 : 1);
-  for (const l of titleLines) {
-    if (ty + small > H - pad) break;
-    ctx.fillText(l, ax, ty, tw);
-    ty += Math.round(small * 1.15);
-  }
-  if (data.footer && ty + small * 0.8 <= H - pad) {
-    ctx.font = font(Math.round(small * 0.8), 400);
-    ctx.fillText(data.footer, ax, ty, tw);
+  // Line sizes: code largest; name and footer one size, a step smaller.
+  const fit = (text: string, size: number, weight: number, min: number) => {
+    ctx.font = font(size, weight);
+    while (size > min && ctx.measureText(text).width > tw) {
+      size = Math.round(size * 0.92);
+      ctx.font = font(size, weight);
+    }
+    return size;
+  };
+  const rest = [data.sub, data.title, data.footer].filter((t): t is string => !!t);
+  let codeSize = Math.min(Math.round(room / (1.2 + rest.length * 0.75)), Math.round(W * 0.14));
+  codeSize = fit(data.code, Math.max(18, codeSize), 700, 14);
+  let small = Math.max(14, Math.round(codeSize * 0.6));
+  for (const t of rest) small = Math.min(small, fit(t, small, 500, 12));
+  const lines: [string, number, number][] = [];
+  if (data.sub) lines.push([data.sub, small, 500]);
+  lines.push([data.code, codeSize, 700]);
+  if (data.title) lines.push([data.title, small, 500]);
+  if (data.footer) lines.push([data.footer, small, 500]);
+  const lh = (sz: number) => Math.round(sz * 1.25);
+  const block = lines.reduce((s2, [, sz]) => s2 + lh(sz), 0);
+  let ty = top + Math.max(0, Math.round((room - block) / 2));
+  for (const [t, sz, wt] of lines) {
+    if (ty + sz > H - pad / 2) break;
+    ctx.font = font(sz, wt);
+    ctx.fillText(t, cx, ty + Math.round((lh(sz) - sz) / 2), tw);
+    ty += lh(sz);
   }
 }
 

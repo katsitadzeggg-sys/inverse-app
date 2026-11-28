@@ -49,11 +49,14 @@ async function readRows(file: File): Promise<string[][]> {
  */
 export default function LabelStudio({
   owner,
+  appUrl,
   shelves,
   stocktakes,
   picked,
 }: {
   owner: string;
+  /** The app's address: fixed-asset QR codes link to {appUrl}/inv/{number}. */
+  appUrl: string;
   /** The labels of the stocktake chosen in the URL (?st=…&src=…). */
   picked: {
     id: string;
@@ -73,7 +76,8 @@ export default function LabelStudio({
   // Shelves
   const [shelfSrc, setShelfSrc] = useState<'ranges' | 'excel' | 'company'>('ranges');
   const [ranges, setRanges] = useState('');
-  const [shelfTitle, setShelfTitle] = useState('თარო');
+  const [shelfTitle, setShelfTitle] = useState('');
+  const [shelfOwner, setShelfOwner] = useState(owner);
   const [shelfRows, setShelfRows] = useState<LabelData[]>([]);
 
   // Products
@@ -113,16 +117,21 @@ export default function LabelStudio({
             ? shelfRows
             : shelves.map((s) => ({
                 code: s.code,
-                title: s.name && s.name !== s.code ? s.name : 'თარო',
+                title: s.name && s.name !== s.code ? s.name : '',
                 mode: 'qr' as const,
               }));
-      return base.map((d) => ({ ...d, footer: owner }));
+      // Beside the QR: code / warehouse / company. The QR holds only the code.
+      return base.map((d) => ({
+        ...d,
+        title: shelfTitle.trim() || d.title,
+        footer: shelfOwner.trim() || undefined,
+      }));
     }
     if (tab === 'products')
       return withCopies(prodSrc === 'excel' ? prodRows : productsFromText(prodText));
     if (tab === 'assets')
       return assetRows
-        ? assetsFromRows(assetRows, invStart).map((d) => ({ ...d, footer: owner }))
+        ? assetsFromRows(assetRows, invStart, appUrl).map((d) => ({ ...d, footer: owner }))
         : [];
     if (tab === 'numbers')
       return Array.from({ length: count }, (_, i) => ({
@@ -138,6 +147,7 @@ export default function LabelStudio({
     shelfSrc,
     parsed,
     shelfTitle,
+    shelfOwner,
     shelfRows,
     shelves,
     owner,
@@ -148,6 +158,7 @@ export default function LabelStudio({
     each,
     assetRows,
     invStart,
+    appUrl,
     count,
     prefix,
     from,
@@ -158,6 +169,8 @@ export default function LabelStudio({
     st,
   ]);
 
+  // Assets without an accounting code got an Inverse number (INV-0001…).
+  const noCode = tab === 'assets' ? items.filter((d) => /^INV-\d{4,}$/.test(d.code)).length : 0;
   const bad = tab === 'products' || tab === 'assets' ? notBarcodable(items) : [];
   const noQty =
     perUnit && (tab === 'products' || (tab === 'stocktake' && picked?.src === 'products'))
@@ -268,14 +281,7 @@ export default function LabelStudio({
                       onChange={(e) => setRanges(e.target.value)}
                     />
                   </label>
-                  <label className="grid gap-1">
-                    <span className="text-xs text-ink-faint">დასახელება სტიკერზე</span>
-                    <input
-                      className={field}
-                      value={shelfTitle}
-                      onChange={(e) => setShelfTitle(e.target.value)}
-                    />
-                  </label>
+
                   {parsed.errors.map((e) => (
                     <p key={e} className="text-xs text-[#b42318]">
                       {e}
@@ -291,10 +297,33 @@ export default function LabelStudio({
                   {fileInput((rows) => setShelfRows(shelvesFromRows(rows)))}
                 </>
               )}
+              <div className="grid grid-cols-2 gap-2">
+                <label className="grid gap-1">
+                  <span className="text-xs text-ink-faint">საწყობი / ფილიალი</span>
+                  <input
+                    className={field}
+                    value={shelfTitle}
+                    placeholder="მაგ. მელიქიშვილი"
+                    onChange={(e) => setShelfTitle(e.target.value)}
+                  />
+                </label>
+                <label className="grid gap-1">
+                  <span className="text-xs text-ink-faint">კომპანია</span>
+                  <input
+                    className={field}
+                    value={shelfOwner}
+                    placeholder="მაგ. სს ექსტრა"
+                    onChange={(e) => setShelfOwner(e.target.value)}
+                  />
+                </label>
+              </div>
+              <p className="text-xs text-ink-faint">
+                QR-ში მხოლოდ თაროს კოდია — სკანერი მარტო თაროს ამოიკითხავს.
+              </p>
               <p className="text-ink-soft">
                 {items.length ? (
                   <>
-                    {items.length} სტიკერი — QR + კოდი + დასახელება: <b>{items[0].code}</b>
+                    {items.length} სტიკერი: <b>{items[0].code}</b>
                     {items.length > 1 && (
                       <>
                         {' '}
@@ -318,8 +347,8 @@ export default function LabelStudio({
               {prodSrc === 'excel' ? (
                 <>
                   <p className="text-xs text-ink-faint">
-                    სვეტები: <b>შტრიხკოდი</b>, <b>კოდი/არტიკული</b>, <b>დასახელება</b>,{' '}
-                    <b>რაოდენობა</b> (რაოდენობა — თუ ნაშთით ბეჭდავ).
+                    სვეტები: <b>შტრიხკოდი</b>, <b>დასახელება</b>, <b>რაოდენობა</b> (თუ ნაშთით
+                    ბეჭდავ). შტრიხკოდის გარეშე პროდუქტს — მისი კოდი/არტიკული.
                   </p>
                   {fileInput((rows) => setProdRows(productsFromRows(rows)))}
                 </>
@@ -336,7 +365,7 @@ export default function LabelStudio({
               )}
               {copiesBox(true)}
               <p className="text-ink-soft">
-                სტიკერზე: შტრიხკოდი, ნომერი და დასახელება · {items.length} პროდუქტი
+                სტიკერზე: შტრიხკოდი, ციფრები და დასახელება · {items.length} პროდუქტი
               </p>
             </>
           )}
@@ -345,19 +374,17 @@ export default function LabelStudio({
             <>
               <p className="text-xs text-ink-faint">
                 ბუღალტერიის რეესტრი: <b>ბუღალტრული (საინვენტარო) კოდი</b> და <b>დასახელება</b>.
-                შტრიხკოდიც, QR-იც და ნომერიც იმავე კოდიდან იქმნება — ახალი ნომერი არ იგონება.
+                სტიკერზე ნომერი და შტრიხკოდი ამ კოდიდანაა, ახალი არ იგონება. QR ხსნის საშუალების
+                ბარათს ფოტოებით ({appUrl.replace(/^https?:\/\//, '')}/inv/ნომერი).
               </p>
               {fileInput((rows) => setAssetRows(rows))}
               {assetRows && (
                 <>
                   <p className="text-ink-soft">
-                    {items.length} სტიკერი · {items.filter((d) => d.sub === 'ბუღ. №').length}{' '}
-                    ბუღალტრული კოდით
-                    {items.some((d) => d.sub === 'Inverse №') && (
-                      <> · {items.filter((d) => d.sub === 'Inverse №').length} კოდის გარეშე</>
-                    )}
+                    {items.length} სტიკერი ·{' '}
+                    {noCode ? `${noCode} კოდის გარეშე (INV-…)` : 'ყველა ბუღალტრული კოდით'}
                   </p>
-                  {items.some((d) => d.sub === 'Inverse №') && (
+                  {noCode > 0 && (
                     <label className="grid gap-1">
                       <span className="text-xs text-ink-faint">
                         კოდის გარეშე საშუალებებს მიენიჭება Inverse-ის ნომერი (INV-…), დაწყება:

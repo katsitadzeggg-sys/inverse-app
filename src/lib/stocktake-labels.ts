@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Stocktake } from '@/types/database';
 import type { LabelData } from '@/lib/zebra';
+import { assetQr } from '@/lib/label-sources';
 
 export type LabelSrc = 'shelves' | 'products' | 'assets';
 
@@ -27,6 +28,8 @@ export async function stocktakeLabels(
   st: Stocktake,
   want: string | undefined,
   all: boolean,
+  /** The app's address, for the fixed-asset QR links (…/inv/FA-0012). */
+  qrBase = '',
 ): Promise<{ src: LabelSrc; items: LabelData[]; note: string }> {
   const id = st.id;
   const isAssets = st.kind === 'assets';
@@ -62,7 +65,7 @@ export async function stocktakeLabels(
     items = rows.map((r) => ({
       code: r.inv_no,
       title: r.name,
-      sub: 'ბუღ. №',
+      qr: assetQr(qrBase, r.inv_no),
       footer: owner,
       mode: 'both',
     }));
@@ -107,7 +110,8 @@ export async function stocktakeLabels(
     locs.sort((a, b) => a.code.localeCompare(b.code, 'ka', { numeric: true }));
     items = locs.map((l) => ({
       code: l.code,
-      title: l.name && l.name !== l.code ? l.name : 'თარო',
+      // Beside the QR: shelf code, warehouse, company.
+      title: st.branch ?? (l.name && l.name !== l.code ? l.name : ''),
       footer: owner,
       mode: 'qr',
     }));
@@ -152,7 +156,6 @@ export async function stocktakeLabels(
       return {
         code,
         title: named ? p.name : '',
-        sub: p.barcode && p.sku && p.sku !== p.barcode ? `კოდი ${p.sku}` : undefined,
         mode: 'barcode' as const,
         qty: q == null ? null : Math.max(0, Math.ceil(q)),
       };

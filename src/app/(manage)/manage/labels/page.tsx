@@ -1,4 +1,6 @@
+import { headers } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
+import { appUrlFrom } from '@/lib/app-url';
 import { requireSession } from '@/lib/session';
 import type { Stocktake } from '@/types/database';
 import { stocktakeLabels } from '@/lib/stocktake-labels';
@@ -20,6 +22,7 @@ export default async function LabelsPage({
   const sp = await searchParams;
   const { company } = await requireSession();
   const supabase = await createClient();
+  const appUrl = appUrlFrom(await headers());
   // One stocktake's labels (?st=…&src=shelves|products|assets&all=1).
   const stId = typeof sp.st === 'string' ? sp.st : null;
   const { data: st } = stId
@@ -31,6 +34,7 @@ export default async function LabelsPage({
         st,
         typeof sp.src === 'string' ? sp.src : undefined,
         sp.all === '1',
+        appUrl,
       )
     : null;
   const shelves: { code: string; name: string }[] = [];
@@ -58,6 +62,7 @@ export default async function LabelsPage({
   return (
     <LabelStudio
       owner={company.name}
+      appUrl={appUrl}
       picked={
         st && fromSt
           ? {

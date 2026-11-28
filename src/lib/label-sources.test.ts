@@ -41,45 +41,48 @@ test('shelves from Excel with or without a header', () => {
     withHeader.map((s) => [s.code, s.title]),
     [
       ['AA1', 'ზეთები'],
-      ['AA2', 'თარო'],
+      ['AA2', ''],
     ],
   );
   assert.equal(shelvesFromRows([['B1', 'სასმელი']])[0].title, 'სასმელი');
 });
 
-test('products: barcode is the bars, the code goes under it, quantity read', () => {
+test('products: barcode is the bars, name and quantity read', () => {
   const p = productsFromRows([
     ['შტრიხკოდი', 'არტიკული', 'დასახელება', 'რაოდენობა'],
     ['4860103711939', '10234', 'ზეთი 1ლ', '12'],
     ['', '20555', 'შაქარი', '2,5'],
   ]);
   assert.equal(p[0].code, '4860103711939');
-  assert.equal(p[0].sub, 'კოდი 10234');
+  assert.equal(p[0].title, 'ზეთი 1ლ');
   assert.equal(p[0].qty, 12);
   assert.equal(p[1].code, '20555'); // no barcode: the code becomes the bars
-  assert.equal(p[1].sub, undefined);
   assert.equal(p[1].qty, 3); // part of a unit still needs a label
 });
 
 test('products pasted as "barcode; name; code; qty"', () => {
   const [p] = productsFromText('4860103711939; ზეთი 1ლ; 10234; 12');
   assert.equal(p.title, 'ზეთი 1ლ');
-  assert.equal(p.sub, 'კოდი 10234');
   assert.equal(p.qty, 12);
 });
 
-test('assets: the accounting code is the number; no code → Inverse number', () => {
-  const a = assetsFromRows([
-    ['ბუღალტრული კოდი', 'დასახელება'],
-    ['FA-0012', 'ლეპტოპი'],
-    ['', 'სკამი'],
-    ['FA-0012', 'დუბლი'],
-  ]);
+test('assets: the accounting code is the number; QR links to the card; no code → INV', () => {
+  const a = assetsFromRows(
+    [
+      ['ბუღალტრული კოდი', 'დასახელება'],
+      ['FA-0012', 'ლეპტოპი'],
+      ['', 'სკამი'],
+      ['FA-0012', 'დუბლი'],
+    ],
+    1,
+    'https://app.inverse.ge/',
+  );
   assert.equal(a.length, 2);
   assert.equal(a[0].code, 'FA-0012');
-  assert.equal(a[0].sub, 'ბუღ. №');
+  assert.equal(a[0].sub, undefined);
+  assert.equal(a[0].qr, 'https://app.inverse.ge/inv/FA-0012');
   assert.equal(a[1].code, 'INV-0001');
-  assert.equal(a[1].sub, 'Inverse №');
+  assert.equal(a[1].qr, 'https://app.inverse.ge/inv/INV-0001');
 });
 
 test('Georgian letters cannot be barcoded', () => {
