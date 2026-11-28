@@ -18,7 +18,18 @@ export type LabelSize = { w: number; h: number }; // millimetres
  * both — QR and a line barcode (inventory numbers, readable by any scanner).
  */
 export type LabelMode = 'qr' | 'barcode' | 'both';
-export type LabelData = { code: string; title: string; footer?: string; mode?: LabelMode };
+export type LabelData = {
+  code: string;
+  title: string;
+  footer?: string;
+  mode?: LabelMode;
+  /** A small line under the code, e.g. "კოდი 10234" or "ბუღ. №". */
+  sub?: string;
+  /** How many of this label to print (times the panel's copies); default 1. */
+  copies?: number;
+  /** A quantity from the data (book balance), for "one label per unit". */
+  qty?: number | null;
+};
 
 /**
  * Bars of a line barcode as "1010…" (1 = black module). EAN-13 / EAN-8 when
@@ -147,7 +158,8 @@ function drawBarcodeLabel(
     ctx.font = font(codeSize, 600);
   }
   const footer = data.footer ? Math.round(small * 0.75) : 0;
-  const barsH = H - y - pad - codeSize * 1.2 - (footer ? footer * 1.2 : 0);
+  const barsH =
+    H - y - pad - codeSize * 1.2 - (footer ? footer * 1.2 : 0) - (data.sub ? codeSize * 1.1 : 0);
   if (bits && barsH > 24) drawBars(ctx, bits, pad, y, tw, Math.round(Math.min(barsH, W * 0.45)));
   else if (!bits) {
     // No barcode possible (letters it cannot carry) — the code large instead.
@@ -160,6 +172,11 @@ function drawBarcodeLabel(
     Math.max(0, Math.round(bits ? Math.min(barsH, W * 0.45) : barsH)) + Math.round(codeSize * 0.15);
   if (bits) ctx.fillText(data.code, W / 2, y, tw);
   y += Math.round(codeSize * 1.1);
+  if (data.sub && y + codeSize <= H - pad / 2) {
+    ctx.font = font(codeSize, 600);
+    ctx.fillText(data.sub, W / 2, y, tw);
+    y += Math.round(codeSize * 1.1);
+  }
   if (footer && data.footer) {
     ctx.font = font(footer, 400);
     ctx.fillText(data.footer, W / 2, y, tw);
@@ -206,6 +223,13 @@ function drawQrLabel(
   }
   ctx.textAlign = landscape ? 'left' : 'center';
   const ax = landscape ? tx : W / 2;
+  if (data.sub) {
+    const s = Math.max(12, Math.round(codeSize * 0.5));
+    ctx.font = font(s, 500);
+    ctx.fillText(data.sub, ax, ty, tw);
+    ty += Math.round(s * 1.15);
+    ctx.font = font(codeSize);
+  }
   ctx.fillText(data.code, ax, ty, tw);
   ty += Math.round(codeSize * 1.15);
 
@@ -224,7 +248,7 @@ function drawQrLabel(
 }
 
 /** One label as ZPL: the canvas turned into a 1-bit graphic field. */
-export function canvasToZpl(canvas: HTMLCanvasElement): string {
+export function canvasToZpl(canvas: HTMLCanvasElement, copies = 1): string {
   const { width: W, height: H } = canvas;
   const px = canvas.getContext('2d')!.getImageData(0, 0, W, H).data;
   const rowBytes = Math.ceil(W / 8);
@@ -244,11 +268,20 @@ export function canvasToZpl(canvas: HTMLCanvasElement): string {
     }
   }
   const total = rowBytes * H;
-  return `^XA^PW${W}^LL${H}^LH0,0^FO0,0^GFA,${total},${total},${rowBytes},${hex}^FS^PQ1^XZ\n`;
+  return `^XA^PW${W}^LL${H}^LH0,0^FO0,0^GFA,${total},${total},${rowBytes},${hex}^FS^PQ${Math.max(1, Math.round(copies))}^XZ\n`;
 }
 
-export function labelsToZpl(size: LabelSize, items: LabelData[]): string {
-  return items.map((d) => canvasToZpl(drawLabel(size, d))).join('');
+/** Each label drawn once; the printer repeats it (^PQ) for its copies. */
+export function labelsToZpl(size: LabelSize, items: LabelData[], copies = 1): string {
+  return items
+    .filter((d) => (d.copies ?? 1) * copies > 0)
+    .map((d) => canvasToZpl(drawLabel(size, d), (d.copies ?? 1) * copies))
+    .join('');
+}
+
+/** Total labels a list prints with the panel's copies. */
+export function labelCount(items: LabelData[], copies = 1): number {
+  return items.reduce((s, d) => s + Math.max(0, d.copies ?? 1) * copies, 0);
 }
 
 /* ---- Direct printing over Bluetooth LE (Chrome on Android) ----------------

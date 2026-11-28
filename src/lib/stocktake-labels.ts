@@ -59,7 +59,13 @@ export async function stocktakeLabels(
             .order('inv_no')
             .range(a, b),
         );
-    items = rows.map((r) => ({ code: r.inv_no, title: r.name, footer: owner, mode: 'both' }));
+    items = rows.map((r) => ({
+      code: r.inv_no,
+      title: r.name,
+      sub: 'ბუღ. №',
+      footer: owner,
+      mode: 'both',
+    }));
     note = all ? 'მთელი რეესტრი' : 'დათვლისას „ეტიკეტი აკლია“ მონიშნული';
   } else if (src === 'shelves') {
     const [book, { data: zones }] = await Promise.all([
@@ -107,8 +113,12 @@ export async function stocktakeLabels(
     }));
   } else {
     const [book, entries] = await Promise.all([
-      pages<{ product_id: string }>((a, b) =>
-        supabase.from('stocktake_book').select('product_id').eq('stocktake_id', id).range(a, b),
+      pages<{ product_id: string; book_qty: number | string | null }>((a, b) =>
+        supabase
+          .from('stocktake_book')
+          .select('product_id, book_qty')
+          .eq('stocktake_id', id)
+          .range(a, b),
       ),
       pages<{ product_id: string | null }>((a, b) =>
         supabase
@@ -122,11 +132,15 @@ export async function stocktakeLabels(
     const ids = [
       ...new Set([...book, ...entries].map((r) => r.product_id).filter(Boolean)),
     ] as string[];
-    const prods: { name: string; sku: string; barcode: string | null }[] = [];
+    // Book quantity per product (all shelves together), for one label per unit.
+    const bookQty = new Map<string, number>();
+    for (const r of book)
+      bookQty.set(r.product_id, (bookQty.get(r.product_id) ?? 0) + (Number(r.book_qty) || 0));
+    const prods: { id: string; name: string; sku: string; barcode: string | null }[] = [];
     for (let i = 0; i < ids.length; i += 300) {
       const { data } = await supabase
         .from('products')
-        .select('name, sku, barcode')
+        .select('id, name, sku, barcode')
         .in('id', ids.slice(i, i + 300));
       prods.push(...(data ?? []));
     }
@@ -134,7 +148,14 @@ export async function stocktakeLabels(
     items = prods.map((p) => {
       const code = p.barcode || p.sku;
       const named = p.name && p.name !== code && !p.name.startsWith('ახალი · ');
-      return { code, title: named ? p.name : '', mode: 'barcode' as const };
+      const q = bookQty.get(p.id);
+      return {
+        code,
+        title: named ? p.name : '',
+        sub: p.barcode && p.sku && p.sku !== p.barcode ? `კოდი ${p.sku}` : undefined,
+        mode: 'barcode' as const,
+        qty: q == null ? null : Math.max(0, Math.ceil(q)),
+      };
     });
     note = 'ამ ინვენტარიზაციის პროდუქცია (ნაშთი + დათვლილი)';
   }

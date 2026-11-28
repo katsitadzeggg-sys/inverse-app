@@ -2,18 +2,50 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
+import readXlsxFile from 'read-excel-file';
 import type { LabelData, LabelMode } from '@/lib/zebra';
+import {
+  assetsFromRows,
+  notBarcodable,
+  parseRanges,
+  productsFromRows,
+  productsFromText,
+  shelvesFromRows,
+} from '@/lib/label-sources';
 import ZebraPanel from '@/app/(count)/count/[id]/labels/zebra-panel';
 
-type Tab = 'numbers' | 'list' | 'shelves' | 'stocktake';
+type Tab = 'shelves' | 'products' | 'assets' | 'numbers' | 'stocktake';
 
 const field =
   'h-10 rounded-xl border border-rule bg-paper px-3 text-sm outline-none focus:border-[#1f7a4d]';
 
+/** An Excel (.xlsx) or CSV file as rows of text cells. */
+async function readRows(file: File): Promise<string[][]> {
+  if (/\.xls$/i.test(file.name))
+    throw new Error('ძველი .xls — Excel-ში შეინახე როგორც .xlsx და ისე ატვირთე.');
+  if (/\.(xlsx|xlsm)$/i.test(file.name))
+    return (await readXlsxFile(file)).map((r) =>
+      r.map((c) => (c == null ? '' : c instanceof Date ? c.toISOString().slice(0, 10) : String(c))),
+    );
+  const text = await file.text();
+  const first = text.split('\n')[0];
+  const sep = first.includes('\t')
+    ? '\t'
+    : (first.match(/;/g)?.length ?? 0) > (first.match(/,/g)?.length ?? 0)
+      ? ';'
+      : ',';
+  return text
+    .split(/\r?\n/)
+    .filter((l) => l.trim())
+    .map((l) => l.split(sep).map((c) => c.replace(/^"|"$/g, '').trim()));
+}
+
 /**
- * The label studio: pick what to print, see it, print it all at once.
- * Numbered: prefix + a range with leading zeros (A-001 … A-200), as QR,
- * barcode or both. List: one code per line, "code; name" for a caption.
+ * The label studio: shelves (ranges like AA1-AA25, an Excel list or all the
+ * company's shelves — QR + code + name on one sticker), products (barcode,
+ * code and name; N copies each or one per unit of quantity), fixed assets
+ * (the accounting code is the barcode and the number), numbered runs, or the
+ * labels of one stocktake. Everything prints in one run.
  */
 export default function LabelStudio({
   owner,
@@ -35,19 +67,63 @@ export default function LabelStudio({
   shelves: { code: string; name: string }[];
   stocktakes: { id: string; label: string }[];
 }) {
-  const [tab, setTab] = useState<Tab>(picked ? 'stocktake' : 'numbers');
+  const [tab, setTab] = useState<Tab>(picked ? 'stocktake' : 'shelves');
+  const [msg, setMsg] = useState<string | null>(null);
+
+  // Shelves
+  const [shelfSrc, setShelfSrc] = useState<'ranges' | 'excel' | 'company'>('ranges');
+  const [ranges, setRanges] = useState('');
+  const [shelfTitle, setShelfTitle] = useState('თარო');
+  const [shelfRows, setShelfRows] = useState<LabelData[]>([]);
+
+  // Products
+  const [prodSrc, setProdSrc] = useState<'excel' | 'paste'>('excel');
+  const [prodRows, setProdRows] = useState<LabelData[]>([]);
+  const [prodText, setProdText] = useState('');
+  const [perUnit, setPerUnit] = useState(false);
+  const [each, setEach] = useState(1);
+
+  // Fixed assets
+  const [assetRows, setAssetRows] = useState<string[][] | null>(null);
+  const [invStart, setInvStart] = useState(1);
+
+  // Numbered run
   const [prefix, setPrefix] = useState('A-');
   const [from, setFrom] = useState(1);
   const [to, setTo] = useState(50);
   const [digits, setDigits] = useState(3);
   const [title, setTitle] = useState('');
   const [mode, setMode] = useState<LabelMode>('qr');
-  const [text, setText] = useState('');
-  const [listMode, setListMode] = useState<LabelMode>('barcode');
-  const [st, setSt] = useState(picked?.id ?? stocktakes[0]?.id ?? '');
 
+  const [st, setSt] = useState(picked?.id ?? stocktakes[0]?.id ?? '');
+  const [fileName, setFileName] = useState('');
+
+  const parsed = useMemo(() => parseRanges(ranges), [ranges]);
   const count = Math.max(0, Math.min(5000, to - from + 1));
+
   const items: LabelData[] = useMemo(() => {
+    /** N copies each, or one per unit of the quantity column. */
+    const withCopies = (list: LabelData[]) =>
+      list.map((d) => ({ ...d, copies: perUnit ? (d.qty ?? 0) : each }));
+    if (tab === 'shelves') {
+      const base =
+        shelfSrc === 'ranges'
+          ? parsed.codes.map((code) => ({ code, title: shelfTitle, mode: 'qr' as const }))
+          : shelfSrc === 'excel'
+            ? shelfRows
+            : shelves.map((s) => ({
+                code: s.code,
+                title: s.name && s.name !== s.code ? s.name : 'თარო',
+                mode: 'qr' as const,
+              }));
+      return base.map((d) => ({ ...d, footer: owner }));
+    }
+    if (tab === 'products')
+      return withCopies(prodSrc === 'excel' ? prodRows : productsFromText(prodText));
+    if (tab === 'assets')
+      return assetRows
+        ? assetsFromRows(assetRows, invStart).map((d) => ({ ...d, footer: owner }))
+        : [];
     if (tab === 'numbers')
       return Array.from({ length: count }, (_, i) => ({
         code: `${prefix}${String(from + i).padStart(digits, '0')}`,
@@ -55,53 +131,104 @@ export default function LabelStudio({
         footer: owner,
         mode,
       }));
-    if (tab === 'list')
-      return text
-        .split('\n')
-        .map((l) => l.trim())
-        .filter(Boolean)
-        .map((l) => {
-          const [code, ...rest] = l.split(/[;\t]/);
-          return { code: code.trim(), title: rest.join(' ').trim(), mode: listMode };
-        })
-        .filter((d) => d.code);
-    if (tab === 'shelves')
-      return shelves.map((s) => ({
-        code: s.code,
-        title: s.name && s.name !== s.code ? s.name : 'თარო',
-        footer: owner,
-        mode: 'qr' as const,
-      }));
-    return picked && picked.id === st ? picked.items : [];
-  }, [tab, count, prefix, from, digits, title, owner, mode, text, listMode, shelves, picked, st]);
+    if (!picked || picked.id !== st) return [];
+    return picked.src === 'products' ? withCopies(picked.items) : picked.items;
+  }, [
+    tab,
+    shelfSrc,
+    parsed,
+    shelfTitle,
+    shelfRows,
+    shelves,
+    owner,
+    prodSrc,
+    prodRows,
+    prodText,
+    perUnit,
+    each,
+    assetRows,
+    invStart,
+    count,
+    prefix,
+    from,
+    digits,
+    title,
+    mode,
+    picked,
+    st,
+  ]);
+
+  const bad = tab === 'products' || tab === 'assets' ? notBarcodable(items) : [];
+  const noQty =
+    perUnit && (tab === 'products' || (tab === 'stocktake' && picked?.src === 'products'))
+      ? items.filter((d) => d.qty == null).length
+      : 0;
+
+  async function upload(file: File | undefined, apply: (rows: string[][]) => void) {
+    if (!file) return;
+    setMsg(null);
+    try {
+      const rows = await readRows(file);
+      setFileName(file.name.replace(/\.[^.]+$/, ''));
+      apply(rows);
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : 'ფაილი ვერ წავიკითხე.');
+    }
+  }
 
   const tabBtn = (t: Tab, label: string) => (
     <button
       type="button"
-      onClick={() => setTab(t)}
+      onClick={() => {
+        setTab(t);
+        setMsg(null);
+      }}
       className={`rounded-full px-4 py-2 text-sm font-medium ${tab === t ? 'bg-[#1f7a4d] text-white' : 'border border-rule-strong hover:bg-paper-sunk'}`}
     >
       {label}
     </button>
   );
-  const modeBtns = (v: LabelMode, set: (m: LabelMode) => void) => (
-    <div className="flex gap-1">
-      {(
-        [
-          ['qr', '▦ QR'],
-          ['barcode', '║ შტრიხკოდი'],
-          ['both', 'ორივე'],
-        ] as [LabelMode, string][]
-      ).map(([m, l]) => (
-        <button
-          key={m}
-          type="button"
-          onClick={() => set(m)}
-          className={`rounded-full px-3 py-1.5 text-sm ${v === m ? 'bg-ink text-paper' : 'border border-rule'}`}
-        >
-          {l}
-        </button>
-      ))}
+  const pill = (on: boolean, label: string, onClick: () => void) => (
+    <button
+      key={label}
+      type="button"
+      onClick={onClick}
+      className={`rounded-full px-3 py-1.5 text-sm ${on ? 'bg-ink text-paper' : 'border border-rule'}`}
+    >
+      {label}
+    </button>
+  );
+  const fileInput = (apply: (rows: string[][]) => void) => (
+    <input
+      type="file"
+      accept=".xlsx,.xlsm,.csv,.txt"
+      className="text-sm file:mr-3 file:rounded-full file:border-0 file:bg-ink file:px-4 file:py-2 file:text-paper"
+      onChange={(e) => upload(e.target.files?.[0], apply)}
+    />
+  );
+  const copiesBox = (hasQty: boolean) => (
+    <div className="grid gap-2 rounded-xl border border-rule p-3">
+      <span className="text-xs text-ink-faint">რამდენი ცალი თითო პროდუქტზე</span>
+      <div className="flex flex-wrap items-center gap-2">
+        {pill(!perUnit, 'ერთნაირი რაოდენობა', () => setPerUnit(false))}
+        {hasQty && pill(perUnit, 'ნაშთის რაოდენობით', () => setPerUnit(true))}
+      </div>
+      {!perUnit && (
+        <input
+          type="number"
+          min={1}
+          max={500}
+          className={`${field} w-28`}
+          value={each}
+          onChange={(e) => setEach(Math.min(500, Math.max(1, Number(e.target.value) || 1)))}
+          aria-label="ცალი თითოზე"
+        />
+      )}
+      {perUnit && noQty > 0 && (
+        <p className="text-xs text-[#b45309]">
+          {noQty} პროდუქტს რაოდენობა არ აქვს — არ დაიბეჭდება.
+        </p>
+      )}
     </div>
   );
 
@@ -109,14 +236,146 @@ export default function LabelStudio({
     <div className="grid gap-4">
       <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-paper-sunk px-5 py-4">
         <h1 className="mr-3 text-2xl font-semibold">🏷 ეტიკეტები</h1>
-        {tabBtn('numbers', '№ დანომრილი')}
-        {tabBtn('list', '║ სიიდან')}
-        {tabBtn('shelves', `▦ თაროები (${shelves.length})`)}
+        {tabBtn('shelves', '▦ თაროები')}
+        {tabBtn('products', '║ პროდუქცია')}
+        {tabBtn('assets', '№ ძირითადი საშუალებები')}
+        {tabBtn('numbers', '# დანომრილი')}
         {tabBtn('stocktake', '📦 ინვენტარიზაციიდან')}
       </div>
 
-      <div className="grid items-start gap-4 lg:grid-cols-[22rem_1fr]">
+      <div className="grid items-start gap-4 lg:grid-cols-[24rem_1fr]">
         <section className="grid gap-3 rounded-2xl bg-paper-sunk p-5 text-sm">
+          {tab === 'shelves' && (
+            <>
+              <div className="flex flex-wrap gap-2">
+                {pill(shelfSrc === 'ranges', 'დიაპაზონით', () => setShelfSrc('ranges'))}
+                {pill(shelfSrc === 'excel', 'Excel-იდან', () => setShelfSrc('excel'))}
+                {pill(shelfSrc === 'company', `ყველა თარო (${shelves.length})`, () =>
+                  setShelfSrc('company'),
+                )}
+              </div>
+              {shelfSrc === 'ranges' && (
+                <>
+                  <label className="grid gap-1">
+                    <span className="text-xs text-ink-faint">
+                      თაროები, მძიმით: <code>AA1-AA25, AB1-AB23</code> (ცალკეულიც: <code>C7</code>)
+                    </span>
+                    <textarea
+                      rows={4}
+                      className="rounded-xl border border-rule bg-paper p-3 font-mono text-sm outline-none focus:border-[#1f7a4d]"
+                      value={ranges}
+                      placeholder="AA1-AA25, AB1-AB23"
+                      onChange={(e) => setRanges(e.target.value)}
+                    />
+                  </label>
+                  <label className="grid gap-1">
+                    <span className="text-xs text-ink-faint">დასახელება სტიკერზე</span>
+                    <input
+                      className={field}
+                      value={shelfTitle}
+                      onChange={(e) => setShelfTitle(e.target.value)}
+                    />
+                  </label>
+                  {parsed.errors.map((e) => (
+                    <p key={e} className="text-xs text-[#b42318]">
+                      {e}
+                    </p>
+                  ))}
+                </>
+              )}
+              {shelfSrc === 'excel' && (
+                <>
+                  <p className="text-xs text-ink-faint">
+                    სვეტები: <b>თაროს კოდი</b>, <b>დასახელება</b> (სათაურის გარეშეც — A და B სვეტი).
+                  </p>
+                  {fileInput((rows) => setShelfRows(shelvesFromRows(rows)))}
+                </>
+              )}
+              <p className="text-ink-soft">
+                {items.length ? (
+                  <>
+                    {items.length} სტიკერი — QR + კოდი + დასახელება: <b>{items[0].code}</b>
+                    {items.length > 1 && (
+                      <>
+                        {' '}
+                        … <b>{items[items.length - 1].code}</b>
+                      </>
+                    )}
+                  </>
+                ) : (
+                  'ჯერ ცარიელია.'
+                )}
+              </p>
+            </>
+          )}
+
+          {tab === 'products' && (
+            <>
+              <div className="flex flex-wrap gap-2">
+                {pill(prodSrc === 'excel', 'Excel-იდან', () => setProdSrc('excel'))}
+                {pill(prodSrc === 'paste', 'ჩაკოპირებით', () => setProdSrc('paste'))}
+              </div>
+              {prodSrc === 'excel' ? (
+                <>
+                  <p className="text-xs text-ink-faint">
+                    სვეტები: <b>შტრიხკოდი</b>, <b>კოდი/არტიკული</b>, <b>დასახელება</b>,{' '}
+                    <b>რაოდენობა</b> (რაოდენობა — თუ ნაშთით ბეჭდავ).
+                  </p>
+                  {fileInput((rows) => setProdRows(productsFromRows(rows)))}
+                </>
+              ) : (
+                <textarea
+                  rows={8}
+                  className="rounded-xl border border-rule bg-paper p-3 font-mono text-sm outline-none focus:border-[#1f7a4d]"
+                  value={prodText}
+                  placeholder={
+                    'შტრიხკოდი; დასახელება; კოდი; რაოდენობა\n4860103711939; ზეთი 1ლ; 10234; 12'
+                  }
+                  onChange={(e) => setProdText(e.target.value)}
+                />
+              )}
+              {copiesBox(true)}
+              <p className="text-ink-soft">
+                სტიკერზე: შტრიხკოდი, ნომერი და დასახელება · {items.length} პროდუქტი
+              </p>
+            </>
+          )}
+
+          {tab === 'assets' && (
+            <>
+              <p className="text-xs text-ink-faint">
+                ბუღალტერიის რეესტრი: <b>ბუღალტრული (საინვენტარო) კოდი</b> და <b>დასახელება</b>.
+                შტრიხკოდიც, QR-იც და ნომერიც იმავე კოდიდან იქმნება — ახალი ნომერი არ იგონება.
+              </p>
+              {fileInput((rows) => setAssetRows(rows))}
+              {assetRows && (
+                <>
+                  <p className="text-ink-soft">
+                    {items.length} სტიკერი · {items.filter((d) => d.sub === 'ბუღ. №').length}{' '}
+                    ბუღალტრული კოდით
+                    {items.some((d) => d.sub === 'Inverse №') && (
+                      <> · {items.filter((d) => d.sub === 'Inverse №').length} კოდის გარეშე</>
+                    )}
+                  </p>
+                  {items.some((d) => d.sub === 'Inverse №') && (
+                    <label className="grid gap-1">
+                      <span className="text-xs text-ink-faint">
+                        კოდის გარეშე საშუალებებს მიენიჭება Inverse-ის ნომერი (INV-…), დაწყება:
+                      </span>
+                      <input
+                        type="number"
+                        min={1}
+                        className={`${field} w-28`}
+                        value={invStart}
+                        onChange={(e) => setInvStart(Math.max(1, Number(e.target.value) || 1))}
+                      />
+                    </label>
+                  )}
+                </>
+              )}
+            </>
+          )}
+
           {tab === 'numbers' && (
             <>
               <label className="grid gap-1">
@@ -171,7 +430,15 @@ export default function LabelStudio({
                   onChange={(e) => setTitle(e.target.value)}
                 />
               </label>
-              {modeBtns(mode, setMode)}
+              <div className="flex gap-1">
+                {(
+                  [
+                    ['qr', '▦ QR'],
+                    ['barcode', '║ შტრიხკოდი'],
+                    ['both', 'ორივე'],
+                  ] as [LabelMode, string][]
+                ).map(([m, l]) => pill(mode === m, l, () => setMode(m)))}
+              </div>
               <p className="text-ink-soft">
                 {count ? (
                   <>
@@ -184,28 +451,7 @@ export default function LabelStudio({
               </p>
             </>
           )}
-          {tab === 'list' && (
-            <>
-              <p className="text-xs text-ink-faint">
-                ერთი კოდი ერთ ხაზზე. წარწერისთვის: <code>კოდი; დასახელება</code>. Excel-იდან ორი
-                სვეტის ჩაკოპირებაც მუშაობს.
-              </p>
-              <textarea
-                rows={12}
-                className="rounded-xl border border-rule bg-paper p-3 font-mono text-sm outline-none focus:border-[#1f7a4d]"
-                value={text}
-                placeholder={'4860103711939; ზეთი 1ლ\n2009998832196'}
-                onChange={(e) => setText(e.target.value)}
-              />
-              {modeBtns(listMode, setListMode)}
-              <p className="text-ink-soft">{items.length} ეტიკეტი</p>
-            </>
-          )}
-          {tab === 'shelves' && (
-            <p className="text-ink-soft">
-              კომპანიის ყველა თაროს QR — {shelves.length} ეტიკეტი. ფილტრით შეგიძლია ნაწილი აირჩიო.
-            </p>
-          )}
+
           {tab === 'stocktake' && (
             <>
               <select
@@ -255,6 +501,7 @@ export default function LabelStudio({
                   </Link>
                 </div>
               )}
+              {picked && picked.id === st && picked.src === 'products' && copiesBox(true)}
               {picked && picked.id === st && (
                 <p className="text-ink-soft">
                   {picked.note}: {picked.items.length} ეტიკეტი
@@ -262,16 +509,30 @@ export default function LabelStudio({
               )}
             </>
           )}
+
+          {bad.length > 0 && (
+            <p className="text-xs text-[#b45309]">
+              {bad.length} კოდს ქართული ასო აქვს — შტრიხკოდად ვერ დაიბეჭდება, მხოლოდ ტექსტად (მაგ.{' '}
+              {bad.slice(0, 3).join(', ')}). კოდი ლათინურით ჯობს.
+            </p>
+          )}
+          {msg && <p className="text-xs text-[#b42318]">{msg}</p>}
         </section>
 
         <section className="rounded-2xl bg-paper-sunk p-5">
           {items.length > 0 ? (
             <ZebraPanel
-              key={`${tab}-${mode}-${listMode}-${picked?.src ?? ''}`}
+              key={`${tab}-${mode}-${shelfSrc}-${prodSrc}-${picked?.src ?? ''}`}
               items={items}
-              fileName={tab === 'numbers' ? `${prefix}${from}-${to}` : tab}
+              fileName={
+                tab === 'numbers' ? `${prefix}${from}-${to}` : fileName ? `${tab}_${fileName}` : tab
+              }
               kind={
-                tab === 'shelves' || (tab === 'numbers' && mode === 'qr') ? 'shelves' : 'products'
+                tab === 'shelves' ||
+                (tab === 'numbers' && mode === 'qr') ||
+                (tab === 'stocktake' && picked?.src === 'shelves')
+                  ? 'shelves'
+                  : 'products'
               }
             />
           ) : (

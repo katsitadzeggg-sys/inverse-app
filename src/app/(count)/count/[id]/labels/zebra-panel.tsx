@@ -89,7 +89,7 @@ export default function ZebraPanel({
     return t ? items.filter((i) => `${i.code} ${i.title}`.toLowerCase().includes(t)) : items;
   }, [items, q]);
   const jobs = useMemo(
-    () => list.flatMap((i) => Array.from({ length: copies }, () => i)),
+    () => list.flatMap((i) => Array.from({ length: Math.max(0, i.copies ?? 1) * copies }, () => i)),
     [list, copies],
   );
 
@@ -173,7 +173,7 @@ export default function ZebraPanel({
   async function printBt() {
     setMsg('იბეჭდება…');
     try {
-      await printZplBluetooth(labelsToZpl(size, jobs));
+      await printZplBluetooth(labelsToZpl(size, list, copies));
       setMsg(`✓ გაიგზავნა ${jobs.length} ეტიკეტი`);
     } catch (e) {
       forgetPrinter();
@@ -186,7 +186,9 @@ export default function ZebraPanel({
   }
 
   function download() {
-    const url = URL.createObjectURL(new Blob([labelsToZpl(size, jobs)], { type: 'text/plain' }));
+    const url = URL.createObjectURL(
+      new Blob([labelsToZpl(size, list, copies)], { type: 'text/plain' }),
+    );
     const a = document.createElement('a');
     a.href = url;
     a.download = `${fileName}_${size.w}x${size.h}.zpl`;
@@ -262,7 +264,8 @@ export default function ZebraPanel({
       <div className="grid justify-items-start gap-1">
         <div ref={preview} />
         <p className="text-xs text-ink-faint">
-          ასე დაიბეჭდება · {list.length} ეტიკეტი{copies > 1 ? ` × ${copies} = ${jobs.length}` : ''}
+          ასე დაიბეჭდება · {list.length} ეტიკეტი
+          {jobs.length !== list.length ? ` → სულ ${jobs.length}` : ''}
         </p>
       </div>
 
