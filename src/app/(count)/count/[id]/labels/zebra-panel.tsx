@@ -38,6 +38,20 @@ function store(key: string, v: string) {
   } catch {}
 }
 
+/** The label drawn turned by 90 / 180 / 270 degrees (clockwise). */
+function turned(src: HTMLCanvasElement, deg: number): HTMLCanvasElement {
+  if (!deg) return src;
+  const c = document.createElement('canvas');
+  const quarter = deg % 180 !== 0;
+  c.width = quarter ? src.height : src.width;
+  c.height = quarter ? src.width : src.height;
+  const ctx = c.getContext('2d')!;
+  ctx.translate(c.width / 2, c.height / 2);
+  ctx.rotate((deg * Math.PI) / 180);
+  ctx.drawImage(src, -src.width / 2, -src.height / 2);
+  return c;
+}
+
 /**
  * Label studio for the Zebra ZQ511: pick the roll size, filter, copies, see the
  * label as it prints, then print through the phone's print dialog (Zebra Print
@@ -66,6 +80,18 @@ export default function ZebraPanel({
   }, [sizeKey]);
   const [q, setQ] = useState('');
   const [copies, setCopies] = useState(1);
+  // Turn for the printer's print dialog: some drivers lay a wide label on its
+  // side. Chosen once per device (0 / 90 / 180 / 270), A4/A3 sheets unaffected.
+  const [turn, setTurn] = useState(0);
+  useEffect(() => {
+    const t = Number(load('label-turn'));
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if ([90, 180, 270].includes(t)) setTurn(t);
+  }, []);
+  function pickTurn(t: number) {
+    setTurn(t);
+    store('label-turn', String(t));
+  }
   const [msg, setMsg] = useState<string | null>(null);
   const [canBt] = useState(() => typeof window !== 'undefined' && canPrintBluetooth());
   const preview = useRef<HTMLDivElement>(null);
@@ -133,13 +159,16 @@ export default function ZebraPanel({
     for (const d of jobs) {
       let src = cache.get(d);
       if (!src) {
-        src = drawLabel(size, d).toDataURL('image/png');
+        const c = drawLabel(size, d);
+        src = (sheet ? c : turned(c, turn)).toDataURL('image/png');
         cache.set(d, src);
       }
       const img = document.createElement('img');
       img.src = src;
       box.append(img);
     }
+    // A quarter turn swaps the page's sides.
+    const [pw, ph] = turn % 180 ? [size.h, size.w] : [size.w, size.h];
     const style = document.createElement('style');
     style.id = 'print-labels-style';
     style.textContent = sheet
@@ -148,10 +177,10 @@ export default function ZebraPanel({
            #print-labels { display: flex !important; flex-wrap: wrap; gap: 2mm; }
            #print-labels img { width: ${size.w}mm; height: ${size.h}mm; outline: 0.2mm dashed #999; break-inside: avoid; } }`
       : `#print-labels { display: none; }
-         @media print { @page { size: ${size.w}mm ${size.h}mm; margin: 0; } html, body { margin: 0 !important; padding: 0 !important; }
+         @media print { @page { size: ${pw}mm ${ph}mm; margin: 0; } html, body { margin: 0 !important; padding: 0 !important; }
            body > *:not(#print-labels) { display: none !important; }
            #print-labels { display: block !important; }
-           #print-labels img { display: block; width: ${size.w}mm; height: ${size.h}mm; break-after: page; } }`;
+           #print-labels img { display: block; width: ${pw}mm; height: ${ph}mm; break-after: page; } }`;
     document.getElementById('print-labels-style')?.remove();
     document.body.append(box, style);
     const cleanup = () => {
@@ -259,6 +288,23 @@ export default function ZebraPanel({
             className={`${input} w-16`}
           />
         </label>
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5 text-sm">
+        <span className="mr-1">მობრუნება ბეჭდვისას</span>
+        {[0, 90, 180, 270].map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => pickTurn(t)}
+            className={`rounded-control border px-2.5 py-1.5 tabular-nums ${turn === t ? 'border-ink bg-ink text-paper' : 'border-rule-strong'}`}
+          >
+            {t}°
+          </button>
+        ))}
+        <span className="text-xs text-ink-faint">
+          თუ პრინტერი სტიკერს გვერდულად ან თავდაყირა ბეჭდავს — აქ შეცვალე (ინახება ამ
+          მოწყობილობაზე).
+        </span>
       </div>
 
       <div className="grid justify-items-start gap-1">
